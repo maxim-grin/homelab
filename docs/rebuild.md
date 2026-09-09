@@ -110,46 +110,67 @@ qm set 5000 --serial0 socket --vga serial0
 qm template 5000
 ```
 
-**Two things to verify on the live host before a rebuild depends on this.**
-They are recorded rather than silently corrected, because the cluster works
-today and these notes disagree with the Terraform modules.
+**Both open questions were answered on 2026-09-09.** Recorded here so a
+rebuild does not re-derive them.
 
-1. **Cloud-init drive bus.** The template attaches it at `ide2`;
-   `proxmox/modules/ubuntu-vm/main.tf:64` declares the clone's cloud-init
-   drive at `ide3`. A full clone inherits `ide2` from the template and the
-   provider then configures `ide3`, so a VM could carry two. Since every VM
-   here boots and takes its static address, whatever actually happens is
-   benign — but nobody has looked. One command settles it:
+**Cloud-init bus — benign, no change needed.** The template attaches its
+drive at `ide2`, while `proxmox/modules/ubuntu-vm/main.tf:64` declares
+`ide3`. On a Terraform-created VM the result is a single drive on the bus
+the module declares:
 
-   ```bash
-   qm config 100 | grep -E '^(ide|scsi|agent|boot)'
-   ```
+```
+$ qm config 100 | grep -E '^(ide|scsi|agent|boot)'
+agent: 1
+boot: order=scsi0
+ide3: local-lvm:vm-100-cloudinit,media=cdrom
+scsi0: local-lvm:vm-100-disk-0,cache=none,discard=on,iothread=1,size=20G,ssd=1
+scsihw: virtio-scsi-single
+```
 
-   If only one cloud-init drive appears, the module and template agree in
-   practice and this note can be deleted. If both appear, align the
-   template to `ide3` so a rebuilt one behaves like the current one.
+No `ide2` survives the clone. The two settings never conflict in practice,
+so the template can keep using `ide2`.
 
-2. **QEMU guest agent.** These steps never install `qemu-guest-agent`, and
-   stock Ubuntu cloud images do not ship it, yet the module sets
-   `agent = 1` with `agent_timeout = 300`. That combination usually costs a
-   long wait per VM while Proxmox queries an agent that never answers.
-   Applies here have not visibly suffered, so check whether the guest
-   actually has it:
+**QEMU guest agent — absent, and worth fixing.** The config above sets
+`agent: 1`, but the guest never runs one:
 
-   ```bash
-   qm agent 100 ping && echo "agent responds"
-   ```
+```
+$ qm agent 100 ping
+QEMU guest agent is not running
+```
 
-   If it does not respond, either bake the agent into the image —
+Ubuntu cloud images do not ship `qemu-guest-agent`, and neither the
+template build nor any Ansible role installs it. Proxmox is therefore told
+to expect an agent that never answers. What that costs:
 
-   ```bash
-   apt-get install -y libguestfs-tools
-   virt-customize -a noble-server-cloudimg-amd64.img --install qemu-guest-agent
-   ```
+- `qm shutdown` falls back to ACPI instead of asking the guest to shut down
+  cleanly, so a busy VM can be cut off mid-write.
+- Proxmox cannot report guest IPs or filesystem usage — the VM's Summary
+  page shows no addresses.
+- Backups cannot `fs-freeze`, so snapshots are crash-consistent rather than
+  clean.
+- `ubuntu-vm` sets `agent_timeout = 300`. Applies have not visibly stalled,
+  but the provider has a five-minute budget to wait on something that will
+  never reply.
 
-   — or set `qemu_agent = 0` on the modules and accept that Terraform learns
-   no IP from the guest. The static `ipconfig0` is what the modules use
-   anyway.
+Fix it in the image so every future VM inherits it:
+
+```bash
+apt-get install -y libguestfs-tools
+virt-customize -a noble-server-cloudimg-amd64.img --install qemu-guest-agent
+```
+
+For the VMs that already exist, install it in place — they are all
+reachable over SSH:
+
+```bash
+ansible all -i inventories/dev/hosts.yaml -e @secret.yaml --ask-vault-pass \
+  -b -m apt -a "name=qemu-guest-agent state=present update_cache=true"
+```
+
+The alternative is setting `qemu_agent = 0` on the modules and accepting no
+guest-reported IP. That is worse: the modules already take their addresses
+from the static `ipconfig0`, so the agent costs nothing and buys clean
+shutdowns and working backups.
 
 `scsihw` differs too — `virtio-scsi-pci` here versus `virtio-scsi-single` in
 the module — but that one is harmless: the module sets it explicitly on
@@ -267,11 +288,9 @@ GitHub, not the local checkout, so anything uncommitted is invisible to it.
 Roughly in order of how much they would hurt. None is urgent while the
 cluster holds no data.
 
-1. **Resolve the two template questions in section 2** — the `ide2`/`ide3`
-   cloud-init slot and whether the guest agent is present. `qm config 100`
-   and `qm agent 100 ping` answer both, and turn section 2 from
-   notes-plus-caveats into a procedure. Best done while a working cluster
-   still exists to compare against.
+1. **Install `qemu-guest-agent`** — see section 2. Every VM currently runs
+   without it while Proxmox is configured to expect one, so shutdowns are
+   ACPI-only and backups cannot freeze the filesystem.
 2. **Script the template build.** The commands above are a start; a
    `scripts/build-template.sh` would be better than a document that can drift.
 3. **Store the ansible-vault password in a password manager** if it is not
