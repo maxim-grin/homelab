@@ -179,7 +179,7 @@ module "claude_code" {
   # Disk Configuration
   # 60G, not 30G: cloned repos plus npm/uv caches and node_modules fill
   # 30G quickly on a box whose whole job is checking out other projects.
-  disk_size    = "60G"
+  disk_size    = "20G"
   disk_storage = "local-lvm"
 
   # Start automatically
@@ -229,10 +229,6 @@ module "nfs" {
   memory    = 2048
   cpu_cores = 2
 
-  # Disk Configuration
-  # 20G deliberately: the whole Proxmox host is a 256G SSD today. Growing
-  # this later takes two steps -- raise disk_size here, then growpart and
-  # resize2fs inside the guest, or the VM keeps reporting the old size.
   disk_size    = "20G"
   disk_storage = "local-lvm"
 
