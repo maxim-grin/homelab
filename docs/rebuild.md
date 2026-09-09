@@ -273,6 +273,38 @@ nowhere else, this section stops being theoretical — mirror it to GitHub.
 A backup CronJob writing to the NFS export does **not** help: the export is
 on the same disk. Any backup worth having has to leave the machine.
 
+## Disk capacity, measured 2026-09-09
+
+`local-lvm` is an LVM thin pool, so `qm` prints an overcommit warning on
+every volume it creates. The numbers behind it, from
+`lvs -o lv_name,lv_size,data_percent,metadata_percent pve`:
+
+| | |
+| --- | --- |
+| Pool `pve/data` | 141.23 GiB, **21.4% used** (~30 GiB), metadata 1.8% |
+| Declared volume sizes | 143.5 GiB — overcommitted by 2.3 GiB, i.e. 1.6% |
+| Free in the volume group | 16 GiB |
+
+The warning is technically accurate and practically irrelevant at this
+ratio: if every volume filled to its declared size at once the pool would
+be 2.3 GiB short, not tens of gigabytes. Enabling the protection it
+suggests is still cheap — set
+`activation/thin_pool_autoextend_threshold = 80` and
+`thin_pool_autoextend_percent = 20` in `/etc/lvm/lvm.conf` — but it can
+only grow into the VG's 16 GiB, so it buys one small extension rather
+than safety.
+
+**The pressure is per-VM, not pool-wide.** The Kubernetes nodes have 10
+GiB roots and are the tightest: worker-02 at 66.9%, worker-01 at 63.3%,
+master-01 at 45.9%. Container image churn is what fills them, and a full
+node root does not fail politely — kubelet begins evicting pods and
+garbage-collecting images. Watch those three long before worrying about
+the pool.
+
+Two allocations are simply wasteful and inflate the warning for nothing:
+`claude-code` was given 60 GiB and uses 4.9, and `ubuntu` (vmid 100) holds
+20 GiB at 0.0% because it has never booted.
+
 ## Rebuild order
 
 Each step depends on the one above it.
