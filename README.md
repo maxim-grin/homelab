@@ -43,7 +43,9 @@ docs/rebuild.md   How to recreate all of this from a bare Proxmox install.
 ## Checks before committing
 
 ```bash
-uv tool install pre-commit ansible-lint    # or pipx
+# uv tool install takes one package per invocation, not a list
+uv tool install pre-commit
+uv tool install ansible-lint
 pre-commit install                          # wires pre-commit AND commit-msg
 ```
 
