@@ -1,0 +1,53 @@
+# Copy to prod.tfvars and fill in. prod.tfvars is gitignored (*.tfvars).
+#
+# Nothing in this environment has ever been applied. It provisions a Talos
+# Kubernetes cluster plus five LXC containers -- a TurnKey NAS, Pi-hole,
+# Vault, Traefik and a homepage -- none of which exist. Treat every value
+# below as a starting point rather than a record of a working deployment,
+# and see docs/rebuild.md, which covers the dev environment that does run.
+#
+# Two extra prerequisites beyond the dev environment:
+#   - a "Talos-K8s" resource pool and a talos-tp VM template, neither of
+#     which this repository creates (talos-tp is hard-coded in main.tf)
+#   - the TurnKey fileserver LXC template downloaded on the host
+
+# General
+project     = "homelab"
+environment = "prod"
+
+# Proxmox
+pm_target_node = "pve"
+pm_api_url     = "https://<PROXMOX_IP>:8006/api2/json"
+# Reissue from Datacenter > Permissions > API Tokens; tokens cannot be
+# exported, so a rebuilt host always needs a new pair.
+pm_api_token_id     = "root@pam!terraform"
+pm_api_token_secret = "<UUID>"
+
+# LXC templates that must already be downloaded on the host. The string has
+# to match a file that exists, so check what is on offer first:
+#   pveam update && pveam available | grep debian-13
+#   pveam download local debian-13-standard_13.0-1_amd64.tar.zst
+debian_os_template                 = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
+debian_turnkey_fileserver_template = "local:vztmpl/debian-12-turnkey-fileserver_18.0-1_amd64.tar.gz"
+
+# Shared root password for the LXC containers below.
+lxc_pass = "<PASSWORD>"
+
+# Networking. Each container takes a static address on this gateway's subnet.
+gateway = "10.0.0.1"
+
+# Talos cluster CIDR. Left empty in the working copy because the Talos
+# modules have never been applied; set it before enabling module talos-k8s-1.
+talos_k8s_cidr = ""
+
+# LXC container addresses, matched to the vmids in main.tf
+tk_nas_ip   = "10.0.0.30"   # vmid 300, TurnKey NAS
+pi_hole_ip  = "10.0.0.31"   # vmid 311, Pi-hole
+vault_ip    = "10.0.0.33"   # vmid 333, HashiCorp Vault
+traefik_ip  = "10.0.0.38"   # vmid 388, Traefik
+homepage_ip = "10.0.0.39"   # vmid 399, homepage
+
+# NOTE: the working prod.tfvars also sets ssh_private_key_path and
+# ssh_public_key, which variables.tf does not declare. Terraform warns
+# "Value for undeclared variable" and ignores them, so they are omitted
+# here. Add the declarations if the Talos modules ever need them.

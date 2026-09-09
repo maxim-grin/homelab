@@ -1,0 +1,12 @@
+---
+# Default values for the NFS server role
+nfs_server_export_path: /srv/nfs/k8s
+
+# The cluster subnet allowed to mount the export. Narrow this if the homelab
+# ever grows a separate VLAN for Kubernetes.
+nfs_server_export_clients: 10.0.0.0/24
+
+# no_root_squash is required, not lazy: nfs-subdir-external-provisioner
+# creates a directory per PersistentVolume and chowns it. With root squashed
+# to nobody those chowns fail and every PVC stays Pending.
+nfs_server_export_options: rw,sync,no_subtree_check,no_root_squash

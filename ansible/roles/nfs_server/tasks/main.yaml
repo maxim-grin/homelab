@@ -1,0 +1,37 @@
+---
+- name: Install the NFS server package
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+    update_cache: true
+
+- name: Create the export directory
+  ansible.builtin.file:
+    path: "{{ nfs_server_export_path }}"
+    state: directory
+    # 0777 with no_root_squash: the provisioner creates a subdirectory per
+    # PersistentVolume as root and the workloads that mount them run as
+    # arbitrary uids. Tightening this breaks PVC provisioning.
+    mode: "0777"
+
+- name: Write /etc/exports
+  ansible.builtin.template:
+    src: exports.j2
+    dest: /etc/exports
+    mode: "0644"
+  notify: Reload exports
+
+- name: Enable and start the NFS server
+  ansible.builtin.systemd_service:
+    name: nfs-kernel-server
+    enabled: true
+    state: started
+
+- name: Confirm the export is published
+  ansible.builtin.command: showmount -e localhost
+  register: nfs_server_exports
+  changed_when: false
+
+- name: Show the published exports
+  ansible.builtin.debug:
+    msg: "{{ nfs_server_exports.stdout_lines }}"

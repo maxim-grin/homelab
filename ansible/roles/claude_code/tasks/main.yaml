@@ -1,0 +1,105 @@
+---
+# Terraform reports the VM ready as soon as sshd accepts, which can be before
+# cloud-init has rewritten /etc/apt/sources.list.d/ubuntu.sources. Installing
+# against the half-configured sources is how this role first broke.
+# rc 2 is "done, but with recoverable errors" and is the normal outcome on
+# this template, which logs a deprecation warning for the 'user' key on every
+# boot. Only rc 1, an unrecoverable failure, should stop the play.
+- name: Wait for cloud-init to finish
+  ansible.builtin.command: cloud-init status --wait
+  register: claude_code_cloud_init
+  changed_when: false
+  failed_when: claude_code_cloud_init.rc not in [0, 2]
+
+# Unconditional, and deliberately not the apt module's update_cache flag. The
+# ubuntu-cid-tp template bakes main-only indexes into /var/lib/apt/lists, and
+# cloud-init adds universe to the sources without ever running apt-get update
+# -- so a fresh clone has universe configured but unindexed, and every
+# universe package (fd-find, ripgrep) resolves as "no package matching".
+# update_cache skips the refresh when it judges the cache fresh, which on a
+# template-baked cache is exactly the wrong call.
+- name: Refresh the apt cache  # noqa: command-instead-of-module
+  ansible.builtin.command: apt-get update
+  changed_when: false
+
+- name: Install baseline packages
+  ansible.builtin.apt:
+    name: "{{ claude_code_packages }}"
+    state: present
+
+# Ubuntu ships fd as fd-find and installs the binary as fdfind, because the
+# fd name is taken by another package. Claude Code and most dotfiles call
+# plain fd, so link it into the user's path.
+- name: Link fdfind to fd
+  ansible.builtin.file:
+    src: /usr/bin/fdfind
+    dest: /usr/local/bin/fd
+    state: link
+
+- name: Ensure the apt keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add NodeSource signing key
+  ansible.builtin.get_url:
+    url: "{{ claude_code_nodejs_repo_key_url }}"
+    dest: /etc/apt/keyrings/nodesource.asc
+    mode: "0644"
+
+- name: Add NodeSource repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/nodesource.asc]
+      https://deb.nodesource.com/node_{{ claude_code_nodejs_major }}.x nodistro main
+    filename: nodesource
+    state: present
+    # Refreshes only when the repo entry actually changes, which is what we
+    # want: the NodeSource index has to land before nodejs can resolve.
+    update_cache: true
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+
+- name: Check whether Claude Code is already installed
+  ansible.builtin.stat:
+    path: "{{ claude_code_home }}/.local/bin/claude"
+  become: false
+  register: claude_code_binary
+
+# become: false is deliberate. ansible.cfg sets become = True globally for the
+# Kubernetes plays, but the installer drops a self-updating binary under the
+# connecting user's ~/.local and `claude update` cannot touch it if root owns
+# it. The connection user already is claude_code_user, so no become is needed
+# -- and sudo from one unprivileged user to another breaks on temp files.
+- name: Install Claude Code
+  ansible.builtin.shell:
+    cmd: "set -o pipefail && curl -fsSL {{ claude_code_installer_url }} | bash"
+    executable: /bin/bash
+  become: false
+  when: not claude_code_binary.stat.exists
+  changed_when: true
+
+- name: Ensure the user's local bin is on PATH
+  ansible.builtin.blockinfile:
+    path: "{{ claude_code_home }}/.bashrc"
+    create: true
+    owner: "{{ claude_code_user }}"
+    group: "{{ claude_code_user }}"
+    mode: "0644"
+    marker: "# {mark} ANSIBLE CLAUDE CODE"
+    block: |
+      export PATH="$HOME/.local/bin:$PATH"
+
+- name: Report the installed version
+  ansible.builtin.command: "{{ claude_code_home }}/.local/bin/claude --version"
+  become: false
+  register: claude_code_version
+  changed_when: false
+
+- name: Show the installed version
+  ansible.builtin.debug:
+    msg: "{{ claude_code_version.stdout }}"

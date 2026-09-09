@@ -1,0 +1,50 @@
+# Terraform Ignores
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+# Crash log files
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.enc     # Allow encrypted tfvars files, if you use them
+backend.tf
+
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+.terraformrc
+terraform.rc
+.idea/codeStyles
+.idea
+.envrc
+.DS_Store
+
+# Talos
+*.patch
+!*.patch.tmpl
+# Ignore talosctl gen output, but keep the SOPS-encrypted copies. Must be
+# _out/* not _out/ -- git cannot re-include a file inside an excluded
+# directory, so excluding the directory itself would make the !...enc line
+# dead. The previous rules never worked: "_out/**" has an inner slash so git
+# anchored it to the repo root and it never matched talos/_out, while
+# "!_out/" is unanchored and un-ignored the directory at any depth. That is
+# how talos/_out/secrets.yaml, talosconfig and its private key came to be
+# committed in the initial import.
+talos/_out/*
+!talos/_out/*.enc
+talos/patches/.env
+
+# Ansible
+ansible/secret.yaml.decrypted
+ansible/secret.yaml.bak
+ansible/secret.yaml.tmp
+
+# Vault
+vault/secrets.yaml
+argocd/argocd-values.yaml
+CLAUDE.md
+
+

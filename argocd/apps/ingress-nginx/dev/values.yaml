@@ -1,0 +1,53 @@
+# ingress-nginx for the dev cluster.
+#
+# Before this existed, harbor-ingress sat with an empty ADDRESS and
+# "kubectl get ingressclass" returned nothing: the Ingress asked for class
+# nginx and no controller existed to claim it. Harbor's pods were healthy
+# the whole time and simply unreachable.
+controller:
+  # DaemonSet + hostPort rather than a Service. This cluster is bare metal
+  # with no LoadBalancer and no MetalLB, so the only other option is a
+  # NodePort in the 30000-32767 range -- which puts a port in every URL and
+  # is what harbor's "externalURL: http://harbor.mgryn.cc:31529" was
+  # already working around. Binding 80/443 on each node keeps hostnames
+  # clean and needs nothing but a DNS A record.
+  kind: DaemonSet
+  hostPort:
+    enabled: true
+    ports:
+      http: 80
+      https: 443
+
+  # No Service: with hostPort the node IP is the entry point, and a
+  # ClusterIP Service in front of it would only add a hop.
+  service:
+    enabled: false
+
+  # publishService needs a Service to read an external IP from; without one
+  # it cannot resolve an address and every Ingress keeps the empty ADDRESS
+  # this app exists to fix. The node IPs are reported instead.
+  publishService:
+    enabled: false
+  reportNodeInternalIp: true
+
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    # default: true so future apps can omit className entirely. harbor's
+    # values already set className: nginx explicitly, which keeps working.
+    default: true
+
+  # The cluster has three schedulable nodes and no taint on the control
+  # plane node in this setup; a pod per node means any node's IP serves
+  # traffic, so DNS can point at whichever one is convenient.
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi

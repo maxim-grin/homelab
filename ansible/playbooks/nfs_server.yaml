@@ -1,0 +1,9 @@
+---
+# The server half of NFS. playbooks/nfs_setup.yaml is the client half and
+# installs nfs-common on the cluster nodes; run this one first, or the
+# client role's showmount check reports the server unreachable.
+- name: Provision the NFS server
+  hosts: nfs
+  gather_facts: true
+  roles:
+    - nfs_server

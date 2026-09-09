@@ -1,0 +1,45 @@
+# NFS_SERVER and the volume's server/path are literal because ArgoCD renders
+# from git: a value it cannot read is a value it cannot apply, and Deployment
+# .spec...volumes.nfs.server takes no ConfigMap reference. 10.0.0.131 is
+# RFC1918, so committing it to a public repo exposes nothing routable.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-client-provisioner-dev
+  namespace: nfs-system
+  labels:
+    app: nfs-client-provisioner
+    environment: dev
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner
+      environment: dev
+  template:
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+        environment: dev
+    spec:
+      serviceAccountName: nfs-client-provisioner
+      containers:
+        - name: nfs-client-provisioner
+          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /persistentvolumes
+          env:
+            - name: PROVISIONER_NAME
+              value: nfs-dev
+            - name: NFS_SERVER
+              value: 10.0.0.131
+            - name: NFS_PATH
+              value: /srv/nfs/k8s
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: 10.0.0.131
+            path: /srv/nfs/k8s

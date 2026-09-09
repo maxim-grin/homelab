@@ -1,0 +1,8 @@
+# Bracket lookup, not dot notation: Jinja parses host_ips.master-01 as
+# `master` minus `1` and dies with "expected token 'end of print
+# statement', got 'integer'". It went unnoticed because secret.yaml
+# sets control_plane_endpoint as an extra-var, which outranks group_vars,
+# so this line was never evaluated.
+control_plane_endpoint: "{{ host_ips['master-01'] }}"
+kubernetes_version_tag: "v1.33.5"
+install_kubectl: true

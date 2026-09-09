@@ -1,0 +1,98 @@
+variable "project" {
+  description = "Proxmox Project Name"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment Name"
+  type        = string
+
+  # validation {
+  #   condition     = var.environment == terraform.workspace
+  #   error_message = "Workspace & Variable File Inconsistency!! Please Double Check!!"
+  # }
+}
+
+# Talos Cluster Variables
+variable "talos_k8s_cidr" {
+  description = "Talos VM IP configuration "
+  type        = string
+}
+
+variable "debian_os_template" {
+  description = "OS template for Debian distro"
+  type        = string
+}
+
+variable "debian_turnkey_fileserver_template" {
+  description = "Debian turnkey fileserver template"
+  type        = string
+}
+
+# ProxMox Variable
+variable "pm_api_url" {
+  description = "Proxmox API URL"
+  type        = string
+}
+
+variable "pm_api_token_id" {
+  description = "Proxmox API Token ID"
+  type        = string
+}
+
+variable "pm_api_token_secret" {
+  description = "Proxmox API Token Secret"
+  type        = string
+}
+
+# ProxMox Variables
+variable "pm_target_node" {
+  description = "Proxmox Target Node"
+  type        = string
+}
+
+# Turnkey NAS Variable
+variable "lxc_pass" {
+  description = "Turnkey Container Password"
+  type        = string
+  sensitive   = true
+}
+
+variable "gateway" {
+  description = "LXC Container Gateway"
+  type        = string
+}
+
+variable "tk_nas_ip" {
+  description = "Turnkey NAS container IP"
+  type        = string
+  default     = "dhcp"
+}
+
+# Pi-Hole variables
+variable "pi_hole_ip" {
+  description = "PI Hole Container IP"
+  type        = string
+  default     = "dhcp"
+}
+
+# Hashicorp Vault variables
+variable "vault_ip" {
+  description = "Hashicorp Vault Container IP"
+  type        = string
+  default     = "dhcp"
+}
+
+# Traefik variables
+variable "traefik_ip" {
+  description = "Traefik Reverse Proxy Container IP"
+  type        = string
+  default     = "dhcp"
+}
+
+# Homepage variables
+variable "homepage_ip" {
+  description = "Homepage Container IP"
+  type        = string
+  default     = "dhcp"
+}

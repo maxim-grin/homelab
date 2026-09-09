@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: homelab
+  sources:
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      targetRevision: 4.14.5
+      helm:
+        releaseName: ingress-nginx
+        valueFiles:
+          - $values/argocd/apps/ingress-nginx/dev/values.yaml
+    - repoURL: https://github.com/maxim-grin/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The chart's admission webhook is created by a Job that must finish
+      # before any Ingress can be admitted. Without ServerSideApply the
+      # webhook configuration and its CA bundle race on resync.
+      - ServerSideApply=true

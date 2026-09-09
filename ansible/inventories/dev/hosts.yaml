@@ -1,0 +1,31 @@
+all:
+  vars:
+    ansible_user: "{{ user_name }}"
+    ansible_private_key_file: "{{ ssh_private_key }}"
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  children:
+    k8s_cluster:
+      children:
+        k8s_control_plane:
+          hosts:
+            master-01:
+              ansible_host: "{{ host_ips['master-01'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['master-01'] }}"
+        k8s_workers:
+          hosts:
+            worker-01:
+              ansible_host: "{{ host_ips['worker-01'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['worker-01'] }}"
+            worker-02:
+              ansible_host: "{{ host_ips['worker-02'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['worker-02'] }}"
+    claude_code:
+      hosts:
+        claude-code-01:
+          ansible_host: "{{ host_ips['claude-code-01'] }}"
+          proxmox_vm_id: "{{ proxmox_vm_ids['claude-code-01'] }}"
+    nfs:
+      hosts:
+        nfs-01:
+          ansible_host: "{{ host_ips['nfs-01'] }}"
+          proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"

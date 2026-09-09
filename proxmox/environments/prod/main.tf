@@ -1,0 +1,207 @@
+# Talos K8s Cluster
+module "talos-k8s-1" {
+  source = "../../modules/talos-k8s"
+
+  cluster_id   = 1
+  cluster_name = "talos-k8s"
+  pool         = "Talos-K8s"
+
+  master_count = 1
+  worker_count = 2
+
+  network_cidr = var.talos_k8s_cidr
+  gateway      = var.gateway
+
+  clone_template = "talos-tp"
+  full_clone     = true
+
+  power_state = "running"
+
+  qemu_agent = 0
+
+  master_memory = 8192
+  worker_memory = 8192
+
+}
+
+
+
+# Lightweight LXC Containers
+module "tk_nas" {
+  source = "../../modules/lxc"
+
+  vmid               = 300
+  target_node        = var.pm_target_node
+  hostname           = "tk-nas"
+  ostemplate         = var.debian_turnkey_fileserver_template
+  password           = var.lxc_pass
+  start_at_node_boot = true
+  unprivileged       = true
+  pool               = "LXC"
+
+
+  # Resources
+  cores  = 1
+  memory = 2048
+
+  # Storage
+  rootfs_storage = "local-lvm"
+  rootfs_size    = "8G"
+
+  # Network
+  network_bridge = "vmbr0"
+  network_ip     = var.tk_nas_ip
+  network_gw     = var.gateway
+
+  features_enabled = true
+  features = {
+    nesting = true
+  }
+
+  # Startup
+  startup = "order=10,up=10"
+
+  # Tags
+  tags = "lxc,nas,prod"
+}
+
+module "pi_hole" {
+  source = "../../modules/lxc"
+
+  vmid               = 311
+  target_node        = var.pm_target_node
+  hostname           = "pi-hole"
+  ostemplate         = var.debian_os_template
+  password           = var.lxc_pass
+  start_at_node_boot = true
+  unprivileged       = true
+  pool               = "LXC"
+
+  # Resources
+  cores  = 2
+  memory = 1024
+  swap   = 0
+
+  # Storage
+  rootfs_storage = "local-lvm"
+  rootfs_size    = "8G"
+
+  # Network
+  network_bridge = "vmbr0"
+  network_ip     = var.pi_hole_ip
+  network_gw     = var.gateway
+
+  features_enabled = true
+  features = {
+    nesting = true
+    keyctl  = true
+  }
+
+  startup = "order=5,up=10"
+
+  tags = "lxc,dns,prod"
+}
+
+module "vault_lxc" {
+  source = "../../modules/lxc"
+
+  vmid               = 333
+  target_node        = var.pm_target_node
+  hostname           = "vault"
+  ostemplate         = var.debian_os_template
+  password           = var.lxc_pass
+  start_at_node_boot = true
+  unprivileged       = true
+  pool               = "LXC"
+
+  # Resources
+  cores  = 1
+  memory = 1024
+  swap   = 0
+
+  # Storage
+  rootfs_storage = "local-lvm"
+  rootfs_size    = "10G"
+
+  # Network
+  network_bridge = "vmbr0"
+  network_ip     = var.vault_ip
+  network_gw     = var.gateway
+
+  # Features
+  features_enabled = true
+  features = {
+    nesting = true
+  }
+
+  startup = "order=6,up=10"
+
+  tags = "lxc,vault,prod"
+}
+
+module "traefik" {
+  source = "../../modules/lxc"
+
+  vmid               = 388
+  target_node        = var.pm_target_node
+  hostname           = "traefik"
+  ostemplate         = var.debian_os_template
+  password           = var.lxc_pass
+  start_at_node_boot = true
+  unprivileged       = true
+  pool               = "LXC"
+
+  # Resources
+  cores  = 1
+  memory = 512
+  swap   = 0
+
+  # Storage
+  rootfs_storage = "local-lvm"
+  rootfs_size    = "8G"
+
+  # Network
+  network_bridge = "vmbr0"
+  network_ip     = var.traefik_ip
+  network_gw     = var.gateway
+
+  features_enabled = true
+  features = {
+    nesting = true
+    keyctl  = true
+  }
+
+  startup = "order=4,up=10"
+
+  tags = "lxc,traefik,proxy,prod"
+}
+
+module "homepage" {
+  source             = "../../modules/lxc"
+  vmid               = 399
+  target_node        = var.pm_target_node
+  hostname           = "homepage"
+  ostemplate         = var.debian_os_template
+  password           = var.lxc_pass
+  start_at_node_boot = true
+  unprivileged       = true
+  pool               = "LXC"
+  # Resources - Increased for Docker
+  cores  = 2
+  memory = 2048
+  swap   = 0
+  # Storage
+  rootfs_storage = "local-lvm"
+  rootfs_size    = "8G"
+  # Network
+  network_bridge   = "vmbr0"
+  network_ip       = var.homepage_ip
+  network_gw       = var.gateway
+  features_enabled = true
+  features = {
+    nesting = true
+    keyctl  = true
+  }
+  startup = "order=7,up=10"
+  tags    = "lxc,dashboard,docker,prod"
+}

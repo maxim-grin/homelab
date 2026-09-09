@@ -1,0 +1,57 @@
+# Copy to dev.tfvars and fill in. dev.tfvars is gitignored (*.tfvars) and is
+# the one piece of configuration with no backup anywhere -- see
+# docs/rebuild.md before you need it.
+
+# General
+project     = "homelab"
+environment = "dev"
+
+# Proxmox
+pm_target_node = "pve"
+pm_api_url     = "https://<PROXMOX_IP>:8006/api2/json"
+# Reissue from Datacenter > Permissions > API Tokens. Tokens cannot be
+# exported, so a rebuilt host always needs a new pair.
+pm_api_token_id     = "root@pam!terraform"
+pm_api_token_secret = "<UUID>"
+
+# Cloud-init user applied to every VM
+ci_user     = "ubuntu"
+ci_password = "<PASSWORD>"
+
+# The private key is never read by Proxmox -- only by Terraform's
+# provisioners and Ansible. The public half is injected at create time, so
+# changing the pair means recreating every VM.
+ssh_private_key_path = "~/.ssh/homelab_dev"
+ssh_public_key       = "ssh-ed25519 AAAA... homelab-dev"
+
+# Templates that must already exist on the host; docs/rebuild.md has the
+# qm commands that build ubuntu-cid-tp. The LXC template string has to
+# match a file actually downloaded by `pveam download local <name>` --
+# check `pveam available | grep debian-13` and update this rather than
+# hunting for the exact build pinned here.
+clone_template_ubuntu = "ubuntu-cid-tp"
+clone_template_k8s    = "ubuntu-cid-tp"
+debian_os_template    = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
+
+# ------------------------------------------------------------------
+# Machines. ipconfig0 format: ip=<IP>/<CIDR>,gw=<GATEWAY>
+# ------------------------------------------------------------------
+ub_ip_config = "ip=10.0.0.110/24,gw=10.0.0.1"
+ub_vm_ip     = "10.0.0.110"
+
+ub_2_ip_config = "ip=10.0.0.111/24,gw=10.0.0.1"
+ub_2_vm_ip     = "10.0.0.111"
+
+# Kubernetes nodes are addressed from this CIDR by the ubuntu-k8s module.
+ub_k8s_cidr = "10.0.0.0/24"
+gateway     = "10.0.0.1"
+
+# LXC (only needed if the commented-out n8n module is enabled)
+lxc_pass = "<PASSWORD>"
+n8n_ip   = "dhcp"
+
+# Claude Code workstation VM. Must include CIDR.
+claude_code_ip = "10.0.0.130/24"
+
+# NFS server VM. Must include CIDR.
+nfs_vm_ip = "10.0.0.131/24"
