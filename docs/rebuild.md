@@ -294,6 +294,36 @@ suggests is still cheap — set
 only grow into the VG's 16 GiB, so it buys one small extension rather
 than safety.
 
+**Disk sizes only go up.** `disk_size` in a module can be raised; it cannot
+be lowered. Proxmox has no shrink operation — `qm resize` grows only — and
+the provider's attempt to detach and re-add the disk fails outright:
+
+```
+scsi0:hotplug problem - can't unplug bootdisk 'scsi0'
+```
+
+Worse, that failed apply still wrote the smaller value into
+`terraform.tfstate`, so Terraform believed `claude-code` had a 20 GiB disk
+while Proxmox kept the 60 GiB one, and a subsequent `plan` showed no
+difference. If it happens, restore the real value in the module and run
+`terraform apply -refresh-only -var-file=dev.tfvars`, which resyncs state
+from the API without touching infrastructure.
+
+Growing works, but needs a second step inside the guest — the virtual disk
+gets bigger and the filesystem does not follow on its own:
+
+```bash
+# after raising disk_size and applying
+growpart /dev/sda 1
+resize2fs /dev/sda1
+```
+
+Genuinely reducing a VM's disk means recreating it:
+`terraform apply -replace='module.<name>.proxmox_vm_qemu.ubuntu_vm'`, then
+re-running that host's playbook. Weigh that against what the space is worth:
+the pool is 21% used, so a 60 GiB allocation using 4.9 costs nothing but an
+inflated warning.
+
 **The pressure is per-VM, not pool-wide.** The Kubernetes nodes have 10
 GiB roots and are the tightest: worker-02 at 66.9%, worker-01 at 63.3%,
 master-01 at 45.9%. Container image churn is what fills them, and a full
