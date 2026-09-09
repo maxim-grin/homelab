@@ -40,6 +40,19 @@ scripts/          Ad-hoc checks.
 docs/rebuild.md   How to recreate all of this from a bare Proxmox install.
 ```
 
+## Checks before committing
+
+```bash
+uv tool install pre-commit ansible-lint    # or pipx
+pre-commit install                          # wires pre-commit AND commit-msg
+```
+
+Nine hooks: file hygiene, `check-yaml`, `detect-private-key`, `gitleaks`,
+`ansible-lint`, `terraform fmt`, and a conventional-commit check on the
+message. `ansible/.ansible-lint-ignore` holds the 26 findings inherited from
+the repository this was copied from — they stay visible rather than silenced,
+and anything new fails.
+
 ## Day-to-day
 
 ```bash

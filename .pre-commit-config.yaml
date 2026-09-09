@@ -1,0 +1,83 @@
+# Without this, `pre-commit install` wires up only the pre-commit stage and
+# the commit-msg hook is silently never installed -- a malformed commit
+# message then lands unchecked and nothing says why.
+default_install_hook_types: [pre-commit, commit-msg]
+
+# ansible/secret.yaml is ansible-vault ciphertext, not YAML. check-yaml
+# cannot parse it and end-of-file-fixer would corrupt it by appending to the
+# encrypted payload.
+exclude: ^ansible/secret\.yaml$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      # Kubernetes manifests and the AppProject are multi-document; without
+      # this flag every file starting with --- and holding more than one
+      # object fails to parse.
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+
+      # The reason this config exists. talos/_out/talosconfig carried a
+      # client CA, certificate and private key into a public repository
+      # because the ignore rule read talos/secrets.yaml while the file sat
+      # at talos/_out/secrets.yaml. A gitignore typo should not be the only
+      # thing between a key and GitHub.
+      - id: detect-private-key
+
+  # Broader than detect-private-key: catches API tokens, cloud credentials
+  # and the Proxmox token id/secret pair that dev.tfvars holds, in case a
+  # tfvars file is ever committed by force or copied under another name.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, refactor, perf, style, test, docs, build, ops, chore]
+
+  - repo: local
+    hooks:
+      # language: system, not the upstream ansible-lint repo. In its own
+      # isolated environment ansible-lint cannot see kubernetes.core, so
+      # roles/argocd and roles/nfs_client raise syntax-check[unknown-module]
+      # on every commit -- and that rule is tagged unskippable, so no config
+      # silences it. Run from the local environment it sees the collections
+      # that are actually installed.
+      #
+      # pass_filenames is false and the whole project is linted, not the
+      # changed files: handed a single playbook, ansible-lint cannot resolve
+      # its roles and reports "The role 'nfs_server' was not found".
+      #
+      # ansible/.ansible-lint-ignore records the 51 findings this repo
+      # inherited from the homelab it was copied from -- fqcn, var-naming,
+      # yaml[truthy] and friends. Pre-existing debt is listed, so it stays
+      # visible, while anything new still fails. Regenerate with
+      # `ansible-lint --generate-ignore .` only after deliberately accepting
+      # a new violation.
+      #
+      # Needs ansible-lint on PATH: uv tool install ansible-lint
+      - id: ansible-lint
+        name: ansible-lint
+        language: system
+        entry: bash -c 'cd ansible && exec ansible-lint .'
+        files: ^ansible/.*\.(yaml|yml)$
+        pass_filenames: false
+
+      # terraform fmt needs the terraform binary, so this is a system hook
+      # too. -recursive because the modules live outside the environment
+      # directories and are edited just as often.
+      - id: terraform-fmt
+        name: terraform fmt
+        language: system
+        entry: terraform fmt -recursive -check -diff
+        files: ^proxmox/.*\.tf$
+        pass_filenames: false

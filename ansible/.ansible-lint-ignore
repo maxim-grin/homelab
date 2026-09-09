@@ -1,0 +1,26 @@
+# This file contains ignores rule violations for ansible-lint
+playbooks/argocd-dev.yaml no-changed-when
+playbooks/cluster_init.yaml name[play]
+playbooks/join_workers.yaml name[play]
+playbooks/support_tools.yaml name[play]
+playbooks/vault_setup.yaml command-instead-of-module
+playbooks/vault_setup.yaml fqcn[action-core]
+playbooks/vault_setup.yaml risky-shell-pipe
+playbooks/vault_setup.yaml yaml[truthy]
+roles/argocd/tasks/main.yaml syntax-check[unknown-module]
+roles/base_setup/tasks/main.yaml syntax-check[unknown-module]
+roles/containerd/handlers/main.yaml name[casing]
+roles/containerd/tasks/main.yaml risky-shell-pipe
+roles/containerd/tasks/main.yaml yaml[truthy]
+roles/control_plane/tasks/main.yaml no-changed-when
+roles/control_plane/tasks/main.yaml var-naming[no-role-prefix]
+roles/kube_packages/handlers/main.yaml name[casing]
+roles/kube_packages/tasks/main.yaml var-naming[no-role-prefix]
+roles/kube_packages/tasks/main.yaml yaml[truthy]
+roles/nfs_client/tasks/main.yaml fqcn[action-core]
+roles/nfs_client/tasks/main.yaml var-naming[no-role-prefix]
+roles/nfs_client/tasks/main.yaml yaml[truthy]
+roles/node_join/tasks/main.yaml no-changed-when
+roles/node_join/tasks/main.yaml var-naming[no-role-prefix]
+roles/support_tools/tasks/main.yaml risky-file-permissions
+roles/support_tools/tasks/main.yaml var-naming[no-role-prefix]
