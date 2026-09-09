@@ -177,15 +177,17 @@ module "claude_code" {
   cpu_cores = 4
 
   # Disk Configuration
-  # 60G, not 30G: cloned repos plus npm/uv caches and node_modules fill
-  # 30G quickly on a box whose whole job is checking out other projects.
+  # 20G. An earlier 60G was guesswork about npm and uv caches; measured, the
+  # VM used 4.9G of it.
   #
-  # Do not lower this. Proxmox cannot shrink a disk -- qm resize only grows,
-  # and the provider's attempt to detach and re-add scsi0 fails with
-  # "can't unplug bootdisk 'scsi0'". Worse, the failed apply still wrote the
-  # smaller value to state, so Terraform believed 20G while the disk stayed
-  # 60G. Shrinking means recreating the VM.
-  disk_size    = "60G"
+  # Changing this number is not free in either direction. Proxmox cannot
+  # shrink a disk: qm resize only grows, the provider's attempt to detach and
+  # re-add scsi0 fails with "can't unplug bootdisk 'scsi0'", and the failed
+  # apply still writes the smaller value into state, leaving Terraform
+  # believing a size the host does not have. Lowering it means
+  # `terraform apply -replace` and rebuilding the host from its playbook.
+  # Growing works in place but needs growpart and resize2fs in the guest.
+  disk_size    = "20G"
   disk_storage = "local-lvm"
 
   # Start automatically
