@@ -364,7 +364,7 @@ Each step depends on the one above it.
    is not managed by ArgoCD itself and must be applied by hand.
 10. **`kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml`**
     — `root-dev` then pulls in ingress-nginx, nfs, gitea, harbor, monitoring.
-11. **`ansible-playbook playbooks/claude_code.yaml`** — the workstation VM.
+11. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
 12. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc` and friends.
 
 Expect steps 9 and 10 to be the confusing ones: ArgoCD reads `main` from

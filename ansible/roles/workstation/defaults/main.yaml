@@ -1,0 +1,43 @@
+---
+# Default values for the Claude Code workstation role
+workstation_user: "{{ user_name }}"
+workstation_home: "/home/{{ workstation_user }}"
+
+# Node is here for the projects you check out on this box, not for Claude
+# Code itself -- the native installer ships its own runtime.
+workstation_nodejs_major: 22
+workstation_nodejs_repo_key_url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+
+workstation_installer_url: https://claude.ai/install.sh
+
+workstation_packages:
+  - build-essential
+  - ca-certificates
+  - curl
+  - fd-find
+  - git
+  - gnupg
+  - jq
+  - ripgrep
+  - unzip
+  # docker-compose-v2, not docker-compose: the projects here invoke
+  # `docker compose` as a plugin subcommand, which the old standalone
+  # binary does not provide.
+  - docker.io
+  - docker-compose-v2
+  # kubernetes.core's modules import this; without it every k8s task fails
+  # with "Failed to import the required Python library".
+  - python3-kubernetes
+
+# Pinned rather than tracking latest: a workstation that silently changes
+# tool versions makes "works on my machine" a moving target.
+workstation_kubectl_version: "1.33"
+workstation_kustomize_version: "5.4.3"
+workstation_terraform_channel: "noble"
+
+# Installed with uv rather than apt: neither is packaged for Ubuntu, and
+# dell_homelab's pre-commit hooks run both as `language: system` hooks, so
+# they must be on PATH rather than inside a hook's private environment.
+workstation_uv_tools:
+  - ansible-lint
+  - pre-commit

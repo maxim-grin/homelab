@@ -15,7 +15,7 @@ _not_ contain, which is the part that will bite.
 | Layer      | What                                                           | Where it is defined                                       |
 | ---------- | -------------------------------------------------------------- | --------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                         | not in git — see `docs/rebuild.md`                        |
-| VMs        | ubuntu, ubuntu-2, k8s master + 2 workers, claude-code, nfs     | `proxmox/environments/dev`                                |
+| VMs        | ubuntu, ubuntu-2, k8s master + 2 workers, workstation, nfs     | `proxmox/environments/dev`                                |
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
 | GitOps     | ArgoCD, app-of-apps `root-dev`                                 | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |

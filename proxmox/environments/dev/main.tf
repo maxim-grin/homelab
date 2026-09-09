@@ -177,8 +177,11 @@ module "claude_code" {
   cpu_cores = 4
 
   # Disk Configuration
-  # 20G. An earlier 60G was guesswork about npm and uv caches; measured, the
-  # VM used 4.9G of it.
+  # 40G. 20G was measured against a box that only ran Claude Code; it now
+  # carries Docker, and postgres:17 plus a python base plus the built image
+  # and build cache run to several GB before any repository is cloned.
+  # Growing is the safe direction: raise this, apply, and reboot -- the
+  # cloud image's cloud-init growpart extends the root partition on boot.
   #
   # Changing this number is not free in either direction. Proxmox cannot
   # shrink a disk: qm resize only grows, the provider's attempt to detach and
@@ -186,8 +189,9 @@ module "claude_code" {
   # apply still writes the smaller value into state, leaving Terraform
   # believing a size the host does not have. Lowering it means
   # `terraform apply -replace` and rebuilding the host from its playbook.
-  # Growing works in place but needs growpart and resize2fs in the guest.
-  disk_size    = "20G"
+  # Growing works in place but needs growpart and resize2fs in the guest
+  # if cloud-init's growpart does not run.
+  disk_size    = "40G"
   disk_storage = "local-lvm"
 
   # Start automatically
