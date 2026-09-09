@@ -130,4 +130,3 @@ variable "nfs_vm_ip" {
   description = "NFS server VM IP with CIDR (e.g. '10.0.0.131/24')"
   type        = string
 }
-

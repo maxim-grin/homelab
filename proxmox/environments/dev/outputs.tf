@@ -62,4 +62,3 @@ output "nfs_vm_details" {
     ip   = module.nfs.vm_ip_config
   }
 }
-

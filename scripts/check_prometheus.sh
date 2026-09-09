@@ -116,7 +116,7 @@ else
     echo ""
     printf "%-30s %-40s %-10s\n" "JOB" "INSTANCE" "STATUS"
     echo "─────────────────────────────────────────────────────────────────────────────────"
-    
+
     while IFS='|' read -r job instance health; do
         if [ "$health" == "up" ]; then
             printf "${GREEN}%-30s %-40s %-10s${NC}\n" "$job" "$instance" "✓ $health"
@@ -251,4 +251,3 @@ echo ""
 print_info "Prometheus Targets: ${PROM_URL}/targets"
 print_info "Prometheus Graph:   ${PROM_URL}/graph"
 echo ""
-

@@ -34,5 +34,3 @@ kubectl apply -f argocd/base/projects.yaml
 ```bash
 kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml
 ```
-
-

@@ -52,7 +52,7 @@ You’ll need the following tools installed locally:
 On macOS, the easiest path is Homebrew:
 
 ```bash
-brew install terraform sops 
+brew install terraform sops
 ```
 
 ## Working with Encrypted Terraform Files

@@ -261,4 +261,3 @@ module "nfs" {
   # Tags
   tags = "ubuntu,nfs,dev"
 }
-

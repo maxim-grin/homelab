@@ -3,13 +3,13 @@ output "master_nodes" {
   value = {
     for name, node in local.nodes :
     name => {
-      role          = lookup(node, "role", null)
-      vm_id         = module.talos_nodes[name].vm_id
-      vm_name       = lookup(node, "vm_name", null)
-      planned_ip    = lookup(node, "ip_address", null)
-      mac_address   = try(module.talos_nodes[name].mac_address, null)
-      assigned_ip   = try(module.talos_nodes[name].ip_address, null)
-      proxmox_node  = var.target_node
+      role         = lookup(node, "role", null)
+      vm_id        = module.talos_nodes[name].vm_id
+      vm_name      = lookup(node, "vm_name", null)
+      planned_ip   = lookup(node, "ip_address", null)
+      mac_address  = try(module.talos_nodes[name].mac_address, null)
+      assigned_ip  = try(module.talos_nodes[name].ip_address, null)
+      proxmox_node = var.target_node
     }
     if lookup(node, "role", "") == "master"
   }
@@ -20,13 +20,13 @@ output "worker_nodes" {
   value = {
     for name, node in local.nodes :
     name => {
-      role          = lookup(node, "role", null)
-      vm_id         = module.talos_nodes[name].vm_id
-      vm_name       = lookup(node, "vm_name", null)
-      planned_ip    = lookup(node, "ip_address", null)
-      mac_address   = try(module.talos_nodes[name].mac_address, null)
-      assigned_ip   = try(module.talos_nodes[name].ip_address, null)
-      proxmox_node  = var.target_node
+      role         = lookup(node, "role", null)
+      vm_id        = module.talos_nodes[name].vm_id
+      vm_name      = lookup(node, "vm_name", null)
+      planned_ip   = lookup(node, "ip_address", null)
+      mac_address  = try(module.talos_nodes[name].mac_address, null)
+      assigned_ip  = try(module.talos_nodes[name].ip_address, null)
+      proxmox_node = var.target_node
     }
     if lookup(node, "role", "") == "worker"
   }

@@ -54,19 +54,19 @@
         mode: '0640'
         content: |
           ui = true
-          
+
           storage "file" {
             path = "/opt/vault/data"
           }
-          
+
           listener "tcp" {
             address     = "0.0.0.0:8200"
             tls_disable = 1  # For homelab; use TLS in production
           }
-          
+
           api_addr = "http://{{ ansible_default_ipv4.address }}:8200"
           cluster_addr = "https://{{ ansible_default_ipv4.address }}:8201"
-          
+
           disable_mlock = true  # For LXC compatibility
 
     - name: Enable and start Vault service
