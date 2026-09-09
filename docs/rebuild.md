@@ -152,12 +152,30 @@ to expect an agent that never answers. What that costs:
   but the provider has a five-minute budget to wait on something that will
   never reply.
 
-Fix it in the image so every future VM inherits it:
+Fix it in the image, so a template built from it inherits the agent:
 
 ```bash
 apt-get install -y libguestfs-tools
+cd /var/lib/vz/template/cache
 virt-customize -a noble-server-cloudimg-amd64.img --install qemu-guest-agent
 ```
+
+**That alone changes nothing on an existing host.** `qm importdisk` copied
+the disk when the template was built, so the template holds its own copy
+and a later edit to the `.img` never reaches it. On a fresh rebuild the
+ordering in this document is already correct -- customise, then create.
+On a host that already has a template, rebuild it:
+
+```bash
+qm destroy 5000     # safe: every VM clones with full_clone = true and
+                    # holds an independent copy, and ubuntu_vm_1 sets
+                    # clone_template = null so it never clones at all
+```
+
+then re-run the `qm create` sequence above. The alternative, if destroying
+the template is unwelcome, is to customise its disk in place --
+`virt-customize -a /dev/pve/vm-5000-disk-0 --install qemu-guest-agent`,
+confirming the volume name with `lvs` first.
 
 For the VMs that already exist, install it in place — they are all
 reachable over SSH:
