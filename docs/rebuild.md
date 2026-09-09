@@ -130,6 +130,13 @@ scsihw: virtio-scsi-single
 No `ide2` survives the clone. The two settings never conflict in practice,
 so the template can keep using `ide2`.
 
+**QEMU guest agent — was absent; fixed in the template on 2026-09-09.**
+Rebuilding `ubuntu-cid-tp` from a `virt-customize`d image worked: a VM
+cloned from it afterwards answers `qm agent <vmid> ping`. New clones
+inherit the agent. **The VMs created before that rebuild still do not have
+it** — see the ad-hoc Ansible command below. The original diagnosis follows,
+because it explains what to look for if this recurs.
+
 **QEMU guest agent — absent, and worth fixing.** The config above sets
 `agent: 1`, but the guest never runs one:
 
@@ -368,9 +375,11 @@ GitHub, not the local checkout, so anything uncommitted is invisible to it.
 Roughly in order of how much they would hurt. None is urgent while the
 cluster holds no data.
 
-1. **Install `qemu-guest-agent`** — see section 2. Every VM currently runs
-   without it while Proxmox is configured to expect one, so shutdowns are
-   ACPI-only and backups cannot freeze the filesystem.
+1. **Install `qemu-guest-agent` on the VMs built before 2026-09-09.** The
+   template now carries it and new clones inherit it, verified with
+   `qm agent 102 ping`. The five older VMs still run without it while
+   Proxmox is configured to expect one, so their shutdowns are ACPI-only
+   and backups cannot freeze their filesystems.
 2. **Script the template build.** The commands above are a start; a
    `scripts/build-template.sh` would be better than a document that can drift.
 3. **Store the ansible-vault password in a password manager** if it is not
