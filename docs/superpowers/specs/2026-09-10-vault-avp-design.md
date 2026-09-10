@@ -269,13 +269,98 @@ unreachable. Every layer above is checked against the thing itself.
    now Vault. Vault's seed nests inside the first, which bounds the sprawl but
    does not eliminate it.
 
+## Documentation changes
+
+Not a tail step. `CLAUDE.md` currently documents the opposite of this design,
+and `docs/rebuild.md` describes a rebuild order that this work invalidates. A
+task that lands code without its doc change is not done.
+
+### `CLAUDE.md`
+
+- **"There is no argocd-vault-plugin: it was configured once, mounted a
+  ConfigMap nothing created, and wedged `argocd-repo-server` in `Init` for six
+  hours. Removed deliberately."** -- the direct contradiction. Rewritten to say
+  AVP is in use, that the failure was a missing `cmp-plugin` ConfigMap and
+  config Secret, and that Ansible task order is what now guarantees they exist
+  before the Helm deploy. The history stays; only the conclusion flips.
+- **"Real values live in exactly two places"** -> three, with Vault's KV named
+  and its seed located in `ansible/secret.yaml` under `vault_kv`.
+- **"How a change reaches the cluster"** table -- the `argocd/base/projects.yaml`
+  row stops being "`kubectl apply -f` by hand" and becomes a normal git-push
+  row, with the bootstrap-only exception noted.
+- **"Load-bearing and non-obvious"** -- new entry: a sealed Vault is a silent
+  failure. After any `vault-01` reboot AVP renders nothing and Applications
+  degrade without mentioning Vault.
+- Committed-secrets guidance gains the `<path:...>` placeholder convention:
+  placeholders are committed, values never are.
+
+### `docs/rebuild.md`
+
+- **Rebuild order** -- a Vault step is inserted before the ArgoCD bootstrap
+  (playbook, `vault operator init`, record the unseal key, seed from
+  `vault_kv`), and the remaining steps renumber.
+- **Step 11, "Create the jobboard Secrets"** -- deleted; AVP renders both. The
+  merge-order caveat inside it survives, relocated: it is about the app repo's
+  `image` CI job publishing `:latest`, not about secrets, and it still applies.
+- **Step 9** -- `kubectl apply -f argocd/base/projects.yaml` stays, marked
+  bootstrap-only, with a pointer to the self-managing Application that handles
+  it thereafter.
+- **Step 13, `/etc/hosts`** -- gains `argocd.mgryn.cc` (node IP) and
+  `vault.mgryn.cc` (the VM, port 8200).
+- **Section 4, "Files that live only on the workstation"** -- the
+  `secret.yaml` row's contents list gains `vault_kv`; new rows for the Vault
+  unseal key and root token, which live only in the password manager.
+- **"What is destroyed and not backed up"** -- new row for `/opt/vault/data`,
+  the one entry in that table that *is* reproducible, from `vault_kv`.
+- **"Gaps worth closing"** -- the password-manager item covers the unseal key
+  alongside the ansible-vault password.
+
+### `README.md`
+
+- "What actually runs" gains Vault and argocd-image-updater.
+- **"## jobboard image tag"** -- the manual `kubectl rollout restart` section
+  is replaced by how digest-strategy updates and git write-back work.
+- Layout gains `ansible/roles/vault/` and `argocd/apps/image-updater/`.
+- Day-to-day gains the two hostnames.
+
+### `ansible/README.md`
+
+- Directory layout gains `roles/vault/`.
+- Secrets management documents the `vault_kv` block and the
+  `-e vault_token=...` convention: the root token is passed per-run from the
+  password manager, never stored.
+- Usage gains `ansible-playbook playbooks/vault.yaml`.
+
+### `argocd/README.md`
+
+- Directory structure gains `apps/image-updater/` and the `argocd-config`
+  Application.
+- **"Step 1: Apply ArgoCD Projects (One-time Setup)"** -- currently misleading,
+  since it recurs on every `sourceRepos` change. Becomes genuinely one-time,
+  with the self-managing Application explained.
+- New short section on the `<path:...>` placeholder convention and which
+  Applications carry the `argocd.argoproj.io/plugin-name` annotation.
+
+### `proxmox/README.md`
+
+- Module overview / dev environment gains `vault-01`.
+- **The SOPS section is corrected.** It documents decrypting `dev.tfvars.enc`
+  and `backend.tf.enc`; no `.enc` file is committed anywhere, there is no
+  `.sops.yaml`, and CLAUDE.md states plainly that `*.tfvars` has no backup.
+  This design does not introduce SOPS, so the section is rewritten to describe
+  what exists rather than left as instructions that cannot be followed.
+
+### Deletions
+
+- `argocd/apps/jobboard/base/secret.yaml.example` -- superseded by the
+  committed placeholder manifest.
+- The `argocd/apps/jobboard/base/secret.yaml` line in `.gitignore`, checked
+  with `git check-ignore -v` rather than assumed, per the `talos/_out`
+  incident.
+
 ## Out of scope
 
 - Migrating `*.tfvars` or `ansible/secret.yaml` onto SOPS or into Vault.
-- `proxmox/README.md` documents a SOPS workflow with `dev.tfvars.enc` and
-  `backend.tf.enc`; no `.enc` file is committed anywhere and there is no
-  `.sops.yaml`. CLAUDE.md contradicts it directly. Left alone here because
-  this design no longer introduces SOPS, but it remains wrong.
 - TLS anywhere. Vault runs `tls_disable = 1` and ingress is plain HTTP,
   consistent with the rest of the homelab.
 - `proxmox/environments/prod` and `talos/`, which have never been applied.
