@@ -175,11 +175,15 @@ In `ansible/roles/argocd/defaults/main.yaml`, replace `argocd_helm_values: {}` w
 
 ```yaml
 argocd_helm_values:
+  configs:
+    params:
+      # Run argocd-server without TLS so nginx can speak plain HTTP to it.
+      # This is a configs.params entry, not a server.* value -- the chart has
+      # no server.insecure key and would accept one silently, leaving the
+      # ingress template pointed at the HTTPS service port and every request
+      # answering 502.
+      server.insecure: true
   server:
-    # nginx terminates the connection and speaks plain HTTP to argocd-server.
-    # Without this, argocd-server serves HTTPS, nginx proxies HTTP to it, and
-    # the UI answers with a redirect loop rather than an error.
-    insecure: true
     ingress:
       enabled: true
       ingressClassName: nginx
@@ -237,7 +241,7 @@ kubectl -n argocd get pods -l app.kubernetes.io/name=argocd-server
 curl -sS -o /dev/null -w '%{http_code}\n' -H 'Host: argocd.mgryn.cc' http://<any node IP>/
 ```
 
-Expected: an Ingress for `argocd.mgryn.cc`, the server pod `Running`, and a `200` or `307` from curl — **not** a `404` (nginx has no rule) and not a redirect loop (`insecure` not applied). Harbor once reported `Healthy` for twelve hours while completely unreachable; the curl is the check that matters. **[operator]**
+Expected: an Ingress for `argocd.mgryn.cc`, the server pod `Running`, and a `200` or `307` from curl — **not** a `404` (nginx has no rule) and not a `502` (`configs.params["server.insecure"]` not applied). Harbor once reported `Healthy` for twelve hours while completely unreachable; the curl is the check that matters. **[operator]**
 
 - [ ] **Step 8: Add the /etc/hosts entry**
 

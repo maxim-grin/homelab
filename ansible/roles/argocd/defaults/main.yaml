@@ -13,7 +13,7 @@ argocd_nodeport_http_port: 32080
 argocd_nodeport_https_port: 32443
 argocd_context_kubeconfig: /etc/kubernetes/admin.conf
 
-# No argocd_helm_values: the repo-server ran stock. An earlier version wired
+# Formerly no argocd_helm_values: the repo-server ran stock. An earlier version wired
 # argocd-vault-plugin in here -- a download-tools initContainer, an avp
 # cmp-server sidecar, a cmp-plugin ConfigMap volume and an
 # argocd-vault-plugin-config Secret -- but nothing in this repo ever created
@@ -24,11 +24,15 @@ argocd_context_kubeconfig: /etc/kubernetes/admin.conf
 # so AVP was substituting nothing; secrets are plain Secret manifests,
 # gitignored and applied out of band.
 argocd_helm_values:
+  configs:
+    params:
+      # Run argocd-server without TLS so nginx can speak plain HTTP to it.
+      # This is a configs.params entry, not a server.* value -- the chart has
+      # no server.insecure key and would accept one silently, leaving the
+      # ingress template pointed at the HTTPS service port and every request
+      # answering 502.
+      server.insecure: true
   server:
-    # nginx terminates the connection and speaks plain HTTP to argocd-server.
-    # Without this, argocd-server serves HTTPS, nginx proxies HTTP to it, and
-    # the UI answers with a redirect loop rather than an error.
-    insecure: true
     ingress:
       enabled: true
       ingressClassName: nginx
