@@ -33,6 +33,7 @@ resource "proxmox_vm_qemu" "ubuntu_vm" {
   # Boot and startup
   boot               = var.boot_order
   start_at_node_boot = var.start_at_node_boot
+  startup            = var.startup
 
   # Agent and connection settings
   agent                  = var.qemu_agent
