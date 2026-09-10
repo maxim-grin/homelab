@@ -19,13 +19,21 @@ spec:
     spec:
       # The GHCR package is private, so the kubelet needs credentials before
       # it can pull. Created out of band with `kubectl create secret
-      # docker-registry ghcr` -- see Task 4. Without it the pod sits in
+      # docker-registry ghcr` -- see docs/rebuild.md's rebuild-order step
+      # for the jobboard Secrets. Without it the pod sits in
       # ImagePullBackOff with "denied", which reads like a missing tag.
       imagePullSecrets:
         - name: ghcr
       containers:
         - name: jobboard
           image: ghcr.io/maxim-grin/jobboard:latest
+          # Explicit, not relied-on-default: the default tracks the tag
+          # (Always for `:latest`, IfNotPresent otherwise). If this image
+          # is ever pinned to a SHA, the default would silently flip to
+          # IfNotPresent and reintroduce the stale-image confusion the
+          # :latest tag already has a rollout-restart workaround for (see
+          # README.md).
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
               name: http
