@@ -1,0 +1,201 @@
+---
+# Terraform reports the VM ready as soon as sshd accepts, which can be before
+# cloud-init has rewritten /etc/apt/sources.list.d/ubuntu.sources. Installing
+# against the half-configured sources is how this role first broke.
+# rc 2 is "done, but with recoverable errors" and is the normal outcome on
+# this template, which logs a deprecation warning for the 'user' key on every
+# boot. Only rc 1, an unrecoverable failure, should stop the play.
+- name: Wait for cloud-init to finish
+  ansible.builtin.command: cloud-init status --wait
+  register: workstation_cloud_init
+  changed_when: false
+  failed_when: workstation_cloud_init.rc not in [0, 2]
+
+# Unconditional, and deliberately not the apt module's update_cache flag. The
+# ubuntu-cid-tp template bakes main-only indexes into /var/lib/apt/lists, and
+# cloud-init adds universe to the sources without ever running apt-get update
+# -- so a fresh clone has universe configured but unindexed, and every
+# universe package (fd-find, ripgrep) resolves as "no package matching".
+# update_cache skips the refresh when it judges the cache fresh, which on a
+# template-baked cache is exactly the wrong call.
+- name: Refresh the apt cache  # noqa: command-instead-of-module
+  ansible.builtin.command: apt-get update
+  changed_when: false
+
+- name: Install baseline packages
+  ansible.builtin.apt:
+    name: "{{ workstation_packages }}"
+    state: present
+
+# Ubuntu ships fd as fd-find and installs the binary as fdfind, because the
+# fd name is taken by another package. Claude Code and most dotfiles call
+# plain fd, so link it into the user's path.
+- name: Link fdfind to fd
+  ansible.builtin.file:
+    src: /usr/bin/fdfind
+    dest: /usr/local/bin/fd
+    state: link
+
+- name: Ensure the apt keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add NodeSource signing key
+  ansible.builtin.get_url:
+    url: "{{ workstation_nodejs_repo_key_url }}"
+    dest: /etc/apt/keyrings/nodesource.asc
+    mode: "0644"
+
+- name: Add NodeSource repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/nodesource.asc]
+      https://deb.nodesource.com/node_{{ workstation_nodejs_major }}.x nodistro main
+    filename: nodesource
+    state: present
+    # Refreshes only when the repo entry actually changes, which is what we
+    # want: the NodeSource index has to land before nodejs can resolve.
+    update_cache: true
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+
+- name: Check whether Claude Code is already installed
+  ansible.builtin.stat:
+    path: "{{ workstation_home }}/.local/bin/claude"
+  become: false
+  register: workstation_binary
+
+# become: false is deliberate. ansible.cfg sets become = True globally for the
+# Kubernetes plays, but the installer drops a self-updating binary under the
+# connecting user's ~/.local and `claude update` cannot touch it if root owns
+# it. The connection user already is workstation_user, so no become is needed
+# -- and sudo from one unprivileged user to another breaks on temp files.
+- name: Install Claude Code
+  ansible.builtin.shell:
+    cmd: "set -o pipefail && curl -fsSL {{ workstation_installer_url }} | bash"
+    executable: /bin/bash
+  become: false
+  when: not workstation_binary.stat.exists
+  changed_when: true
+
+- name: Ensure the user's local bin is on PATH
+  ansible.builtin.blockinfile:
+    path: "{{ workstation_home }}/.bashrc"
+    create: true
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0644"
+    marker: "# {mark} ANSIBLE CLAUDE CODE"
+    block: |
+      export PATH="$HOME/.local/bin:$PATH"
+
+- name: Report the installed version
+  ansible.builtin.command: "{{ workstation_home }}/.local/bin/claude --version"
+  become: false
+  register: workstation_version
+  changed_when: false
+
+- name: Show the installed version
+  ansible.builtin.debug:
+    msg: "{{ workstation_version.stdout }}"
+
+# Without this every docker command needs sudo, and `docker compose up -d`
+# run from a checkout as the login user fails with a permission error on
+# the socket rather than anything that names the cause.
+- name: Add the workstation user to the docker group
+  ansible.builtin.user:
+    name: "{{ workstation_user }}"
+    groups: docker
+    append: true
+
+- name: Ensure docker is running
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+
+# uv, not pip or apt: every command in the jobboard repo is `uv run`, and
+# uv is not packaged for Ubuntu. The installer places it in ~/.local/bin,
+# which the PATH block below already covers.
+- name: Check whether uv is installed
+  ansible.builtin.stat:
+    path: "{{ workstation_home }}/.local/bin/uv"
+  become: false
+  register: workstation_uv
+
+- name: Install uv
+  ansible.builtin.shell:
+    cmd: "set -o pipefail && curl -fsSL https://astral.sh/uv/install.sh | sh"
+    executable: /bin/bash
+  become: false
+  when: not workstation_uv.stat.exists
+  changed_when: true
+
+- name: Install the uv-managed tools
+  ansible.builtin.command: "{{ workstation_home }}/.local/bin/uv tool install {{ item }}"
+  become: false
+  loop: "{{ workstation_uv_tools }}"
+  register: workstation_uv_tool
+  changed_when: "'already installed' not in workstation_uv_tool.stderr"
+
+- name: Add the Kubernetes apt key
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ workstation_kubectl_version }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-workstation.asc
+    mode: "0644"
+
+- name: Add the Kubernetes apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/kubernetes-workstation.asc]
+      https://pkgs.k8s.io/core:/stable:/v{{ workstation_kubectl_version }}/deb/ /
+    filename: kubernetes
+    state: present
+    update_cache: true
+
+- name: Install kubectl
+  ansible.builtin.apt:
+    name: kubectl
+    state: present
+
+- name: Add the HashiCorp apt key
+  ansible.builtin.get_url:
+    url: https://apt.releases.hashicorp.com/gpg
+    dest: /etc/apt/keyrings/hashicorp.asc
+    mode: "0644"
+
+- name: Add the HashiCorp apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/hashicorp.asc]
+      https://apt.releases.hashicorp.com {{ workstation_terraform_channel }} main
+    filename: hashicorp
+    state: present
+    update_cache: true
+
+- name: Install terraform
+  ansible.builtin.apt:
+    name: terraform
+    state: present
+
+# kustomize ships no apt package. The tarball is a single static binary.
+- name: Check whether kustomize is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/kustomize
+  register: workstation_kustomize
+
+- name: Install kustomize
+  ansible.builtin.unarchive:
+    src: >-
+      https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv{{
+      workstation_kustomize_version }}/kustomize_v{{
+      workstation_kustomize_version }}_linux_amd64.tar.gz
+    dest: /usr/local/bin
+    remote_src: true
+    mode: "0755"
+  when: not workstation_kustomize.stat.exists

@@ -387,7 +387,7 @@ Each step depends on the one above it.
       `read:packages` and nothing else.
     Skip either one and the pod sits in `CreateContainerConfigError`
     (missing `jobboard-secrets`) or `ImagePullBackOff` (missing `ghcr`).
-12. **`ansible-playbook playbooks/claude_code.yaml`** — the workstation VM.
+12. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
 13. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`, `jobs.mgryn.cc`
     and friends.
 

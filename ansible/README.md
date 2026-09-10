@@ -17,12 +17,12 @@
 │   ├── cluster_init.yaml        # Applied to control-plane only
 │   ├── join_workers.yaml        # Applied to workers only
 │   ├── support_tools.yaml       # Optional extras
-│   ├── claude_code.yaml         # Claude Code workstation VM
+│   ├── workstation.yaml         # dev workstation VM
 │   └── nfs_server.yaml          # NFS server VM (run before nfs_setup)
 └── roles/
     ├── argocd/
     ├── base_setup/
-    ├── claude_code/
+    ├── workstation/
     ├── containerd/
     ├── nfs_server/
     ├── kube_packages/
@@ -127,14 +127,16 @@ ansible-playbook playbooks/nfs_server.yaml -e @secret.yaml --ask-vault-pass
 ansible-playbook playbooks/nfs_setup.yaml  -e @secret.yaml --ask-vault-pass
 ```
 
-6. **Provision the Claude Code workstation VM:**
+6. **Provision the workstation VM:**
 
-   Terraform creates the VM (`proxmox/environments/dev`, module `claude_code`);
-   this playbook installs the toolchain on it. Add `claude-code-01` to the
-   `host_ips` and `proxmox_vm_ids` maps in `secret.yaml` first.
+   Terraform creates the VM (`proxmox/environments/dev`, module
+   `claude_code`); this playbook installs the toolchain: Claude Code, Node,
+   Docker, uv, kubectl, kustomize, terraform, ansible-lint and pre-commit.
+   Add `claude-code-01` to the `host_ips` and `proxmox_vm_ids` maps in
+   `secret.yaml` first.
 
 ```bash
-ansible-playbook playbooks/claude_code.yaml -e @secret.yaml --ask-vault-pass
+ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
 ```
 
    Authentication is not automated. SSH in once and run `claude` to complete

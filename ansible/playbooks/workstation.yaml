@@ -2,8 +2,8 @@
 # base_setup is deliberately not used here: it disables swap, loads
 # br_netfilter/vxlan and applies Kubernetes sysctls, none of which belong on
 # a workstation VM.
-- name: Provision the Claude Code workstation
+- name: Provision the workstation VM
   hosts: claude_code
   gather_facts: true
   roles:
-    - claude_code
+    - workstation
