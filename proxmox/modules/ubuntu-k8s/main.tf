@@ -15,6 +15,7 @@ locals {
       memory     = var.master_memory
       cpu_cores  = var.master_cpu_cores
       disk_size  = var.master_disk_size
+      startup    = var.master_startup
     }
   }
 
@@ -30,6 +31,7 @@ locals {
       memory     = var.worker_memory
       cpu_cores  = var.worker_cpu_cores
       disk_size  = var.worker_disk_size
+      startup    = var.worker_startup
     }
   }
 
@@ -61,6 +63,7 @@ module "nodes" {
   network_bridge     = var.network_bridge
   network_firewall   = var.network_firewall
   start_at_node_boot = var.start_at_node_boot
+  startup            = each.value.startup
 
   ci_user        = var.ci_user
   ci_password    = var.ci_password

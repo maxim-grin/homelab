@@ -60,6 +60,16 @@ variable "start_at_node_boot" {
   type        = bool
 }
 
+# Proxmox startup order. Guests start low-order first; "up" is the delay in
+# seconds before the next one begins. Ordering matters here because nfs-01
+# serves the default StorageClass and the k8s master must be up before its
+# workers try to join.
+variable "startup" {
+  description = "Startup order and delay (e.g., 'order=10,up=30')"
+  type        = string
+  default     = null
+}
+
 # Agent and Connection
 variable "qemu_agent" {
   description = "Enable QEMU agent"

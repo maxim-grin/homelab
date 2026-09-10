@@ -133,10 +133,26 @@ variable "network_firewall" {
   default     = true
 }
 
+# No default, deliberately. This module defaulting to false is how the whole
+# cluster came to have onboot=0 in Proxmox without anyone choosing it: the dev
+# environment never passed the argument, the host lost power on 2026-09-10,
+# and master-01 and both workers stayed down while every VM that did set it
+# came back. modules/ubuntu-vm has always forced the choice; this now matches.
 variable "start_at_node_boot" {
   description = "Start VMs automatically when Proxmox boots."
   type        = bool
-  default     = false
+}
+
+variable "master_startup" {
+  description = "Proxmox startup order for masters (e.g., 'order=20,up=60')"
+  type        = string
+  default     = null
+}
+
+variable "worker_startup" {
+  description = "Proxmox startup order for workers (e.g., 'order=30')"
+  type        = string
+  default     = null
 }
 
 variable "cicustom" {

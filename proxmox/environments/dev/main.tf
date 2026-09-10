@@ -116,6 +116,16 @@ module "ubunut-k8s-1" {
 
   master_memory = 8192
   worker_memory = 4096
+
+  # Come back after a host power loss. Without this the module defaulted to
+  # false and the entire cluster stayed down on 2026-09-10 while nfs-01 and
+  # claude-code-01, which set it, returned on their own.
+  start_at_node_boot = true
+
+  # Master ahead of the workers, with 60s for the API server to answer before
+  # kubelets start trying to reach it. Both after nfs-01 at order=10.
+  master_startup = "order=20,up=60"
+  worker_startup = "order=30"
 }
 
 ################################################################################
@@ -194,8 +204,9 @@ module "claude_code" {
   disk_size    = "40G"
   disk_storage = "local-lvm"
 
-  # Start automatically
+  # Start automatically, last -- nothing depends on it.
   start_at_node_boot = true
+  startup            = "order=40"
 
   # Qemu Agent
   qemu_agent = 1
@@ -245,7 +256,11 @@ module "nfs" {
   disk_storage = "local-lvm"
 
   # Start automatically: every PVC in the cluster binds through this host.
+  # Order 10, ahead of the cluster: when the provisioner is down every PVC
+  # without an explicit class sits Pending and the apps above it read as
+  # broken for unrelated reasons.
   start_at_node_boot = true
+  startup            = "order=10,up=30"
 
   # Qemu Agent
   qemu_agent = 1
