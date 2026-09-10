@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jobboard
+spec:
+  # ingress-nginx runs as a DaemonSet on host ports 80/443 -- this cluster
+  # is bare metal with no LoadBalancer and no MetalLB. There is no DNS
+  # server here, so jobs.mgryn.cc resolves through /etc/hosts on the
+  # workstation, pointing at any node IP.
+  ingressClassName: nginx
+  rules:
+    - host: jobs.mgryn.cc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jobboard
+                port:
+                  number: 80

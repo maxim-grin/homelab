@@ -363,9 +363,33 @@ Each step depends on the one above it.
 9. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject, which
    is not managed by ArgoCD itself and must be applied by hand.
 10. **`kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml`**
-    — `root-dev` then pulls in ingress-nginx, nfs, gitea, harbor, monitoring.
-11. **`ansible-playbook playbooks/claude_code.yaml`** — the workstation VM.
-12. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc` and friends.
+    — `root-dev` then pulls in ingress-nginx, nfs, gitea, harbor, monitoring,
+    jobboard.
+11. **Create the jobboard Secrets** — ArgoCD syncs the jobboard manifests as
+    soon as step 10 applies, but the app repo's `image` job only publishes
+    `ghcr.io/maxim-grin/jobboard:latest` on a push to that repo's `main`, so
+    merge order matters: merge the app repo to `main` first, wait for its
+    `image` CI job to go green, *then* merge and push this repo. Applying
+    these Secrets before the image exists just trades one CrashLoop for
+    another.
+    - `jobboard-secrets`: copy
+      `argocd/apps/jobboard/base/secret.yaml.example` to `secret.yaml`
+      (gitignored), fill it in, `kubectl apply -f` it.
+    - `ghcr`, the image-pull secret for the private GHCR package:
+      ```
+      kubectl -n jobboard create secret docker-registry ghcr \
+        --docker-server=ghcr.io \
+        --docker-username=maxim-grin \
+        --docker-password='<PAT with read:packages>'
+      ```
+      `create secret` rather than a manifest is deliberate: the token never
+      touches a file that could be committed. The PAT needs scope
+      `read:packages` and nothing else.
+    Skip either one and the pod sits in `CreateContainerConfigError`
+    (missing `jobboard-secrets`) or `ImagePullBackOff` (missing `ghcr`).
+12. **`ansible-playbook playbooks/claude_code.yaml`** — the workstation VM.
+13. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`, `jobs.mgryn.cc`
+    and friends.
 
 Expect steps 9 and 10 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
