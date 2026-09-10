@@ -361,7 +361,8 @@ Each step depends on the one above it.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.
 8. **`ansible-playbook playbooks/argocd-dev.yaml`** — ArgoCD via Helm.
 9. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject, which
-   is not managed by ArgoCD itself and must be applied by hand.
+   is not managed by ArgoCD itself and must be applied by hand. Needed only
+   at this bootstrap; the `argocd-config` Application owns it afterwards.
 10. **`kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml`**
     — `root-dev` then pulls in ingress-nginx, nfs, gitea, harbor, monitoring,
     jobboard.
