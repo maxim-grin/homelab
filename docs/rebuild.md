@@ -389,8 +389,8 @@ Each step depends on the one above it.
     Skip either one and the pod sits in `CreateContainerConfigError`
     (missing `jobboard-secrets`) or `ImagePullBackOff` (missing `ghcr`).
 12. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
-13. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`, `jobs.mgryn.cc`
-    and friends.
+13. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
+    `jobs.mgryn.cc`, `argocd.mgryn.cc` and friends.
 
 Expect steps 9 and 10 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
