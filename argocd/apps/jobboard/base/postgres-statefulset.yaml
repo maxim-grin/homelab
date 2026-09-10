@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: jobboard
+            - name: POSTGRES_DB
+              value: jobboard
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jobboard-secrets
+                  key: POSTGRES_PASSWORD
+            # The image's default locale is not guaranteed across versions,
+            # and search.py's SORT_COLUMNS wraps every text sort in lower()
+            # on the assumption that collation does not reorder results.
+            # Under en_US.utf8 that lower() is ordering-neutral; a different
+            # collation would change result order without failing a test.
+            - name: POSTGRES_INITDB_ARGS
+              value: "--locale=en_US.UTF-8 --encoding=UTF8"
+            # initdb refuses to run in a non-empty directory, and the NFS
+            # volume mounts with a lost+found. A subdirectory sidesteps it.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "jobboard"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "jobboard"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: nfs-dev
+        resources:
+          requests:
+            storage: 5Gi

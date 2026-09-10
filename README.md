@@ -20,10 +20,25 @@ _not_ contain, which is the part that will bite.
 | GitOps     | ArgoCD, app-of-apps `root-dev`                                 | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
-| Apps       | gitea, harbor, monitoring (Prometheus + Grafana)               | `argocd/apps/`                                            |
+| Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
 
 Hostnames resolve through `/etc/hosts` on the workstation, pointing at a
 node IP. There is no Pi-hole, no Traefik and no Cloudflare Tunnel yet.
+
+## jobboard image tag
+
+`argocd/apps/jobboard/base/app-deployment.yaml` pins
+`ghcr.io/maxim-grin/jobboard:latest`, not a SHA. A push to the app repo's
+`main` publishes a new image but changes no manifest here, so ArgoCD sees
+no diff and never redeploys — the running pod keeps the old image until
+someone restarts it by hand:
+
+```
+kubectl rollout restart deployment/jobboard -n jobboard
+```
+
+This is deliberate (pinning a SHA would need an image-updater or a CI
+commit-back into this repo, neither of which exists), not an oversight.
 
 ## Layout
 

@@ -45,3 +45,6 @@ ansible/secret.yaml.tmp
 # Vault
 vault/secrets.yaml
 argocd/argocd-values.yaml
+
+# jobboard: real credentials, never the .example template
+argocd/apps/jobboard/base/secret.yaml
