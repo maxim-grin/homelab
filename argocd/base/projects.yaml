@@ -6,6 +6,13 @@ metadata:
   namespace: argocd
 spec:
   description: HomeLab applications and infrastructure
+  # WARNING: argocd-config's `prune: false` only protects against file
+  # deletion, not edits. A commit that removes an entry here -- especially
+  # the homelab repo URL below -- gets applied by selfHeal and locks every
+  # Application, including argocd-config itself, out with "application repo
+  # is not permitted." A git revert cannot fix it: ArgoCD can no longer read
+  # the repo to see the revert. Recover with:
+  #   kubectl apply -f argocd/base/projects.yaml
   sourceRepos:
     - "https://github.com/maxim-grin/homelab.git"
     - "https://helm.goharbor.io"

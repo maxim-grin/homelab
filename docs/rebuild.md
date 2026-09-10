@@ -360,9 +360,13 @@ Each step depends on the one above it.
 6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.
 8. **`ansible-playbook playbooks/argocd-dev.yaml`** — ArgoCD via Helm.
-9. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject, which
-   is not managed by ArgoCD itself and must be applied by hand. Needed only
-   at this bootstrap; the `argocd-config` Application owns it afterwards.
+9. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject. Nothing
+   has applied it yet at this point in a rebuild, so it must go on by hand;
+   from here on, the `argocd-config` Application syncs it. This same command
+   is also the only recovery if the AppProject is ever deleted from a running
+   cluster: `argocd-config` declares `project: homelab`, so once that project
+   is gone ArgoCD can no longer sync `argocd-config` either, and nothing is
+   left that can recreate the AppProject except this manual apply.
 10. **`kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml`**
     — `root-dev` then pulls in ingress-nginx, nfs, gitea, harbor, monitoring,
     jobboard.

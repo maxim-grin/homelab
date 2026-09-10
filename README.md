@@ -84,9 +84,8 @@ ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
 # applications deploy themselves: ArgoCD syncs main from GitHub, so a change
 # is live once it is pushed, not once it is committed
 git push origin main
-
-# ArgoCD UI
-http://argocd.mgryn.cc
 ```
+
+ArgoCD UI: `http://argocd.mgryn.cc`
 
 See `ansible/README.md` and `proxmox/README.md` for the detail of each half.
