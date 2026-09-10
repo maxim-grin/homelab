@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobboard
+spec:
+  # One replica, deliberately. The crawler is not designed for concurrent
+  # runs and nothing here makes it so; a second replica could crawl the same
+  # board twice.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jobboard
+  template:
+    metadata:
+      labels:
+        app: jobboard
+    spec:
+      # The GHCR package is private, so the kubelet needs credentials before
+      # it can pull. Created out of band with `kubectl create secret
+      # docker-registry ghcr` -- see Task 4. Without it the pod sits in
+      # ImagePullBackOff with "denied", which reads like a missing tag.
+      imagePullSecrets:
+        - name: ghcr
+      containers:
+        - name: jobboard
+          image: ghcr.io/maxim-grin/jobboard:latest
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: jobboard-secrets
+                  key: DATABASE_URL
+            - name: JOBBOARD_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jobboard-secrets
+                  key: JOBBOARD_SECRET
+          # Liveness does not touch the database: restarting cannot fix
+          # Postgres, and a crash loop would hide the real fault.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          # Readiness does, so a pod that cannot reach the database leaves
+          # the Service's endpoints instead of serving errors.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
