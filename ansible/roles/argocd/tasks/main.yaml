@@ -28,6 +28,69 @@
       htpasswd -nbBC 10 "" 'pw' | tr -d ':\n' | sed 's/$2y/$2a/'  --  python:
       python3 -c "import bcrypt;print(bcrypt.hashpw(b'pw',bcrypt.gensalt(10)).decode())"
 
+- name: Create the AVP plugin ConfigMap
+  # Before the Helm deploy, deliberately. repo-server mounts this; when it
+  # does not exist kubelet loops on MountVolume.SetUp and the pod never
+  # leaves Init. That is what removed argocd-vault-plugin the first time.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cmp-plugin
+        namespace: "{{ argocd_namespace }}"
+      data:
+        avp.yaml: |
+          apiVersion: argoproj.io/v1alpha1
+          kind: ConfigManagementPlugin
+          metadata:
+            name: argocd-vault-plugin
+          spec:
+            allowConcurrency: true
+            discover:
+              find:
+                command:
+                  - sh
+                  - "-c"
+                  - "find . -name '*.yaml' | xargs -I {} grep -l '<path:' {} | head -1"
+            generate:
+              command:
+                - sh
+                - "-c"
+                # Naming a plugin on an Application makes ArgoCD delegate ALL
+                # manifest generation to this CMP -- kustomize no longer runs
+                # on ArgoCD's side. Task 6 sets spec.source.plugin on the
+                # jobboard Application, whose path is the kustomize overlay
+                # argocd/apps/jobboard/dev, so a bare `generate ./` would read
+                # the raw overlay files and kustomization.yaml itself as
+                # manifests instead of rendering the overlay. Pipe through
+                # kustomize first when the source is an overlay; the sidecar
+                # image (quay.io/argoproj/argocd) ships a kustomize binary.
+                # The conditional keeps plain-YAML sources working too.
+                - "if [ -f kustomization.yaml ]; then kustomize build . | argocd-vault-plugin generate -; else argocd-vault-plugin generate ./; fi"
+            lockRepo: false
+
+- name: Create the AVP configuration Secret
+  # Under Kubernetes auth this holds no credential -- only an address and a
+  # role name. It is a Secret because AVP expects to read it as one.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-vault-plugin-config
+        namespace: "{{ argocd_namespace }}"
+      type: Opaque
+      stringData:
+        AVP_TYPE: vault
+        AVP_AUTH_TYPE: k8s
+        AVP_K8S_ROLE: argocd
+        VAULT_ADDR: "http://{{ argocd_vault_address }}:8200"
+
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
   kubernetes.core.helm:

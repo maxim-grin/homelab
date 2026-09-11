@@ -12,6 +12,7 @@ argocd_nodeport_enabled: false
 argocd_nodeport_http_port: 32080
 argocd_nodeport_https_port: 32443
 argocd_context_kubeconfig: /etc/kubernetes/admin.conf
+argocd_vault_address: "{{ host_ips['vault-01'] }}"
 
 # Bcrypt hash of the admin password, supplied from ansible/secret.yaml. There
 # is deliberately no default: an unset value would make the chart fall back to
@@ -42,6 +43,14 @@ argocd_admin_password_mtime: "2026-09-11T00:00:00Z"
 # status Unknown. No manifest here contains a single <path:...> placeholder,
 # so AVP was substituting nothing; secrets are plain Secret manifests,
 # gitignored and applied out of band.
+#
+# AVP is back in use: Vault (Task 4) now holds real secret material and
+# manifests need <path:...> placeholders resolved before ArgoCD applies
+# them. The failure above was never the sidecar itself -- it was these two
+# objects missing. roles/argocd/tasks/main.yaml now creates the cmp-plugin
+# ConfigMap and the argocd-vault-plugin-config Secret itself, before the
+# Helm deploy task runs, so both exist the first time repo-server's pod
+# spec asks to mount them.
 argocd_helm_values:
   configs:
     secret:
@@ -59,3 +68,62 @@ argocd_helm_values:
       enabled: true
       ingressClassName: nginx
       hostname: argocd.mgryn.cc
+  repoServer:
+    # The avp sidecar below authenticates to Vault with this pod's
+    # ServiceAccount JWT (Vault role "argocd" is bound to
+    # system:serviceaccount:argocd:argocd-repo-server -- see Task 4). Recent
+    # argo-cd chart versions default the repo-server ServiceAccount's token
+    # to NOT being automounted, since repo-server normally needs no API
+    # access. Without the token the sidecar cannot log in, and the pod still
+    # reports 2/2 Running -- it just silently resolves nothing. helm is not
+    # installed here so the chart default can't be confirmed locally;
+    # setting both explicitly is harmless if one is already the default.
+    automountServiceAccountToken: true
+    serviceAccount:
+      automountServiceAccountToken: true
+    initContainers:
+      - name: download-tools
+        image: registry.access.redhat.com/ubi8/ubi-minimal:latest
+        env:
+          - name: AVP_VERSION
+            value: "1.18.1"
+        command: [sh, -c]
+        args:
+          - >-
+            curl -L
+            https://github.com/argoproj-labs/argocd-vault-plugin/releases/download/v$(AVP_VERSION)/argocd-vault-plugin_$(AVP_VERSION)_linux_amd64
+            -o argocd-vault-plugin &&
+            chmod +x argocd-vault-plugin &&
+            mv argocd-vault-plugin /custom-tools/
+        volumeMounts:
+          - mountPath: /custom-tools
+            name: custom-tools
+    extraContainers:
+      - name: avp
+        command: [/var/run/argocd/argocd-cmp-server]
+        image: quay.io/argoproj/argocd:v3.2.0
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+        envFrom:
+          - secretRef:
+              name: argocd-vault-plugin-config
+        volumeMounts:
+          - mountPath: /var/run/argocd
+            name: var-files
+          - mountPath: /home/argocd/cmp-server/plugins
+            name: plugins
+          - mountPath: /tmp
+            name: tmp
+          - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+            subPath: avp.yaml
+            name: cmp-plugin
+          - mountPath: /usr/local/bin/argocd-vault-plugin
+            subPath: argocd-vault-plugin
+            name: custom-tools
+    volumes:
+      - configMap:
+          name: cmp-plugin
+        name: cmp-plugin
+      - emptyDir: {}
+        name: custom-tools
