@@ -5,3 +5,7 @@
 - name: Seed the KV store
   ansible.builtin.import_tasks: seed.yaml
   when: vault_seed | default(false) | bool
+
+- name: Configure Kubernetes authentication
+  ansible.builtin.import_tasks: k8s_auth.yaml
+  when: vault_configure_k8s_auth | default(false) | bool
