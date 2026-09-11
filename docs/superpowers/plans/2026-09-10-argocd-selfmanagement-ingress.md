@@ -45,10 +45,12 @@ plan introduces, so landing that one first causes a conflict.
 Establish the "before" state so the change is provable.
 
 ```bash
-kubectl -n argocd get appproject homelab -o jsonpath='{.metadata.labels}' ; echo
+kubectl -n argocd get appproject homelab -o jsonpath='{.spec.sourceRepos}' ; echo
 ```
 
-Expected: no `app.kubernetes.io/instance` label — nothing owns it. **[operator]**
+Expected: the three existing entries, and NOT `https://argoproj.github.io/argo-helm`.
+Step 6 adds that one by pushing, so its absence here is the "before" half of
+the acceptance test. **[operator]**
 
 - [ ] **Step 2: Write the Application**
 
@@ -112,10 +114,24 @@ ArgoCD polls roughly every 3 minutes.
 
 ```bash
 kubectl -n argocd get application argocd-config
+```
+
+Expected: `Synced` / `Healthy`.
+
+Do NOT verify ownership by looking for an `app.kubernetes.io/instance` label.
+ArgoCD tracks resources by label OR by annotation depending on
+`application.resourceTrackingMethod`, the chart does not set it, and on
+ArgoCD v3.1.8 an adopted AppProject can show a
+`argocd.argoproj.io/tracking-id` annotation and no label at all. A missing
+label proves nothing. If you want the ownership marker, check both:
+
+```bash
+kubectl -n argocd get appproject homelab -o jsonpath='{.metadata.annotations}' ; echo
 kubectl -n argocd get appproject homelab -o jsonpath='{.metadata.labels}' ; echo
 ```
 
-Expected: the Application reports `Synced`/`Healthy`, and the AppProject now carries `app.kubernetes.io/instance: argocd-config` — the label that proves ArgoCD owns it. **[operator]**
+The real acceptance test is Step 6, which does not care how tracking works.
+**[operator]**
 
 - [ ] **Step 6: Prove the manual apply is gone**
 
@@ -271,7 +287,7 @@ git push
 
 ## Done when
 
-- `kubectl -n argocd get appproject homelab -o jsonpath='{.metadata.labels}'` shows `app.kubernetes.io/instance: argocd-config`
+- `kubectl -n argocd get application argocd-config` reports `Synced` / `Healthy`
 - A pushed change to `argocd/base/projects.yaml` reaches the cluster with no `kubectl apply`
 - `curl -H 'Host: argocd.mgryn.cc' http://<node IP>/` returns 200/307
 - `https://argoproj.github.io/argo-helm` is in `sourceRepos`, ready for the image-updater plan
