@@ -1,0 +1,11 @@
+---
+# Secrets this repository applies out of band, because the manifests that
+# consume them live in a public repository and ArgoCD has no way to inject a
+# value into them. Plan 2 (Vault + argocd-vault-plugin) is what eventually
+# replaces this role: once AVP renders <path:...> placeholders, these move
+# into committed manifests and the role shrinks to nothing.
+cluster_secrets_kubeconfig: /etc/kubernetes/admin.conf
+cluster_secrets_grafana_namespace: monitoring
+cluster_secrets_grafana_secret_name: grafana-admin
+cluster_secrets_harbor_namespace: harbor
+cluster_secrets_harbor_secret_name: harbor-secrets

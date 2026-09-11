@@ -5,7 +5,12 @@ namespace: gitea
 
 resources:
   - ../base
+  - ingress.yaml
 
 patches:
   - path: pvc-storageclass.yaml
+  # NodePort kept alongside the Ingress on purpose: the Ingress depends on
+  # ingress-nginx, and when that is broken the NodePort is the only way in to
+  # diagnose it.
   - path: service-nodeport.yaml
+  - path: rooturl-dev.yaml

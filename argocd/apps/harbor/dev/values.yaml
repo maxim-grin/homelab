@@ -15,6 +15,35 @@ expose:
 externalURL: http://harbor.mgryn.cc
 namespaceOverride: harbor
 
+# Every credential below comes from the `harbor-secrets` Secret, created out
+# of band by `ansible-playbook playbooks/cluster_secrets.yaml`. This
+# repository is public, so no value can be committed -- only the Secret's
+# name, which is not sensitive.
+#
+# Two separate reasons these are all pinned:
+#
+# 1. Defaults. harborAdminPassword ships as "Harbor12345" and secretKey as
+#    the literal string "not-a-secure-key" -- identical on every Harbor
+#    install in the world. secretKey encrypts the credentials Harbor stores
+#    in its own database.
+#
+# 2. ArgoCD regenerates anything Helm generates. The chart guards its
+#    generated secrets with `lookup`, which reads the live Secret from the
+#    cluster -- but ArgoCD renders with `helm template`, which has no cluster
+#    access, so `lookup` always returns empty and every render falls through
+#    to `randAlphaNum`. core.secret, core.xsrfKey, jobservice.secret,
+#    registry.secret and the registry htpasswd would each get a fresh value
+#    on every sync, leaving Harbor permanently OutOfSync and rewriting its
+#    own auth underneath itself.
+#
+# database.internal.password is deliberately NOT here: the chart offers
+# existingSecret only for database.external, so the only way to change it is
+# to commit it, and a password published in a public repository is no better
+# than the well-known default. Harbor's Postgres is ClusterIP with no
+# ingress.
+existingSecretAdminPassword: harbor-secrets
+existingSecretSecretKey: harbor-secrets
+
 chartmuseum:
   enabled: false
 
@@ -29,6 +58,8 @@ trivy:
 
 jobservice:
   replicas: 1
+  # key `JOBSERVICE_SECRET`, 16 chars
+  existingSecret: harbor-secrets
 
 resources:
   requests:
@@ -55,6 +86,9 @@ portal:
 
 core:
   replicas: 1
+  # key `secret` (16 chars) and key `CSRF_KEY` (32 chars)
+  existingSecret: harbor-secrets
+  existingXsrfSecret: harbor-secrets
   healthCheck:
     periodSeconds: 120
     timeoutSeconds: 30
@@ -69,6 +103,13 @@ core:
 
 registry:
   replicas: 1
+  # key `REGISTRY_HTTP_SECRET`, 16 chars
+  existingSecret: harbor-secrets
+  credentials:
+    # keys `REGISTRY_PASSWD` and `REGISTRY_HTPASSWD`. The htpasswd value is
+    # "user:hash" and the hash must be $2a$ or $2b$ -- the registry uses Go's
+    # bcrypt, which rejects the $2y$ that htpasswd(1) emits.
+    existingSecret: harbor-secrets
   healthCheck:
     periodSeconds: 120
     timeoutSeconds: 30
