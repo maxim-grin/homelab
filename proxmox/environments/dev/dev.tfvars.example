@@ -46,7 +46,9 @@ ub_2_vm_ip     = "10.0.0.111"
 ub_k8s_cidr = "10.0.0.0/24"
 gateway     = "10.0.0.1"
 
-# LXC (only needed if the commented-out n8n module is enabled)
+# LXC. lxc_pass is the root password for every module/lxc container --
+# required now that the vault container uses it; n8n_ip stays only for the
+# commented-out n8n module.
 lxc_pass = "<PASSWORD>"
 n8n_ip   = "dhcp"
 
@@ -55,3 +57,6 @@ claude_code_ip = "10.0.0.130/24"
 
 # NFS server VM. Must include CIDR.
 nfs_vm_ip = "10.0.0.131/24"
+
+# Vault container. Must include CIDR.
+vault_lxc_ip = "10.0.0.132/24"

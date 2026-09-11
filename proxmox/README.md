@@ -116,7 +116,7 @@ terraform apply -var-file="prod.tfvars"
 
 ## Module Overview
 
-- **modules/lxc** – reusable module for lightweight Proxmox containers.
+- **modules/lxc** – reusable module for lightweight Proxmox containers; backs `vault-01` (vmid 104) in `environments/dev`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
 - **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles.
 - **modules/ubuntu-k8s** – Ubuntu-based Kubernetes nodes via kubeadm.
