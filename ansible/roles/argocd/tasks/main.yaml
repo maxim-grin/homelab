@@ -13,10 +13,6 @@
 
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
-  # kubernetes.core, not community.kubernetes: that collection was renamed,
-  # and the old FQCN warns on every run and disappears entirely in
-  # community.kubernetes 3.0.0. Every other task in this role already uses
-  # kubernetes.core; this one was the last holdout.
   kubernetes.core.helm:
     state: present
     release_name: argocd
