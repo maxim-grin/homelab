@@ -82,6 +82,11 @@ brief and never the plan file, so nothing else can record progress.
 - **`ubuntu-cid-tp` must exist before any `terraform apply`.** Every VM is a
   `full_clone` of it and nothing in this repository creates it. `qm` commands
   in `docs/rebuild.md`.
+- **The Debian LXC template must exist before any dev `terraform apply`.**
+  `module "vault"` clones `local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst`
+  for `vault-01`; nothing in this repository downloads it. Missing it fails
+  the apply on vmid 104 with a template-not-found error. `pveam download`
+  command in `docs/rebuild.md`.
 - **`disk_size` only goes up.** Proxmox cannot shrink a disk; the attempt
   fails with `can't unplug bootdisk 'scsi0'` *and still writes the smaller
   value into `terraform.tfstate`*, so Terraform then believes a size the host
@@ -106,11 +111,13 @@ brief and never the plan file, so nothing else can record progress.
   ignore rule said `talos/secrets.yaml` and the file was at
   `talos/_out/secrets.yaml`. Check `git check-ignore -v <path>` rather than
   assuming a rule matches.
-- **A sealed Vault is a silent failure.** After any `vault-01` reboot, Vault
-  comes back sealed. AVP then renders nothing, and every Application whose
-  manifests carry a `<path:...>` placeholder degrades — with nothing in its
-  status mentioning Vault. `vault status` on `vault-01` is the first check
-  when an app that was fine yesterday won't sync today.
+- **A sealed Vault looks healthy.** After any `vault-01` reboot, Vault comes
+  back sealed. AVP then renders nothing, and every Application whose
+  manifests carry a `<path:...>` placeholder goes `Unknown` on sync status —
+  Argo health stays `Healthy`, because the last-applied resources are still
+  there. The `ComparisonError` condition does name Vault, in AVP's stderr;
+  it is the health field that lies. `vault status` on `vault-01` is the
+  first check when an app that was fine yesterday won't sync today.
 - **`<path:secret/data/...#FIELD>` is the only form a secret value takes in
   a committed manifest.** The placeholder is committed; AVP resolves it
   against Vault at sync time. The value behind it is never committed,

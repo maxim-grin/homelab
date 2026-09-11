@@ -101,6 +101,22 @@ argocd_avp_plugin_config: |
           generate ./; fi'
     lockRepo: false
 
+# The four keys the argocd-vault-plugin-config Secret carries. Kept as its
+# own variable, not inline in the Secret task, so repoServer.podAnnotations
+# below can hash this exact dict and force a pod rollout whenever it
+# changes -- same reasoning as argocd_avp_plugin_config above, but for a
+# different failure mode: this Secret is consumed via envFrom, and
+# environment variables are read once at container start. Changing
+# argocd_vault_address (or AVP_K8S_ROLE) and re-running the playbook
+# updates the Secret and reports "changed", but the running sidecar keeps
+# dialling the OLD address with the pod stuck at 2/2 Running -- nothing in
+# any task, pod status or Application condition says it is stale.
+argocd_avp_config:
+  AVP_TYPE: vault
+  AVP_AUTH_TYPE: k8s
+  AVP_K8S_ROLE: argocd
+  VAULT_ADDR: "http://{{ argocd_vault_address }}:8200"
+
 argocd_helm_values:
   configs:
     secret:
@@ -143,9 +159,23 @@ argocd_helm_values:
     # throughout. Hashing the plugin config into a pod annotation changes
     # the pod template whenever the plugin config does, which is what
     # actually forces a rollout.
+    # checksum/avp-config is the same fix for the argocd-vault-plugin-config
+    # Secret above: it is mounted with envFrom rather than subPath, but the
+    # underlying problem is identical -- env vars are read once at
+    # container start, so a Secret-only change is invisible to a running
+    # pod. Hashing argocd_avp_config (which embeds argocd_vault_address)
+    # into a second annotation forces the same rollout the ConfigMap
+    # checksum forces.
     podAnnotations:
       checksum/cmp-plugin: "{{ argocd_avp_plugin_config | hash('sha1') }}"
+      checksum/avp-config: "{{ argocd_avp_config | to_json | hash('sha1') }}"
     initContainers:
+      # Runs as root -- no securityContext of its own. That only works
+      # because the chart's global.securityContext defaults to {}. If
+      # anyone ever hardens that (e.g. sets runAsNonRoot or a restricted
+      # PodSecurity level), this initContainer fails and repo-server never
+      # leaves Init -- the exact six-hour failure this branch exists to
+      # prevent.
       - name: download-tools
         image: registry.access.redhat.com/ubi8/ubi-minimal:latest
         env:

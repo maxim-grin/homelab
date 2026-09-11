@@ -74,8 +74,9 @@ not just the commented-out n8n module. Skip its pool or ACL and
 `terraform apply` fails placing `vault-01`, with a permission error that
 never mentions pools.
 
-**LXC templates**, needed only if the n8n module or the prod environment is
-ever enabled:
+**LXC templates**, now a hard blocker for dev too: `vault-01` (module
+`proxmox/modules/lxc`) clones one, not just the commented-out n8n module or
+the never-applied prod environment:
 
 ```bash
 pveam update
@@ -359,7 +360,11 @@ Each step depends on the one above it.
 2. **Prepare the host** — section 1: swap the enterprise repo for
    no-subscription, add the admin user, create `terraform@pve` with the
    `TerraformProv` role, issue an API token, create the `VM`,
-   `Ubuntu-K8s` and `LXC` pools. Put the token in `dev.tfvars`.
+   `Ubuntu-K8s` and `LXC` pools, and download the LXC template (check
+   `pveam available | grep debian-13` first — the build string drifts):
+   `pveam download local debian-13-standard_13.1-2_amd64.tar.zst`. Skip it
+   and `terraform apply` fails creating `vault-01` (vmid 104) with a
+   template-not-found error. Put the token in `dev.tfvars`.
 3. **Build the cloud-init template** — section 2. It must be named whatever
    `clone_template_ubuntu` says.
 4. **`terraform apply -var-file=dev.tfvars`** — six VMs plus the `vault-01`
@@ -406,7 +411,11 @@ Each step depends on the one above it.
    runs, `ansible/roles/argocd` also creates the `cmp-plugin` ConfigMap and
    `argocd-vault-plugin-config` Secret that the argocd-vault-plugin (AVP)
    sidecar in `argocd-repo-server` needs — that ordering is what keeps
-   `argocd-repo-server` out of `Init`.
+   `argocd-repo-server` out of `Init`. The Helm task does not wait, so on
+   an upgrade where the new repo-server wedges, the old pod keeps serving
+   and the playbook still reports `changed`; confirm
+   `kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-repo-server`
+   shows `2/2` before continuing.
 10. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject. Nothing
     has applied it yet at this point in a rebuild, so it must go on by hand;
     from here on, the `argocd-config` Application syncs it. This same command
@@ -428,6 +437,12 @@ Each step depends on the one above it.
     merge and push this repo. Pushing this repo before the image exists
     just trades one CrashLoop for another — AVP renders the Secrets, but
     there is no image to pull.
+
+    Separately, expect jobboard's sync status to sit at `Unknown` with a
+    `ComparisonError` naming a permission denied or a sealed Vault for
+    however long the next step takes — Vault's Kubernetes auth is not
+    configured until step 12. That is expected, not a wiring fault; it
+    clears once step 12 runs.
 12. **Configure Vault's Kubernetes auth** — only after `argocd-config` shows
     `Synced` (`kubectl -n argocd get application argocd-config`), because
     this step reads the `vault-auth-token` Secret that sync just created:

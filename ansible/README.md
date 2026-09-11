@@ -75,9 +75,11 @@ vault_kv:
   jobboard/ghcr:
     username:
     token:
+    dockerconfigjson:            # read by argocd/apps/jobboard/base/ghcr-secret.yaml
 ```
 
-See `secret.yaml.example` for the annotated shape.
+See `secret.yaml.example` for the annotated shape, including how
+`dockerconfigjson` is assembled.
 
 `vault_kv` is not read directly by anything in the cluster. It is the seed:
 `roles/vault/tasks/seed.yaml` writes each sub-key into Vault's KV v2 store
@@ -231,8 +233,10 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
      http://<vault-01 IP>:8200/v1/auth/kubernetes/config | jq .
    ```
 
-   and compare against what the task tried to send (`kubernetes_host`,
-   `kubernetes_ca_cert`, `token_reviewer_jwt`) -- the real error is almost
+   and compare against what the task tried to send. Vault does not return
+   `token_reviewer_jwt` on read -- only `kubernetes_host`,
+   `kubernetes_ca_cert`, `pem_keys`, `issuer` and the `disable_*` flags come
+   back -- so check those against what was sent. The real error is almost
    always an empty or stale reviewer JWT, which the preceding task's own
    `assert` catches before this one runs, or a `kubernetes_host` that does
    not match `host_ips['master-01']`.
