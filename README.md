@@ -21,9 +21,12 @@ _not_ contain, which is the part that will bite.
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
 | Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
+| Secrets    | Vault (`vault.mgryn.cc:8200`), LXC `vault-01`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `proxmox/environments/dev` |
 
-Hostnames resolve through `/etc/hosts` on the workstation, pointing at a
-node IP. There is no Pi-hole, no Traefik and no Cloudflare Tunnel yet.
+Hostnames resolve through `/etc/hosts` on the workstation. Most point at a
+node IP, since ingress-nginx answers on every node; `vault.mgryn.cc` is the
+exception and points straight at `vault-01`. There is no Pi-hole, no
+Traefik and no Cloudflare Tunnel yet.
 
 ## jobboard image tag
 
@@ -44,7 +47,8 @@ commit-back into this repo, neither of which exists), not an oversight.
 
 ```txt
 ansible/          Roles and playbooks. Inventory per environment, secrets in
-                  an ansible-vault file.
+                  an ansible-vault file. roles/vault/ installs and seeds
+                  HashiCorp Vault.
 argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays per app
                   environments/dev/applications/  Application CRs, synced by root-dev
@@ -89,5 +93,7 @@ git push origin main
 ArgoCD UI: `http://argocd.mgryn.cc`
 Gitea: `http://gitea.mgryn.cc` · Grafana: `http://grafana.mgryn.cc`
 Prometheus: `http://prometheus.mgryn.cc` (no authentication -- Prometheus ships none)
+Vault UI: `http://vault.mgryn.cc:8200` -- straight to `vault-01`, not through
+ingress-nginx, so it is reachable even when the cluster is down
 
 See `ansible/README.md` and `proxmox/README.md` for the detail of each half.

@@ -106,19 +106,34 @@ brief and never the plan file, so nothing else can record progress.
   ignore rule said `talos/secrets.yaml` and the file was at
   `talos/_out/secrets.yaml`. Check `git check-ignore -v <path>` rather than
   assuming a rule matches.
+- **A sealed Vault is a silent failure.** After any `vault-01` reboot, Vault
+  comes back sealed. AVP then renders nothing, and every Application whose
+  manifests carry a `<path:...>` placeholder degrades — with nothing in its
+  status mentioning Vault. `vault status` on `vault-01` is the first check
+  when an app that was fine yesterday won't sync today.
+- **`<path:secret/data/...#FIELD>` is the only form a secret value takes in
+  a committed manifest.** The placeholder is committed; AVP resolves it
+  against Vault at sync time. The value behind it is never committed,
+  anywhere, under any name.
 
 ## Secrets
 
-Real values live in exactly two places, both outside git's reach:
-`ansible/secret.yaml` (ansible-vault, committed encrypted) and
-`proxmox/environments/dev/*.tfvars` (gitignored). Every other file gets a
-committed `.example` alongside it.
+Real values live in exactly three places, all outside git's reach:
+`ansible/secret.yaml` (ansible-vault, committed encrypted — its `vault_kv`
+block is the seed for the third place below),
+`proxmox/environments/dev/*.tfvars` (gitignored), and Vault's own KV store
+on `vault-01`. Every other file gets a committed `.example` alongside it.
 
 ArgoCD reads manifests from a **public** repository, so anything it must
 apply has to be committed — an RFC1918 address in a Deployment is acceptable,
-a credential never is. There is no argocd-vault-plugin: it was configured
-once, mounted a ConfigMap nothing created, and wedged `argocd-repo-server` in
-`Init` for six hours. Removed deliberately.
+a credential never is. That is what argocd-vault-plugin (AVP) is for:
+committed manifests carry `<path:secret/data/...#FIELD>` placeholders, and
+AVP resolves them against Vault at sync time, so the values themselves never
+touch git. It was configured once before, mounted a ConfigMap nothing
+created, and wedged `argocd-repo-server` in `Init` for six hours — the
+`cmp-plugin` ConfigMap and `argocd-vault-plugin-config` Secret it needs
+didn't exist yet. The fix is ordering: `ansible/roles/argocd` now creates
+both before the Helm deploy runs, not after.
 
 ## Commits
 
