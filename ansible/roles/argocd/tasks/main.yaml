@@ -13,7 +13,7 @@
 
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
-  community.kubernetes.helm:
+  kubernetes.core.helm:
     state: present
     release_name: argocd
     chart_ref: argo/{{ argocd_helm_chart }}
