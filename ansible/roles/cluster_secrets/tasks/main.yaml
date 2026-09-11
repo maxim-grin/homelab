@@ -1,0 +1,35 @@
+---
+- name: Require the Grafana admin password
+  ansible.builtin.assert:
+    that:
+      - grafana_admin_password is defined
+      - grafana_admin_password | length > 0
+    fail_msg: >-
+      grafana_admin_password must be set in ansible/secret.yaml. Without it
+      the Grafana Deployment's secretKeyRef cannot resolve and the pod sits
+      in CreateContainerConfigError.
+
+- name: Ensure the monitoring namespace exists
+  # ArgoCD also manages this namespace and will adopt it. Creating it here
+  # removes an ordering dependency at rebuild time, when this role may run
+  # before root-dev has synced the monitoring Application.
+  kubernetes.core.k8s:
+    state: present
+    kind: Namespace
+    name: "{{ cluster_secrets_grafana_namespace }}"
+    kubeconfig: "{{ cluster_secrets_kubeconfig }}"
+
+- name: Create the Grafana admin Secret
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ cluster_secrets_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ cluster_secrets_grafana_secret_name }}"
+        namespace: "{{ cluster_secrets_grafana_namespace }}"
+      type: Opaque
+      stringData:
+        admin-password: "{{ grafana_admin_password }}"
+  no_log: true

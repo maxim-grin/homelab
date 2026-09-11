@@ -397,10 +397,19 @@ Each step depends on the one above it.
     Skip either one and the pod sits in `CreateContainerConfigError`
     (missing `jobboard-secrets`) or `ImagePullBackOff` (missing `ghcr`).
 12. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
-13. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
-    `jobs.mgryn.cc`, `argocd.mgryn.cc`, `gitea.mgryn.cc` and
-    `grafana.mgryn.cc`. One line per name, all pointing at the same node --
-    ingress-nginx is a DaemonSet on host ports 80/443, so any node answers.
+13. **`ansible-playbook playbooks/cluster_secrets.yaml`** — creates the
+    `grafana-admin` Secret from `grafana_admin_password` in `secret.yaml`.
+    Grafana's Deployment reads it through a `secretKeyRef` with no
+    `optional: true`, so until this runs the pod sits in
+    `CreateContainerConfigError`. Grafana applies the password only when it
+    first creates its database; on an instance whose PVC already holds one,
+    reset it explicitly with
+    `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
+14. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
+    `jobs.mgryn.cc`, `argocd.mgryn.cc`, `gitea.mgryn.cc`,
+    `grafana.mgryn.cc` and `prometheus.mgryn.cc`. One line per name, all
+    pointing at the same node -- ingress-nginx is a DaemonSet on host ports
+    80/443, so any node answers.
     Gitea and Grafana each render absolute URLs from configuration
     (`GITEA__server__ROOT_URL`, `GF_SERVER_ROOT_URL`), so a name that does not
     resolve produces broken clone URLs and login redirects rather than a

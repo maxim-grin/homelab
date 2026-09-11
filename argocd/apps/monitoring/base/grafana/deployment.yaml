@@ -24,6 +24,23 @@ spec:
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: "admin"
+            # From the grafana-admin Secret, created out of band by
+            # `ansible-playbook playbooks/cluster_secrets.yaml` -- this
+            # repository is public, so the value cannot be committed. No
+            # `optional: true`: a missing Secret leaves the pod in
+            # CreateContainerConfigError, which is loud, rather than silently
+            # starting Grafana on its default password of "admin".
+            #
+            # Grafana applies this only when it first creates its database.
+            # On an instance whose PVC already holds a Grafana DB the existing
+            # password stands; reset it with
+            #   kubectl -n monitoring exec deploy/grafana -- \
+            #     grafana-cli admin reset-admin-password <newpassword>
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: admin-password
             - name: GF_LIVE_ENABLED
               value: "false"
             - name: GF_ANALYTICS_CHECK_FOR_UPDATES

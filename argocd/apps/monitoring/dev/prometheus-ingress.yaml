@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  # Prometheus ships no authentication of any kind, so anything that can
+  # reach this name can read every metric -- host names, addresses, pod
+  # labels. Acceptable on this LAN, and no worse than the NodePort it
+  # replaces, but it is not a page to make reachable from anywhere else.
+  #
+  # The deployment passes only --config.file, --storage.tsdb.path and
+  # --storage.tsdb.retention.time: without --web.enable-admin-api or
+  # --web.enable-lifecycle there is no delete-series endpoint and no remote
+  # reload, so this is read-only. Adding either of those flags later turns
+  # this Ingress into a destructive API on the LAN.
+  ingressClassName: nginx
+  rules:
+    - host: prometheus.mgryn.cc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090

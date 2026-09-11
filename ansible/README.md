@@ -62,6 +62,7 @@ user_name:
 control_plane_endpoint:
 nfs_server_ip:
 argocd_admin_password_hash:
+grafana_admin_password:
 ```
 
 See `secret.yaml.example` for the annotated shape.

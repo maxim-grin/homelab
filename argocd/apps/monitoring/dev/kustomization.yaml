@@ -6,6 +6,7 @@ namespace: monitoring
 resources:
   - ../base
   - grafana-ingress.yaml
+  - prometheus-ingress.yaml
 
 # patchesStrategicMerge is deprecated in current kustomize but still works and
 # is what this overlay already used; migrating it is a separate change.
