@@ -5,7 +5,11 @@ namespace: monitoring
 
 resources:
   - ../base
+  - grafana-ingress.yaml
 
+# patchesStrategicMerge is deprecated in current kustomize but still works and
+# is what this overlay already used; migrating it is a separate change.
 patchesStrategicMerge:
   - grafana-pvc-dev.yaml
   - prometheus-pvc-dev.yaml
+  - grafana-rooturl-dev.yaml

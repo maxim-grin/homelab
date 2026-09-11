@@ -87,5 +87,6 @@ git push origin main
 ```
 
 ArgoCD UI: `http://argocd.mgryn.cc`
+Gitea: `http://gitea.mgryn.cc` · Grafana: `http://grafana.mgryn.cc`
 
 See `ansible/README.md` and `proxmox/README.md` for the detail of each half.

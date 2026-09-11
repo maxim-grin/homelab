@@ -398,7 +398,13 @@ Each step depends on the one above it.
     (missing `jobboard-secrets`) or `ImagePullBackOff` (missing `ghcr`).
 12. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
 13. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
-    `jobs.mgryn.cc`, `argocd.mgryn.cc` and friends.
+    `jobs.mgryn.cc`, `argocd.mgryn.cc`, `gitea.mgryn.cc` and
+    `grafana.mgryn.cc`. One line per name, all pointing at the same node --
+    ingress-nginx is a DaemonSet on host ports 80/443, so any node answers.
+    Gitea and Grafana each render absolute URLs from configuration
+    (`GITEA__server__ROOT_URL`, `GF_SERVER_ROOT_URL`), so a name that does not
+    resolve produces broken clone URLs and login redirects rather than a
+    connection error.
 
 Expect steps 9 and 10 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.

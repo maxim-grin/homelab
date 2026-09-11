@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitea
+spec:
+  # Same shape as jobboard's: ingress-nginx is a DaemonSet on host ports
+  # 80/443, this cluster has no LoadBalancer and no MetalLB, and there is no
+  # DNS server -- gitea.mgryn.cc resolves through /etc/hosts on the
+  # workstation, pointing at any node IP.
+  #
+  # This covers HTTP only. Gitea's SSH port is not reachable through an
+  # Ingress, so git-over-SSH still needs the NodePort; HTTP clone works here.
+  ingressClassName: nginx
+  rules:
+    - host: gitea.mgryn.cc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitea-http
+                port:
+                  number: 3000

@@ -1,0 +1,19 @@
+# Gitea renders clone URLs from configuration, not from the request host.
+# Without ROOT_URL every "clone" button on every repository page hands out a
+# URL built from the pod's own guess -- usually the NodePort address, or
+# localhost. Nothing looks broken; you just copy a URL that does not work.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: gitea
+spec:
+  template:
+    spec:
+      containers:
+        - name: gitea
+          env:
+            - name: GITEA__server__ROOT_URL
+              value: "http://gitea.mgryn.cc/"
+            - name: GITEA__server__DOMAIN
+              value: "gitea.mgryn.cc"

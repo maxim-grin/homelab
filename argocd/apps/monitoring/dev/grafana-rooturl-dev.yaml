@@ -1,0 +1,18 @@
+# Grafana builds redirects and asset paths from GF_SERVER_ROOT_URL rather than
+# from the request. Left unset it defaults to http://localhost:3000, so
+# logging in bounces the browser to localhost and the session never lands.
+# The prod overlay sets the https:// form; this is the plain-HTTP dev
+# equivalent, matching harbor.mgryn.cc and jobs.mgryn.cc.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      containers:
+        - name: grafana
+          env:
+            - name: GF_SERVER_ROOT_URL
+              value: "http://grafana.mgryn.cc"

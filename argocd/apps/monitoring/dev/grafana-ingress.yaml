@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  # ingress-nginx is a DaemonSet on host ports 80/443; no LoadBalancer, no
+  # MetalLB, no DNS server. grafana.mgryn.cc resolves through /etc/hosts on
+  # the workstation, pointing at any node IP.
+  ingressClassName: nginx
+  rules:
+    - host: grafana.mgryn.cc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
