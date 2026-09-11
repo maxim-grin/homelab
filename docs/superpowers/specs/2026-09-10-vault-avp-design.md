@@ -24,7 +24,7 @@ in this repository ever created, so kubelet looped on
 
 | Decision | Chosen | Rejected |
 | --- | --- | --- |
-| Where Vault runs | Proxmox VM, `modules/ubuntu-vm` | In-cluster Helm; LXC |
+| Where Vault runs | Unprivileged Proxmox LXC, `modules/lxc` | In-cluster Helm; full VM |
 | Secret delivery | argocd-vault-plugin | External Secrets Operator |
 | Seed storage | `vault_kv` block in `ansible/secret.yaml` | A SOPS-encrypted `vault/secrets.yaml.enc` |
 | Unseal | `-key-shares=1 -key-threshold=1`, manual | 3-of-5 Shamir; auto-unseal from local key file |
@@ -32,6 +32,16 @@ in this repository ever created, so kubelet looped on
 | Image write-back | git, with a PAT from Vault | ArgoCD annotation write-back |
 
 Rationale for the two non-obvious ones:
+
+**LXC rather than a VM** (revised 2026-09-11; the design first chose a VM).
+A file-backed Vault serving a handful of KV paths does not need its own
+kernel. The blocking objection -- unprivileged containers cannot `mlock` --
+was already answered by `disable_mlock = true`, which the config needed
+regardless. The module does not expose `ssh_public_keys`, so adding it is a
+prerequisite, not an optional tidy-up: without it the container is
+password-only and no playbook here can reach it. An escape from an
+unprivileged container reaches the host kernel, which matters less than it
+sounds when root on that host can already read an unsealed Vault's memory.
 
 **Vault outside the cluster.** Vault holds the secrets a cluster rebuild
 consumes. In-cluster Vault dies with the cluster and cannot serve its own
@@ -52,7 +62,7 @@ Vault is **reconstructible, not backed up**. Nothing snapshots
 
 | Tier | Survives cluster rebuild | Survives Proxmox loss |
 | --- | --- | --- |
-| `vault-01` VM, `/opt/vault/data` | yes | no |
+| `vault-01` container, `/opt/vault/data` | yes | no |
 | `ansible/secret.yaml` (`vault_kv`), pushed to GitHub | yes | yes |
 | Password manager: ansible-vault password, unseal key, root token | yes | yes |
 
@@ -90,11 +100,18 @@ argocd namespace
 ## Layer 1 -- Terraform
 
 `proxmox/environments/dev/main.tf` gains a `vault` module beside `nfs` and
-`claude_code`, using `modules/ubuntu-vm`, a full clone of `ubuntu-cid-tp` like
-every other machine. `dev.tfvars` gains its vmid and address.
+`claude_code`, using `modules/lxc`: vmid 104, pool `LXC`, unprivileged, 1 GB,
+2 cores, an 8 GB rootfs, from the Debian 13 template already on the host.
+`dev.tfvars` gains its address; `lxc_pass` already exists there but is
+currently described as optional.
 
-`disk_size` only goes up. Size the disk generously at creation; Vault's file
-backend is small, so the default is ample.
+Two prerequisites Terraform does not create, both confirmed present on
+2026-09-11: the template `local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst`,
+and the `LXC` pool with `TerraformProv` granted to `terraform@pve` on
+`/pool/LXC`. A rebuilt host has neither.
+
+`modules/lxc` must first gain an `ssh_public_keys` variable. It exposes only
+`password` today, and every host in the dev inventory is reached by key.
 
 ## Layer 2 -- Ansible
 
