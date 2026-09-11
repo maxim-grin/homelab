@@ -42,35 +42,17 @@
         name: cmp-plugin
         namespace: "{{ argocd_namespace }}"
       data:
-        avp.yaml: |
-          apiVersion: argoproj.io/v1alpha1
-          kind: ConfigManagementPlugin
-          metadata:
-            name: argocd-vault-plugin
-          spec:
-            allowConcurrency: true
-            discover:
-              find:
-                command:
-                  - sh
-                  - "-c"
-                  - "find . -name '*.yaml' | xargs -I {} grep -l '<path:' {} | head -1"
-            generate:
-              command:
-                - sh
-                - "-c"
-                # Naming a plugin on an Application makes ArgoCD delegate ALL
-                # manifest generation to this CMP -- kustomize no longer runs
-                # on ArgoCD's side. Task 6 sets spec.source.plugin on the
-                # jobboard Application, whose path is the kustomize overlay
-                # argocd/apps/jobboard/dev, so a bare `generate ./` would read
-                # the raw overlay files and kustomization.yaml itself as
-                # manifests instead of rendering the overlay. Pipe through
-                # kustomize first when the source is an overlay; the sidecar
-                # image (quay.io/argoproj/argocd) ships a kustomize binary.
-                # The conditional keeps plain-YAML sources working too.
-                - "if [ -f kustomization.yaml ]; then kustomize build . | argocd-vault-plugin generate -; else argocd-vault-plugin generate ./; fi"
-            lockRepo: false
+        # Lifted into a variable (argocd_avp_plugin_config, in
+        # defaults/main.yaml) rather than kept as a literal here: this
+        # ConfigMap is mounted into the avp sidecar with subPath, and
+        # kubelet never propagates a ConfigMap update into a subPath mount.
+        # Changing the string in place would make this task report
+        # "changed" without the running sidecar ever seeing the new
+        # content. The repoServer.podAnnotations checksum below hashes this
+        # same variable so the pod template -- not just the ConfigMap --
+        # changes whenever the plugin config does, which is what actually
+        # forces a rollout.
+        avp.yaml: "{{ argocd_avp_plugin_config }}"
 
 - name: Create the AVP configuration Secret
   # Under Kubernetes auth this holds no credential -- only an address and a
