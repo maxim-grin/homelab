@@ -1,0 +1,15 @@
+ui = true
+
+storage "file" {
+  path = "{{ vault_data_dir }}"
+}
+
+listener "tcp" {
+  address     = "{{ vault_listen_address }}"
+  tls_disable = 1  # Homelab: plain HTTP throughout, as with harbor and jobs
+}
+
+api_addr     = "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}"
+cluster_addr = "https://{{ ansible_default_ipv4.address }}:8201"
+
+disable_mlock = true  # LXC/VM compatibility
