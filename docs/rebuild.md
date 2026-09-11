@@ -359,7 +359,11 @@ Each step depends on the one above it.
    storage first, because everything else claims PVCs from it.
 6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.
-8. **`ansible-playbook playbooks/argocd-dev.yaml`** — ArgoCD via Helm.
+8. **`ansible-playbook playbooks/argocd-dev.yaml`** — ArgoCD via Helm. The
+   UI login is `admin`, with the password whose bcrypt hash is
+   `argocd_admin_password_hash` in `secret.yaml`. The play asserts that hash
+   is present before installing, so a forgotten value fails here rather than
+   leaving a random password in `argocd-initial-admin-secret`.
 9. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject. Nothing
    has applied it yet at this point in a rebuild, so it must go on by hand;
    from here on, the `argocd-config` Application syncs it. This same command

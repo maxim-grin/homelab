@@ -61,9 +61,17 @@ proxmox_vm_ids:
 user_name:
 control_plane_endpoint:
 nfs_server_ip:
+argocd_admin_password_hash:
 ```
 
 See `secret.yaml.example` for the annotated shape.
+
+`argocd_admin_password_hash` is a bcrypt hash, not a password. Generate it
+with `htpasswd -nbBC 10 "" 'thepassword' | tr -d ':\n' | sed 's/$2y/$2a/'`
+and keep the plaintext in a password manager. The `argocd` role asserts it is
+present and starts with `$2a$` before running Helm, because an unset value
+makes the chart fall back to a random password in `argocd-initial-admin-secret`
+-- which looks like a successful install right up until you try to log in.
 
 All sensitive information lives in ansible/secret.yaml, encrypted with Ansible Vault.
 

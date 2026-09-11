@@ -11,6 +11,21 @@
     name: argo
     repo_url: "{{ argocd_helm_repo }}"
 
+- name: Require the admin password hash
+  # Before the Helm deploy, so a missing hash fails here with an actionable
+  # message rather than producing a working ArgoCD whose password is a random
+  # string in argocd-initial-admin-secret.
+  when: argocd_install_method == 'helm'
+  ansible.builtin.assert:
+    that:
+      - argocd_admin_password_hash is defined
+      - argocd_admin_password_hash | length > 0
+      - argocd_admin_password_hash.startswith('$2a$')
+    fail_msg: >-
+      argocd_admin_password_hash must be set in ansible/secret.yaml to a
+      bcrypt hash starting with $2a$. Generate one with:
+      htpasswd -nbBC 10 "" 'thepassword' | tr -d ':\n' | sed 's/$2y/$2a/'
+
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
   kubernetes.core.helm:
