@@ -373,15 +373,25 @@ Each step depends on the one above it.
    token, and should not):
 
    ```bash
+   # on vault-01 -- the listener is plain HTTP, so VAULT_ADDR must say so
+   export VAULT_ADDR=http://127.0.0.1:8200
    vault operator init -key-shares=1 -key-threshold=1
    ```
 
    Record the unseal key and the root token in the password manager now —
-   there is no recovery from losing the unseal key, ever. Then:
+   there is no recovery from losing the unseal key, ever. Then, still on
+   `vault-01`:
 
    ```bash
+   export VAULT_ADDR=http://127.0.0.1:8200
    vault operator unseal
-   ansible-playbook playbooks/vault.yaml -e vault_seed=true -e vault_token=...
+   ```
+
+   and back on the Ansible control machine, seed the KV store:
+
+   ```bash
+   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+     -e vault_seed=true -e vault_token=<root token>
    ```
 
    `vault_seed` replays the `vault_kv` block from `secret.yaml` into
@@ -423,8 +433,8 @@ Each step depends on the one above it.
     this step reads the `vault-auth-token` Secret that sync just created:
 
     ```bash
-    ansible-playbook playbooks/vault.yaml \
-      -e vault_configure_k8s_auth=true -e vault_token=...
+    ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+      -e vault_configure_k8s_auth=true -e vault_token=<root token>
     ```
 
     This wires Vault's Kubernetes auth method (`disable_local_ca_jwt: true`),

@@ -202,15 +202,16 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
    (see `docs/rebuild.md`), seed the KV store from `vault_kv`:
 
    ```bash
-   ansible-playbook playbooks/vault.yaml -e vault_seed=true -e vault_token=...
+   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+     -e vault_seed=true -e vault_token=<root token>
    ```
 
    Then, once `argocd-config` has synced `argocd/base/` and created the
    `vault-auth-token` Secret, configure Vault's Kubernetes auth method:
 
    ```bash
-   ansible-playbook playbooks/vault.yaml \
-     -e vault_configure_k8s_auth=true -e vault_token=...
+   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+     -e vault_configure_k8s_auth=true -e vault_token=<root token>
    ```
 
    **`vault_token` is passed with `-e` on the command line for that one
