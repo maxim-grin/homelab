@@ -1,3 +1,7 @@
 ---
 - name: Install and configure Vault
   ansible.builtin.import_tasks: install.yaml
+
+- name: Seed the KV store
+  ansible.builtin.import_tasks: seed.yaml
+  when: vault_seed | default(false) | bool
