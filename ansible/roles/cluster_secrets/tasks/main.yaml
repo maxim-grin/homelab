@@ -33,3 +33,55 @@
       stringData:
         admin-password: "{{ grafana_admin_password }}"
   no_log: true
+
+- name: Require the Harbor credentials
+  ansible.builtin.assert:
+    that:
+      - harbor_admin_password is defined and harbor_admin_password | length > 0
+      - harbor_secret_key is defined and harbor_secret_key | length == 16
+      - harbor_core_secret is defined and harbor_core_secret | length == 16
+      - harbor_xsrf_key is defined and harbor_xsrf_key | length == 32
+      - harbor_jobservice_secret is defined and harbor_jobservice_secret | length == 16
+      - harbor_registry_http_secret is defined and harbor_registry_http_secret | length == 16
+      - harbor_registry_password is defined and harbor_registry_password | length > 0
+      - harbor_registry_htpasswd is defined
+      - harbor_registry_htpasswd is search('\\$2[ab]\\$')
+    fail_msg: >-
+      Harbor credentials are missing or the wrong length in
+      ansible/secret.yaml. The chart validates these at runtime: secretKey,
+      core secret, jobservice secret and registry secret must be exactly 16
+      characters and the XSRF key exactly 32. The registry htpasswd must
+      contain a $2a$ or $2b$ hash -- the registry uses Go's bcrypt, which
+      rejects the $2y$ that htpasswd(1) emits. Generate the whole block with
+      scripts/gen-harbor-secrets.sh.
+
+- name: Ensure the harbor namespace exists
+  kubernetes.core.k8s:
+    state: present
+    kind: Namespace
+    name: "{{ cluster_secrets_harbor_namespace }}"
+    kubeconfig: "{{ cluster_secrets_kubeconfig }}"
+
+- name: Create the Harbor Secret
+  # One Secret serves all seven of the chart's existingSecret references --
+  # every key name the chart expects is distinct, so they can share an object.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ cluster_secrets_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ cluster_secrets_harbor_secret_name }}"
+        namespace: "{{ cluster_secrets_harbor_namespace }}"
+      type: Opaque
+      stringData:
+        HARBOR_ADMIN_PASSWORD: "{{ harbor_admin_password }}"
+        secretKey: "{{ harbor_secret_key }}"
+        secret: "{{ harbor_core_secret }}"
+        CSRF_KEY: "{{ harbor_xsrf_key }}"
+        JOBSERVICE_SECRET: "{{ harbor_jobservice_secret }}"
+        REGISTRY_HTTP_SECRET: "{{ harbor_registry_http_secret }}"
+        REGISTRY_PASSWD: "{{ harbor_registry_password }}"
+        REGISTRY_HTPASSWD: "{{ harbor_registry_htpasswd }}"
+  no_log: true

@@ -7,3 +7,5 @@
 cluster_secrets_kubeconfig: /etc/kubernetes/admin.conf
 cluster_secrets_grafana_namespace: monitoring
 cluster_secrets_grafana_secret_name: grafana-admin
+cluster_secrets_harbor_namespace: harbor
+cluster_secrets_harbor_secret_name: harbor-secrets

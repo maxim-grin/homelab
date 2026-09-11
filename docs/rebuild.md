@@ -398,13 +398,21 @@ Each step depends on the one above it.
     (missing `jobboard-secrets`) or `ImagePullBackOff` (missing `ghcr`).
 12. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
 13. **`ansible-playbook playbooks/cluster_secrets.yaml`** — creates the
-    `grafana-admin` Secret from `grafana_admin_password` in `secret.yaml`.
-    Grafana's Deployment reads it through a `secretKeyRef` with no
-    `optional: true`, so until this runs the pod sits in
-    `CreateContainerConfigError`. Grafana applies the password only when it
-    first creates its database; on an instance whose PVC already holds one,
-    reset it explicitly with
-    `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
+    `grafana-admin` and `harbor-secrets` Secrets from `secret.yaml`. **Run
+    this before ArgoCD syncs those two apps**, not after. Both seed their
+    credentials only when they first create their databases, so an app that
+    installs without its Secret keeps the defaults until it is destroyed and
+    rebuilt.
+    - **Harbor** reads all seven of its credentials from `harbor-secrets`
+      through the chart's `existingSecret` options. Without it Harbor comes
+      up as `admin` / `Harbor12345` with `secretKey` set to the literal
+      string `not-a-secure-key`.
+    - **Grafana** reads `GF_SECURITY_ADMIN_PASSWORD` through a `secretKeyRef`
+      with no `optional: true`, so until this runs the pod sits in
+      `CreateContainerConfigError` — loud, deliberately, rather than
+      silently starting on the default password. On an instance whose PVC
+      already holds a Grafana database, reset it explicitly:
+      `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
 14. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
     `jobs.mgryn.cc`, `argocd.mgryn.cc`, `gitea.mgryn.cc`,
     `grafana.mgryn.cc` and `prometheus.mgryn.cc`. One line per name, all

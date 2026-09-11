@@ -63,6 +63,7 @@ control_plane_endpoint:
 nfs_server_ip:
 argocd_admin_password_hash:
 grafana_admin_password:
+harbor_admin_password:          # plus 7 more harbor_* values
 ```
 
 See `secret.yaml.example` for the annotated shape.
