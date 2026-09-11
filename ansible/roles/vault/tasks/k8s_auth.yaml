@@ -12,6 +12,18 @@
   delegate_to: "{{ groups['k8s_control_plane'][0] }}"
   register: vault_k8s_ca
 
+# vault_k8s_jwt.stdout is the base64 of a non-expiring credential that
+# holds system:auth-delegator (cluster-wide TokenReview power), so this
+# task is no_log: the default callback dumps a registered result at -v,
+# and JSON/log callbacks capture it unconditionally regardless of verbosity.
+# failed_when: false keeps a kubectl failure from aborting inside a
+# censored task with no visible reason. The assert right after carries
+# the diagnostics instead, checking only rc and length so it is safe to
+# print: an empty stdout with rc 0 happens when the Secret exists but the
+# token controller has not populated it yet, and would otherwise configure
+# Vault with a blank reviewer JWT that fails much later as a silent
+# fallback to self-review, surfacing as permission denied inside the
+# repo-server sidecar.
 - name: Read the token reviewer JWT
   ansible.builtin.command:
     cmd: >-
@@ -21,6 +33,22 @@
   become: true
   register: vault_k8s_jwt
   changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Require the token reviewer JWT to have been read
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_jwt.rc == 0
+      - vault_k8s_jwt.stdout | length > 0
+    fail_msg: >-
+      Could not read the token reviewer JWT. The preceding task is
+      no_log because its output is a non-expiring cluster credential, so
+      run this by hand on the control plane to see the real error:
+      kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd get
+      secret vault-auth-token -o jsonpath={.data.token}
+      An empty value with rc 0 means the Secret exists but the token
+      controller has not populated it yet.
 
 - name: Enable the kubernetes auth method
   ansible.builtin.uri:
