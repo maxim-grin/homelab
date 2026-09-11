@@ -49,12 +49,15 @@ Three different paths, and mixing them up wastes an afternoon:
 | VMs, disks, network | `terraform apply -var-file=dev.tfvars` | immediately |
 | OS, packages, cluster | `ansible-playbook … -e @secret.yaml --ask-vault-pass` | immediately |
 | Kubernetes workloads | **`git push`**, then ArgoCD syncs | on Argo's next poll, ~3 min |
-| `argocd/base/projects.yaml` | `kubectl apply -f` **by hand** | immediately |
+| `argocd/base/projects.yaml` | **`git push`**, then ArgoCD syncs | on Argo's next poll, ~3 min |
 
-That last row is the exception worth remembering: `root-dev` only watches
+That last row is a bootstrap-only exception: `root-dev` only watches
 `argocd/environments/dev/applications/`, so the AppProject that authorises
-everything is not self-managing. A new Helm chart repository must be added
-to its `sourceRepos` allowlist and applied by hand, or ArgoCD refuses the
+everything cannot be synced by `root-dev` itself before it exists — one
+`kubectl apply -f argocd/base/projects.yaml` by hand gets the cluster off
+the ground. After that, the `argocd-config` Application owns
+`argocd/base/` and syncs it on every push. A new Helm chart repository
+must be added to its `sourceRepos` allowlist, or ArgoCD refuses the
 Application with "application repo is not permitted".
 
 ## Branch first

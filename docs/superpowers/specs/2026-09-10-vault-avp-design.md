@@ -184,8 +184,12 @@ That step stays in `docs/rebuild.md`.
 
 `argocd.mgryn.cc` is configured through `argocd_helm_values`:
 `server.ingress.enabled`, the hostname, `ingressClassName: nginx`, and
-`server.insecure: true` so nginx speaks plain HTTP to argocd-server rather than
-TLS to TLS. No TLS, matching `harbor.mgryn.cc` and `jobs.mgryn.cc`.
+`configs.params["server.insecure"]: true` so nginx speaks plain HTTP to
+argocd-server rather than TLS to TLS. That param lives under `configs.params`,
+not `server:` -- the chart has no `server.insecure` key and would accept one
+there silently, leaving the ingress template pointed at the HTTPS service port
+and every request answering 502. No TLS, matching `harbor.mgryn.cc` and
+`jobs.mgryn.cc`.
 `argocd_nodeport_enabled` stays `false`.
 
 Two `/etc/hosts` lines on the workstation: `argocd.mgryn.cc` at any node IP,

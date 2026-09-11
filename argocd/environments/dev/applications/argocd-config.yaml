@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-config
+  namespace: argocd
+  # No resources-finalizer here, deliberately. Every other Application in
+  # this directory carries one so deleting the Application removes its
+  # workloads. Doing that here would delete the AppProject that authorises
+  # every application in the cluster.
+spec:
+  project: homelab
+  source:
+    repoURL: https://github.com/maxim-grin/homelab.git
+    targetRevision: main
+    path: argocd/base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      # prune stays false: this Application manages the AppProject that
+      # authorises every other Application. A prune that removed it would
+      # orphan the whole cluster at once.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

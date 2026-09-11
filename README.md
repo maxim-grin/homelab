@@ -17,7 +17,7 @@ _not_ contain, which is the part that will bite.
 | Hypervisor | Proxmox VE, node `pve`                                         | not in git — see `docs/rebuild.md`                        |
 | VMs        | ubuntu, ubuntu-2, k8s master + 2 workers, workstation, nfs     | `proxmox/environments/dev`                                |
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
-| GitOps     | ArgoCD, app-of-apps `root-dev`                                 | `ansible/roles/argocd`, `argocd/environments/dev`         |
+| GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`              | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
 | Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
@@ -85,5 +85,7 @@ ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
 # is live once it is pushed, not once it is committed
 git push origin main
 ```
+
+ArgoCD UI: `http://argocd.mgryn.cc`
 
 See `ansible/README.md` and `proxmox/README.md` for the detail of each half.
