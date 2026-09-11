@@ -13,6 +13,25 @@ argocd_nodeport_http_port: 32080
 argocd_nodeport_https_port: 32443
 argocd_context_kubeconfig: /etc/kubernetes/admin.conf
 
+# Bcrypt hash of the admin password, supplied from ansible/secret.yaml. There
+# is deliberately no default: an unset value would make the chart fall back to
+# a random password in argocd-initial-admin-secret, which looks like success
+# until you try to log in with the password you think you set.
+#
+# Generate with:
+#   htpasswd -nbBC 10 "" 'thepassword' | tr -d ':\n' | sed 's/$2y/$2a/'
+#
+# This credential CANNOT come from Vault. argocd-vault-plugin runs as a
+# sidecar inside argocd-repo-server, so ArgoCD must already be up and
+# authenticated before AVP can resolve anything. ArgoCD's own admin password
+# is a bootstrap credential by definition and belongs in secret.yaml.
+#
+# argocd_admin_password_mtime pins the modification time the chart records.
+# Left empty the chart writes "now" on every render, which can silently
+# revert a password changed later in the UI. Bump it only when the hash
+# above changes.
+argocd_admin_password_mtime: "2026-09-11T00:00:00Z"
+
 # Formerly no argocd_helm_values: the repo-server ran stock. An earlier version wired
 # argocd-vault-plugin in here -- a download-tools initContainer, an avp
 # cmp-server sidecar, a cmp-plugin ConfigMap volume and an
@@ -25,6 +44,9 @@ argocd_context_kubeconfig: /etc/kubernetes/admin.conf
 # gitignored and applied out of band.
 argocd_helm_values:
   configs:
+    secret:
+      argocdServerAdminPassword: "{{ argocd_admin_password_hash }}"
+      argocdServerAdminPasswordMtime: "{{ argocd_admin_password_mtime }}"
     params:
       # Run argocd-server without TLS so nginx can speak plain HTTP to it.
       # This is a configs.params entry, not a server.* value -- the chart has

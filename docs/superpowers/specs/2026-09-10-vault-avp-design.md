@@ -272,6 +272,14 @@ unreachable. Every layer above is checked against the thing itself.
 4. **A third system holding secrets.** `ansible/secret.yaml`, `*.tfvars`, and
    now Vault. Vault's seed nests inside the first, which bounds the sprawl but
    does not eliminate it.
+5. **Bootstrap credentials can never move to Vault.** AVP runs as a sidecar
+   inside `argocd-repo-server`, so ArgoCD must already be installed and
+   authenticated before a single `<path:...>` resolves. Anything needed to
+   reach that point stays in `ansible/secret.yaml` by necessity, not by
+   omission -- currently `argocd_admin_password_hash`, and the Vault root
+   token and unseal key, which are passed per-run and stored only in a
+   password manager. Any documentation claiming "all secrets live in Vault"
+   is wrong the first time someone rebuilds.
 
 ## Documentation changes
 
