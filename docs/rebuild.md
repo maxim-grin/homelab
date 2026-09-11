@@ -407,6 +407,23 @@ Each step depends on the one above it.
       through the chart's `existingSecret` options. Without it Harbor comes
       up as `admin` / `Harbor12345` with `secretKey` set to the literal
       string `not-a-secure-key`.
+
+      **A Secret lives in its namespace and dies with it.** Rebuilding Harbor
+      from scratch means `kubectl delete ns harbor`, which destroys
+      `harbor-secrets` along with everything else — so this playbook must run
+      *after* that teardown, never before. Getting it backwards produces a
+      Harbor that reports `Synced` and `Degraded` at the same time:
+
+      | Pod | Symptom | Why |
+      | --- | --- | --- |
+      | `core`, `registry` | `ContainerCreating`, indefinitely | mount the Secret as a volume; kubelet retries `MountVolume.SetUp` forever rather than failing |
+      | `jobservice` | `CreateContainerConfigError` | reads `JOBSERVICE_SECRET` as an env var, which fails at container config time |
+      | `database`, `redis`, `portal` | `Running` | reference no Secret at all |
+
+      `Synced` is correct there — the manifests are valid, the object they
+      point at is missing. Re-run this playbook, then
+      `kubectl -n harbor delete pod -l component=jobservice`; `core` and
+      `registry` recover on their own once the Secret appears.
     - **Grafana** reads `GF_SECURITY_ADMIN_PASSWORD` through a `secretKeyRef`
       with no `optional: true`, so until this runs the pod sits in
       `CreateContainerConfigError` — loud, deliberately, rather than
