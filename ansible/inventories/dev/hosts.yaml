@@ -29,3 +29,16 @@ all:
         nfs-01:
           ansible_host: "{{ host_ips['nfs-01'] }}"
           proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"
+    vault:
+      # ansible_user: root, overriding the all-level "{{ user_name }}".
+      # Every other host is a cloud-init VM with an `ubuntu` account; this is a
+      # Debian LXC template, which has only root, and proxmox_lxc injects
+      # ssh_public_keys for root. Without this override the play fails at the
+      # connection, before any task runs. inventories/prod/hosts.yaml sets the
+      # same override on its vault-lxc host, which is a working reference.
+      vars:
+        ansible_user: root
+      hosts:
+        vault-01:
+          ansible_host: "{{ host_ips['vault-01'] }}"
+          proxmox_vm_id: "{{ proxmox_vm_ids['vault-01'] }}"

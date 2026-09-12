@@ -1,0 +1,113 @@
+---
+- name: Require a Vault token
+  ansible.builtin.assert:
+    that:
+      - vault_token is defined
+      - vault_token | length > 0
+    fail_msg: "Pass the Vault root token for this run: -e vault_token=..."
+
+- name: Read the cluster CA certificate
+  ansible.builtin.slurp:
+    src: /etc/kubernetes/pki/ca.crt
+  delegate_to: "{{ groups['k8s_control_plane'][0] }}"
+  register: vault_k8s_ca
+
+# vault_k8s_jwt.stdout is the base64 of a non-expiring credential that
+# holds system:auth-delegator (cluster-wide TokenReview power), so this
+# task is no_log: the default callback dumps a registered result at -v,
+# and JSON/log callbacks capture it unconditionally regardless of verbosity.
+# failed_when: false keeps a kubectl failure from aborting inside a
+# censored task with no visible reason. The assert right after carries
+# the diagnostics instead, checking only rc and length so it is safe to
+# print: an empty stdout with rc 0 happens when the Secret exists but the
+# token controller has not populated it yet, and would otherwise configure
+# Vault with a blank reviewer JWT that fails much later as a silent
+# fallback to self-review, surfacing as permission denied inside the
+# repo-server sidecar.
+- name: Read the token reviewer JWT
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd
+      get secret vault-auth-token -o jsonpath={.data.token}
+  delegate_to: "{{ groups['k8s_control_plane'][0] }}"
+  become: true
+  register: vault_k8s_jwt
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Require the token reviewer JWT to have been read
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_jwt.rc == 0
+      - vault_k8s_jwt.stdout | length > 0
+    fail_msg: >-
+      Could not read the token reviewer JWT. The preceding task is
+      no_log because its output is a non-expiring cluster credential, so
+      run this by hand on the control plane to see the real error:
+      kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd get
+      secret vault-auth-token -o jsonpath={.data.token}
+      An empty value with rc 0 means the Secret exists but the token
+      controller has not populated it yet.
+
+- name: Enable the kubernetes auth method
+  ansible.builtin.uri:
+    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/sys/auth/kubernetes"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      type: kubernetes
+    status_code: [204, 400]
+  register: vault_k8s_auth
+  changed_when: vault_k8s_auth.status == 204
+
+- name: Configure the kubernetes auth method
+  ansible.builtin.uri:
+    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/auth/kubernetes/config"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      kubernetes_host: "https://{{ host_ips['master-01'] }}:6443"
+      kubernetes_ca_cert: "{{ vault_k8s_ca.content | b64decode }}"
+      token_reviewer_jwt: "{{ vault_k8s_jwt.stdout | b64decode }}"
+      # Vault is not running in the cluster, so there is no local
+      # ServiceAccount token for it to fall back on. Without this it tries
+      # one anyway and fails with a message that does not say so.
+      disable_local_ca_jwt: true
+    status_code: 204
+  no_log: true
+
+- name: Write the argocd-read policy
+  ansible.builtin.uri:
+    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/sys/policies/acl/argocd-read"
+    method: PUT
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      policy: |
+        path "secret/data/*" {
+          capabilities = ["read"]
+        }
+        path "secret/metadata/*" {
+          capabilities = ["list", "read"]
+        }
+    status_code: 204
+
+- name: Bind the argocd role to the repo-server ServiceAccount
+  ansible.builtin.uri:
+    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/auth/kubernetes/role/argocd"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      bound_service_account_names: ["argocd-repo-server"]
+      bound_service_account_namespaces: ["argocd"]
+      policies: ["argocd-read"]
+      ttl: "1h"
+    status_code: 204

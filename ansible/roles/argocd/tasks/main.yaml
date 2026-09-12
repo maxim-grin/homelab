@@ -28,6 +28,52 @@
       htpasswd -nbBC 10 "" 'pw' | tr -d ':\n' | sed 's/$2y/$2a/'  --  python:
       python3 -c "import bcrypt;print(bcrypt.hashpw(b'pw',bcrypt.gensalt(10)).decode())"
 
+- name: Create the AVP plugin ConfigMap
+  # Before the Helm deploy, deliberately. repo-server mounts this; when it
+  # does not exist kubelet loops on MountVolume.SetUp and the pod never
+  # leaves Init. That is what removed argocd-vault-plugin the first time.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cmp-plugin
+        namespace: "{{ argocd_namespace }}"
+      data:
+        # Lifted into a variable (argocd_avp_plugin_config, in
+        # defaults/main.yaml) rather than kept as a literal here: this
+        # ConfigMap is mounted into the avp sidecar with subPath, and
+        # kubelet never propagates a ConfigMap update into a subPath mount.
+        # Changing the string in place would make this task report
+        # "changed" without the running sidecar ever seeing the new
+        # content. The repoServer.podAnnotations checksum below hashes this
+        # same variable so the pod template -- not just the ConfigMap --
+        # changes whenever the plugin config does, which is what actually
+        # forces a rollout.
+        avp.yaml: "{{ argocd_avp_plugin_config }}"
+
+- name: Create the AVP configuration Secret
+  # Under Kubernetes auth this holds no credential -- only an address and a
+  # role name. It is a Secret because AVP expects to read it as one.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-vault-plugin-config
+        namespace: "{{ argocd_namespace }}"
+      type: Opaque
+      stringData:
+        # Lifted into argocd_avp_config (defaults/main.yaml) for the same
+        # reason argocd_avp_plugin_config is its own variable: the
+        # repoServer.podAnnotations checksum below hashes this exact dict
+        # so the pod template changes whenever these values do.
+        "{{ argocd_avp_config }}"
+
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
   kubernetes.core.helm:

@@ -10,19 +10,18 @@ proxmox/
 ├── environments/
 │   ├── dev/
 │   │   ├── .terraform.lock.hcl
-│   │   ├── backend.tf.enc
-│   │   ├── dev.tfvars.enc
-│   │   ├── dev.tfvars.example
+│   │   ├── backend.tf.example   # gitignored backend.tf copies from this
+│   │   ├── dev.tfvars.example   # gitignored dev.tfvars copies from this
 │   │   ├── main.tf
 │   │   ├── outputs.tf
 │   │   ├── variables.tf
 │   │   └── versions.tf
 │   └── prod/
 │       ├── .terraform.lock.hcl
-│       ├── backend.tf.enc
+│       ├── backend.tf.example
 │       ├── main.tf
 │       ├── outputs.tf
-│       ├── prod.tfvars.enc
+│       ├── prod.tfvars.example
 │       ├── variables.tf
 │       └── versions.tf
 ├── modules/
@@ -47,35 +46,35 @@ proxmox/
 You’ll need the following tools installed locally:
 
 - `terraform`
-- `sops`
 
 On macOS, the easiest path is Homebrew:
 
 ```bash
-brew install terraform sops
+brew install terraform
 ```
 
-## Working with Encrypted Terraform Files
+## Sensitive Terraform files
 
-Sensitive inputs (e.g., `backend.tf`, `*.tfvars`) are stored in SOPS-encrypted form (`*.enc`). Use SOPS to decrypt before running Terraform.
-
-### Decrypting Files
+There is no SOPS here, no `.enc` file, and no `.sops.yaml` -- check
+`git ls-files | grep -i 'enc\|sops'` and it comes back empty. `*.tfvars`
+is gitignored instead and has no backup anywhere but the workstation it
+was created on: losing it means re-issuing a Proxmox API token and
+retyping the cloud-init password from scratch, not decrypting anything.
 
 ```bash
-sops -d proxmox/environments/dev/backend.tf.enc > proxmox/environments/dev/backend.tf
-sops -d proxmox/environments/dev/dev.tfvars.enc > proxmox/environments/dev/dev.tfvars
+cp proxmox/environments/dev/dev.tfvars.example proxmox/environments/dev/dev.tfvars
+# then fill in pm_api_token_id, pm_api_token_secret, the SSH key paths and
+# the cloud-init password by hand
+
+cp proxmox/environments/dev/backend.tf.example proxmox/environments/dev/backend.tf
+# local backend, state file next to main.tf -- nothing to fill in
 ```
 
-### Encrypting Files
-
-After editing a sensitive file, re-encrypt before committing:
-
-```bash
-sops -e proxmox/environments/dev/backend.tf > proxmox/environments/dev/backend.tf.enc
-sops -e proxmox/environments/dev/dev.tfvars > proxmox/environments/dev/dev.tfvars.enc
-```
-
-> Keep decrypted artifacts out of version control. `.gitignore` already covers them—double-check before committing.
+`backend.tf` is gitignored alongside `*.tfvars`, for the same reason: it is
+a per-checkout file, not a secret, but keeping it out of git means every
+checkout copies it from the committed `.example` once. State itself is
+local (`terraform.tfstate` next to `main.tf`), not a remote backend, so
+there is no bucket or credential involved in either file.
 
 ---
 
@@ -86,7 +85,9 @@ cd proxmox/environments/dev   # swap dev for prod when needed
 terraform init
 ```
 
-If the backend is being bootstrapped for the first time, ensure the remote state bucket or storage is prepared per Confluence guidance.
+There is no remote backend to bootstrap. `backend.tf` declares `local`
+state, and `terraform init` just needs that file and the providers cached
+-- nothing external to prepare first.
 
 ---
 
@@ -116,7 +117,7 @@ terraform apply -var-file="prod.tfvars"
 
 ## Module Overview
 
-- **modules/lxc** – reusable module for lightweight Proxmox containers.
+- **modules/lxc** – reusable module for lightweight Proxmox containers; backs `vault-01` (vmid 104) in `environments/dev`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
 - **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles.
 - **modules/ubuntu-k8s** – Ubuntu-based Kubernetes nodes via kubeadm.

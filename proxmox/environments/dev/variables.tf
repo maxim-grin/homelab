@@ -130,3 +130,9 @@ variable "nfs_vm_ip" {
   description = "NFS server VM IP with CIDR (e.g. '10.0.0.131/24')"
   type        = string
 }
+
+# Vault LXC Container Variables
+variable "vault_lxc_ip" {
+  description = "Vault container IP with CIDR (e.g. '10.0.0.132/24')"
+  type        = string
+}
