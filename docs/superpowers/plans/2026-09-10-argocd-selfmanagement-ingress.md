@@ -38,7 +38,7 @@ plan introduces, so landing that one first causes a conflict.
 
 **Interfaces:**
 - Consumes: the existing `root-dev` Application at `argocd/environments/dev/applications/app-of-apps.yaml`, which syncs `path: argocd/environments/dev/applications/` with `directory.recurse: false` and `exclude: "app-of-apps.yaml"`. Any new file in that directory is picked up automatically.
-- Produces: an Application named `argocd-config` that owns `argocd/base/`. Plan `2026-09-10-image-updater.md` relies on this to add `https://argoproj.github.io/argo-helm` to `sourceRepos` by pushing rather than by `kubectl apply`.
+- Produces: an Application named `argocd-config` that owns `argocd/base/`, so a new entry in `sourceRepos` reaches the cluster by pushing rather than by `kubectl apply`.
 
 - [ ] **Step 1: Confirm the current manual-apply behaviour**
 
@@ -146,7 +146,7 @@ git push
 kubectl -n argocd get appproject homelab -o jsonpath='{.spec.sourceRepos}' ; echo
 ```
 
-Expected: the new repo appears without anyone running `kubectl apply`. This entry is also a prerequisite for the image-updater plan. **[operator]**
+Expected: the new repo appears without anyone running `kubectl apply`. **[operator]**
 
 - [ ] **Step 7: Update the three documents that now describe the old behaviour**
 
@@ -290,5 +290,5 @@ git push
 - `kubectl -n argocd get application argocd-config` reports `Synced` / `Healthy`
 - A pushed change to `argocd/base/projects.yaml` reaches the cluster with no `kubectl apply`
 - `curl -H 'Host: argocd.mgryn.cc' http://<node IP>/` returns 200/307
-- `https://argoproj.github.io/argo-helm` is in `sourceRepos`, ready for the image-updater plan
+- `https://argoproj.github.io/argo-helm` is in `sourceRepos`, which the argo-cd chart itself needs
 - `CLAUDE.md`, `argocd/README.md`, `README.md` and `docs/rebuild.md` no longer describe the manual apply as recurring

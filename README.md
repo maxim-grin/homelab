@@ -40,8 +40,8 @@ someone restarts it by hand:
 kubectl rollout restart deployment/jobboard -n jobboard
 ```
 
-This is deliberate (pinning a SHA would need an image-updater or a CI
-commit-back into this repo, neither of which exists), not an oversight.
+This is deliberate, not an oversight: `:latest` is a mutable tag, so the
+Deployment's pod spec never changes and Kubernetes sees nothing to roll.
 
 ## Layout
 

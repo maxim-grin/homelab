@@ -94,7 +94,6 @@ argocd namespace
     sidecar avp -> argocd-cmp-server
     ConfigMap cmp-plugin  (avp.yaml)          <- created by Ansible FIRST
     Secret argocd-vault-plugin-config         <- created by Ansible FIRST
-  argocd-image-updater -> ghcr.io -> git commit -> ArgoCD sync
 ```
 
 ## Layer 1 -- Terraform
@@ -148,8 +147,6 @@ vault_kv:
     password: ...
   jobboard/ghcr:
     token: ...
-  argocd/git:
-    pat: ...        # image-updater git write-back
 ```
 
 ## Layer 3 -- ArgoCD and AVP
@@ -212,27 +209,6 @@ and every request answering 502. No TLS, matching `harbor.mgryn.cc` and
 Two `/etc/hosts` lines on the workstation: `argocd.mgryn.cc` at any node IP,
 `vault.mgryn.cc` at `vault-01`. Vault's UI is `http://vault.mgryn.cc:8200`.
 
-## Layer 6 -- Image updater
-
-`argocd-image-updater` is delivered as an ArgoCD Application using the
-`argocd-image-updater` chart from `https://argoproj.github.io/argo-helm`, with
-its values under
-`argocd/apps/image-updater/dev/values.yaml` -- a Helm inputs directory like
-`harbor` and `ingress-nginx`, so `kustomize build` on it fails by design. The
-`https://argoproj.github.io/argo-helm` repository must be added to the
-AppProject's `sourceRepos`, which by then is self-managing.
-
-It runs with `update-strategy: digest` on the `latest` tag: it tracks the
-digest behind the mutable tag, which is the exact failure mode today. Registry credentials come
-from `secret/jobboard/ghcr` via AVP.
-
-Write-back is `git`. The new digest is committed to this repository and ArgoCD
-syncs the commit normally, so git continues to describe what is deployed. The
-GitHub PAT lives at `secret/argocd/git` and reaches the cluster through AVP, so
-it costs no manual step -- but it is a write credential for a public
-repository and its blast radius is the whole repository. The
-`README.md` note about the manual `kubectl rollout restart` is removed.
-
 ## Verification
 
 No test suite. Verification is tool checks plus looking at the cluster.
@@ -257,12 +233,10 @@ kubectl -n jobboard get secret jobboard-secrets \
   -o jsonpath='{.data.password}' | base64 -d        # matches Vault
 kubectl -n jobboard get pods                        # Running, not CreateContainerConfigError
 
-# Layers 4-6
+# Layers 4-5
 kubectl -n argocd get appproject homelab -o yaml    # reflects git after a push
 curl -H 'Host: argocd.mgryn.cc' http://<node IP>/
-kubectl -n argocd logs deploy/argocd-image-updater
 kustomize build argocd/apps/jobboard/dev                # overlay still renders
-helm template argocd-image-updater -f argocd/apps/image-updater/dev/values.yaml
 ```
 
 "Synced" is not "works". Harbor reported `Healthy` for twelve hours while
@@ -346,10 +320,8 @@ task that lands code without its doc change is not done.
 
 ### `README.md`
 
-- "What actually runs" gains Vault and argocd-image-updater.
-- **"## jobboard image tag"** -- the manual `kubectl rollout restart` section
-  is replaced by how digest-strategy updates and git write-back work.
-- Layout gains `ansible/roles/vault/` and `argocd/apps/image-updater/`.
+- "What actually runs" gains Vault.
+- Layout gains `ansible/roles/vault/`.
 - Day-to-day gains the two hostnames.
 
 ### `ansible/README.md`
@@ -362,8 +334,7 @@ task that lands code without its doc change is not done.
 
 ### `argocd/README.md`
 
-- Directory structure gains `apps/image-updater/` and the `argocd-config`
-  Application.
+- Directory structure gains the `argocd-config` Application.
 - **"Step 1: Apply ArgoCD Projects (One-time Setup)"** -- currently misleading,
   since it recurs on every `sourceRepos` change. Becomes genuinely one-time,
   with the self-managing Application explained.
@@ -389,6 +360,18 @@ task that lands code without its doc change is not done.
 
 ## Out of scope
 
+- **Automatic image updates.** An earlier draft of this design carried a
+  "Layer 6 -- Image updater": `argocd-image-updater` tracking the digest behind
+  `jobboard:latest` and committing it back to this repository, with a
+  write-scoped GitHub PAT delivered from `secret/argocd/git` through AVP. It was
+  never implemented and is dropped. It would have meant a Deployment, a chart
+  repository in `sourceRepos`, and a credential that can push to `main` sitting
+  in the `argocd` namespace where anything able to read a Secret can take it --
+  all to serve the one image in this repository not already pinned to a fixed
+  tag. jobboard instead names a manually bumped semantic version, the way
+  `postgres:17` and `grafana/grafana:11.4.0` already do, and nothing in the
+  cluster writes to git. `secret/argocd/git` is therefore never created, and the
+  `argocd-read` policy stays scoped to what AVP actually renders.
 - Migrating `*.tfvars` or `ansible/secret.yaml` onto SOPS or into Vault.
 - TLS anywhere. Vault runs `tls_disable = 1` and ingress is plain HTTP,
   consistent with the rest of the homelab.
