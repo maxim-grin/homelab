@@ -3,5 +3,6 @@ kind: Kustomization
 
 resources:
   - projects.yaml
+  - vault-auth-delegator.yaml
 
 namespace: argocd

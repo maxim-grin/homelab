@@ -26,6 +26,15 @@ variable "password" {
   sensitive   = true
 }
 
+# Injected into the container at create time, the way cloud-init injects the
+# public half for VMs. Without this the module produces a password-only
+# container, which no playbook in this repository can reach.
+variable "ssh_public_keys" {
+  description = "Public keys authorised for root, newline-separated"
+  type        = string
+  default     = null
+}
+
 variable "pool" {
   description = "Resource pool for the LXC container"
   type        = string

@@ -12,6 +12,7 @@ argocd_nodeport_enabled: false
 argocd_nodeport_http_port: 32080
 argocd_nodeport_https_port: 32443
 argocd_context_kubeconfig: /etc/kubernetes/admin.conf
+argocd_vault_address: "{{ host_ips['vault-01'] }}"
 
 # Bcrypt hash of the admin password, supplied from ansible/secret.yaml. There
 # is deliberately no default: an unset value would make the chart fall back to
@@ -39,9 +40,83 @@ argocd_admin_password_mtime: "2026-09-11T00:00:00Z"
 # those two objects. kubelet looped on
 #   MountVolume.SetUp failed for volume "cmp-plugin": configmap not found
 # so argocd-repo-server never left Init and every Application sat at sync
-# status Unknown. No manifest here contains a single <path:...> placeholder,
+# status Unknown. No manifest here contained a single <path:...> placeholder,
 # so AVP was substituting nothing; secrets are plain Secret manifests,
 # gitignored and applied out of band.
+#
+# AVP is back in use: Vault (Task 4) now holds real secret material and
+# manifests need <path:...> placeholders resolved before ArgoCD applies
+# them. The failure above was never the sidecar itself -- it was these two
+# objects missing. roles/argocd/tasks/main.yaml now creates the cmp-plugin
+# ConfigMap and the argocd-vault-plugin-config Secret itself, before the
+# Helm deploy task runs, so both exist the first time repo-server's pod
+# spec asks to mount them.
+
+# The ConfigManagementPlugin definition mounted into the avp sidecar as
+# cmp-plugin's avp.yaml key. Kept as its own variable, not inline in the
+# ConfigMap task, so repoServer.podAnnotations below can hash this exact
+# string and force a pod rollout whenever it changes -- see the comment on
+# that checksum annotation for why a plain ConfigMap edit is not enough.
+argocd_avp_plugin_config: |
+  apiVersion: argoproj.io/v1alpha1
+  kind: ConfigManagementPlugin
+  metadata:
+    name: argocd-vault-plugin
+  spec:
+    allowConcurrency: true
+    discover:
+      find:
+        command:
+          - sh
+          - "-c"
+          - "find . -name '*.yaml' | xargs -I {} grep -l '<path:' {} | head -1"
+    generate:
+      command:
+        - sh
+        - "-c"
+        # Naming a plugin on an Application makes ArgoCD delegate ALL
+        # manifest generation to this CMP -- kustomize no longer runs on
+        # ArgoCD's side. Task 6 sets spec.source.plugin on the jobboard
+        # Application, whose path is the kustomize overlay
+        # argocd/apps/jobboard/dev, so a bare `generate ./` would read the
+        # raw overlay files and kustomization.yaml itself as manifests
+        # instead of rendering the overlay.
+        #
+        # Do NOT pipe `kustomize build . | argocd-vault-plugin generate -`:
+        # a pipeline's exit status is the last command's alone, so a broken
+        # overlay makes `kustomize build` fail while AVP still receives
+        # (empty) stdin, emits nothing, and exits 0. ArgoCD would then see a
+        # successful generation that produced zero resources and, because
+        # jobboard's Application sets prune: true under automated sync,
+        # delete the live resources while reporting Synced and Healthy --
+        # the worst failure mode in this plan. `set -o pipefail` is not an
+        # option either: this image's sh is dash-backed and does not
+        # support it. Write kustomize's output to a file under /tmp
+        # (already mounted here as the `tmp` volume) and rely on `set -e`
+        # instead, which is POSIX and fails closed. The conditional keeps
+        # plain-YAML (non-kustomize) sources working too.
+        - 'set -e; if [ -f kustomization.yaml ]; then
+          d=$(mktemp -d); kustomize build . > "$d/all.yaml";
+          argocd-vault-plugin generate "$d"; else argocd-vault-plugin
+          generate ./; fi'
+    lockRepo: false
+
+# The four keys the argocd-vault-plugin-config Secret carries. Kept as its
+# own variable, not inline in the Secret task, so repoServer.podAnnotations
+# below can hash this exact dict and force a pod rollout whenever it
+# changes -- same reasoning as argocd_avp_plugin_config above, but for a
+# different failure mode: this Secret is consumed via envFrom, and
+# environment variables are read once at container start. Changing
+# argocd_vault_address (or AVP_K8S_ROLE) and re-running the playbook
+# updates the Secret and reports "changed", but the running sidecar keeps
+# dialling the OLD address with the pod stuck at 2/2 Running -- nothing in
+# any task, pod status or Application condition says it is stale.
+argocd_avp_config:
+  AVP_TYPE: vault
+  AVP_AUTH_TYPE: k8s
+  AVP_K8S_ROLE: argocd
+  VAULT_ADDR: "http://{{ argocd_vault_address }}:8200"
+
 argocd_helm_values:
   configs:
     secret:
@@ -59,3 +134,97 @@ argocd_helm_values:
       enabled: true
       ingressClassName: nginx
       hostname: argocd.mgryn.cc
+  repoServer:
+    # The avp sidecar below authenticates to Vault with this pod's
+    # ServiceAccount JWT (Vault role "argocd" is bound to
+    # system:serviceaccount:argocd:argocd-repo-server -- see Task 4). Both
+    # of these already default to true in chart 8.6.3's values.yaml; they
+    # are pinned explicitly here because the avp sidecar's Vault login
+    # depends on this token being present, and that dependency is worth
+    # recording even though the chart default currently agrees with it. If
+    # the token were absent, AVP would fail to log in and `generate` would
+    # exit non-zero -- loud, as a per-Application ComparisonError, not a
+    # silent healthy pod.
+    automountServiceAccountToken: true
+    serviceAccount:
+      automountServiceAccountToken: true
+    # cmp-plugin's avp.yaml is mounted into the avp sidecar with subPath
+    # (see extraContainers.avp.volumeMounts below), and kubelet never
+    # propagates a ConfigMap update into a subPath mount. Without this,
+    # changing argocd_avp_plugin_config and re-running the playbook would
+    # update the ConfigMap, report both tasks changed, leave this Helm
+    # values dict textually identical, and render an identical pod
+    # template that Helm sees no reason to roll -- the sidecar would keep
+    # running on the OLD plugin config with the pod stuck at 2/2 Running
+    # throughout. Hashing the plugin config into a pod annotation changes
+    # the pod template whenever the plugin config does, which is what
+    # actually forces a rollout.
+    # checksum/avp-config is the same fix for the argocd-vault-plugin-config
+    # Secret above: it is mounted with envFrom rather than subPath, but the
+    # underlying problem is identical -- env vars are read once at
+    # container start, so a Secret-only change is invisible to a running
+    # pod. Hashing argocd_avp_config (which embeds argocd_vault_address)
+    # into a second annotation forces the same rollout the ConfigMap
+    # checksum forces.
+    podAnnotations:
+      checksum/cmp-plugin: "{{ argocd_avp_plugin_config | hash('sha1') }}"
+      checksum/avp-config: "{{ argocd_avp_config | to_json | hash('sha1') }}"
+    initContainers:
+      # Runs as root -- no securityContext of its own. That only works
+      # because the chart's global.securityContext defaults to {}. If
+      # anyone ever hardens that (e.g. sets runAsNonRoot or a restricted
+      # PodSecurity level), this initContainer fails and repo-server never
+      # leaves Init -- the exact six-hour failure this branch exists to
+      # prevent.
+      - name: download-tools
+        image: registry.access.redhat.com/ubi8/ubi-minimal:latest
+        env:
+          - name: AVP_VERSION
+            value: "1.18.1"
+        command: [sh, -c]
+        args:
+          # -f/--fail is load-bearing: plain curl exits 0 on a 404/403/5xx
+          # and writes the error body into the output file. chmod and mv
+          # then both succeed, the initContainer reports Success, and the
+          # sidecar (whose command is argocd-cmp-server, not this binary)
+          # starts fine -- pod shows 2/2 Running. The break only surfaces
+          # per-Application at generate time as `fork/exec
+          # /usr/local/bin/argocd-vault-plugin: exec format error`.
+          - >-
+            curl -fsSL --retry 3
+            https://github.com/argoproj-labs/argocd-vault-plugin/releases/download/v$(AVP_VERSION)/argocd-vault-plugin_$(AVP_VERSION)_linux_amd64
+            -o argocd-vault-plugin &&
+            chmod +x argocd-vault-plugin &&
+            mv argocd-vault-plugin /custom-tools/
+        volumeMounts:
+          - mountPath: /custom-tools
+            name: custom-tools
+    extraContainers:
+      - name: avp
+        command: [/var/run/argocd/argocd-cmp-server]
+        image: quay.io/argoproj/argocd:v3.2.0
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+        envFrom:
+          - secretRef:
+              name: argocd-vault-plugin-config
+        volumeMounts:
+          - mountPath: /var/run/argocd
+            name: var-files
+          - mountPath: /home/argocd/cmp-server/plugins
+            name: plugins
+          - mountPath: /tmp
+            name: tmp
+          - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+            subPath: avp.yaml
+            name: cmp-plugin
+          - mountPath: /usr/local/bin/argocd-vault-plugin
+            subPath: argocd-vault-plugin
+            name: custom-tools
+    volumes:
+      - configMap:
+          name: cmp-plugin
+        name: cmp-plugin
+      - emptyDir: {}
+        name: custom-tools

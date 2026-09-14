@@ -1,0 +1,87 @@
+---
+- name: Install prerequisites
+  ansible.builtin.apt:
+    name:
+      - gpg
+      - coreutils
+    state: present
+    update_cache: true
+
+- name: Download the HashiCorp GPG key
+  ansible.builtin.get_url:
+    url: https://apt.releases.hashicorp.com/gpg
+    dest: /tmp/hashicorp.asc
+    mode: "0644"
+
+- name: Dearmor the HashiCorp GPG key
+  ansible.builtin.command:
+    cmd: gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg /tmp/hashicorp.asc
+    creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+- name: Add the HashiCorp repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg]
+      https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main
+    state: present
+
+- name: Install Vault
+  ansible.builtin.apt:
+    name: vault
+    state: present
+    update_cache: true
+
+- name: Create the Vault directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: vault
+    group: vault
+    mode: "0755"
+  loop:
+    - "{{ vault_config_dir }}"
+    - "{{ vault_data_dir }}"
+
+- name: Render the Vault configuration
+  ansible.builtin.template:
+    src: vault.hcl.j2
+    dest: "{{ vault_config_dir }}/vault.hcl"
+    owner: vault
+    group: vault
+    mode: "0640"
+  notify: Restart vault
+
+- name: Create the vault.service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/vault.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Drop the capability directives the container cannot grant
+  # The packaged vault.service sets AmbientCapabilities=CAP_IPC_LOCK,
+  # SecureBits=keep-caps and LimitMEMLOCK=infinity. systemd raises those at
+  # exec, BEFORE Vault reads its config -- so disable_mlock = true does not
+  # help: if this unprivileged container's bounding set lacks CAP_IPC_LOCK the
+  # unit dies with 231/CAPABILITIES and an error that never mentions mlock.
+  # disable_mlock makes them pointless anyway, so clearing them costs nothing.
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/vault.service.d/10-no-mlock.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Service]
+      AmbientCapabilities=
+      SecureBits=
+      CapabilityBoundingSet=CAP_SYSLOG
+      LimitMEMLOCK=
+  notify: Restart vault
+
+- name: Enable and start Vault
+  ansible.builtin.systemd_service:
+    name: vault
+    enabled: true
+    state: started
+    daemon_reload: true

@@ -1,13 +1,14 @@
 resource "proxmox_lxc" "lxc_container" {
-  vmid               = var.vmid
-  target_node        = var.target_node
-  hostname           = var.hostname
-  ostemplate         = var.ostemplate
-  password           = var.password
-  unprivileged       = var.unprivileged
-  start              = var.start
-  start_at_node_boot = var.start_at_node_boot
-  pool               = var.pool
+  vmid            = var.vmid
+  target_node     = var.target_node
+  hostname        = var.hostname
+  ostemplate      = var.ostemplate
+  password        = var.password
+  ssh_public_keys = var.ssh_public_keys
+  unprivileged    = var.unprivileged
+  start           = var.start
+  onboot          = var.start_at_node_boot
+  pool            = var.pool
 
   # Resources
   cores  = var.cores

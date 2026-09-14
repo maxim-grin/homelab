@@ -11,6 +11,8 @@ spec:
     repoURL: https://github.com/maxim-grin/homelab.git
     targetRevision: main
     path: argocd/apps/jobboard/dev
+    plugin:
+      name: argocd-vault-plugin
   destination:
     server: https://kubernetes.default.svc
     namespace: jobboard
