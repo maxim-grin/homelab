@@ -69,7 +69,26 @@ argocd_avp_plugin_config: |
         command:
           - sh
           - "-c"
-          - "find . -name '*.yaml' | xargs -I {} grep -l '<path:' {} | head -1"
+          # ArgoCD runs this even when an Application names the plugin
+          # explicitly: a named plugin still has to pass MatchRepository, and
+          # a sidecar that matches nothing is reported as "couldn't find
+          # cmp-server plugin with name ... supporting the given repository".
+          #
+          # It therefore has to render the same way `generate` does. This
+          # command runs in the Application's own path, and for a kustomize
+          # overlay the <path:...> placeholders live in the base one level
+          # up -- `find .` from argocd/apps/jobboard/dev never sees
+          # argocd/apps/jobboard/base/secret.yaml, so plain-file discovery
+          # matched nothing and jobboard sat at ComparisonError while every
+          # other part of the chain worked.
+          #
+          # Non-empty stdout means "this plugin claims the repository", so
+          # the greps end in `&& echo avp`. Errors are swallowed on purpose:
+          # this runs against every Application on every refresh, including
+          # Helm-values directories where `kustomize build` is meant to fail.
+          - 'if [ -f kustomization.yaml ]; then kustomize build . 2>/dev/null
+            || true; else cat ./*.yaml 2>/dev/null || true; fi
+            | grep -q "<path:" && echo avp || true'
     generate:
       command:
         - sh
