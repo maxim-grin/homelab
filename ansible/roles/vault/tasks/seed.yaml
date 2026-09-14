@@ -19,9 +19,14 @@
       type: kv
       options:
         version: "2"
-    status_code: [204, 400]
+    # Vault answers 204 when it has nothing to say and 200 with a JSON body
+    # when it has a warning to report -- creating the role without an
+    # `audience` is one such warning. Asserting 204 alone turns a successful
+    # write into a failed task, which is how this first surfaced: the role was
+    # created and the play stopped anyway.
+    status_code: [200, 204, 400]
   register: vault_kv_mount
-  changed_when: vault_kv_mount.status == 204
+  changed_when: vault_kv_mount.status in [200, 204]
   # 400 is "path is already in use", which is success on a re-run.
 
 - name: Seed the KV paths
