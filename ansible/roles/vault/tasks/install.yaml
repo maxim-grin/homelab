@@ -27,9 +27,17 @@
 
 - name: Install Vault
   ansible.builtin.apt:
-    name: vault
+    name: "vault={{ vault_version }}"
     state: present
     update_cache: true
+
+- name: Hold Vault at the pinned version
+  # apt upgrade -- unattended or by hand -- would otherwise walk this across a
+  # major version without anyone choosing to. Vault's file storage does not
+  # downgrade, so the hold is the cheap half of that bargain.
+  ansible.builtin.dpkg_selections:
+    name: vault
+    selection: hold
 
 - name: Create the Vault directories
   ansible.builtin.file:
