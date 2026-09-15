@@ -22,3 +22,20 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # Client-side apply -- the default -- keeps a full copy of the last
+      # manifest it sent in the kubectl.kubernetes.io/last-applied-configuration
+      # annotation. For the two Secrets in this application that manifest is the
+      # one AVP rendered, so the real values Vault delivered end up sitting in
+      # the clear in an annotation on the object, readable by anyone who can run
+      # `kubectl -n jobboard get secret -o yaml` without decoding .data at all.
+      # That gives back most of what moving these secrets into Vault bought.
+      # Server-side apply tracks per-field ownership in metadata.managedFields
+      # instead and stores no copy of the manifest.
+      #
+      # Switching an object that was previously applied client-side can raise a
+      # field-ownership conflict on the first sync; if that happens the fix is
+      # to let ArgoCD take ownership, not to revert this. The stale annotation
+      # is not removed by enabling this -- strip it once, afterwards:
+      #   kubectl -n jobboard annotate secret jobboard-secrets ghcr \
+      #     kubectl.kubernetes.io/last-applied-configuration-
+      - ServerSideApply=true
