@@ -81,10 +81,14 @@ tags, and an immutable tag cannot resolve to different content. The comment is
 rewritten rather than deleted, because the reasoning it records is what a future
 reader will otherwise repeat.
 
-**The base keeps naming the image, and its tag is not maintained.** The
-transformer overrides it for everything actually deployed, and `base/` is never
-applied on its own. Maintaining a second version string there is the duplication
-ruled out above.
+**The base names the image with no tag at all** — `image:
+ghcr.io/maxim-grin/jobboard`, and the overlay's `newTag` supplies the version.
+Leaving `:latest` there would name a tag that stops being published; writing a
+real version there would be the second, drifting copy ruled out above. A tagless
+reference has neither problem: the base declares *which image*, the overlay
+declares *which version*, and there is exactly one version string in the
+repository. Verified against the live overlay — a tagless base plus
+`newTag: "0.1.0"` renders `ghcr.io/maxim-grin/jobboard:0.1.0`.
 
 ## Interaction with argocd-vault-plugin
 
