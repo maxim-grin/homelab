@@ -6,3 +6,10 @@ namespace: jobboard
 resources:
   - ../base
   - ingress.yaml
+
+# The deploy history for dev: one line per release, bumped by hand after the
+# app repo cuts a `v<version>` tag. Quoted deliberately -- `newTag: 1.0`
+# parses as a float and renders as `jobboard:1`.
+images:
+  - name: ghcr.io/maxim-grin/jobboard
+    newTag: "0.1.0"

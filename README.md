@@ -28,20 +28,24 @@ node IP, since ingress-nginx answers on every node; `vault.mgryn.cc` is the
 exception and points straight at `vault-01`. There is no Pi-hole, no
 Traefik and no Cloudflare Tunnel yet.
 
-## jobboard image tag
+## jobboard image version
 
-`argocd/apps/jobboard/base/app-deployment.yaml` pins
-`ghcr.io/maxim-grin/jobboard:latest`, not a SHA. A push to the app repo's
-`main` publishes a new image but changes no manifest here, so ArgoCD sees
-no diff and never redeploys — the running pod keeps the old image until
-someone restarts it by hand:
+`argocd/apps/jobboard/dev/kustomization.yaml` names the published version to
+run; `argocd/apps/jobboard/base/app-deployment.yaml` carries no tag. Deploying
+a new build is one line:
 
 ```
-kubectl rollout restart deployment/jobboard -n jobboard
+newTag: "0.2.0"
 ```
 
-This is deliberate, not an oversight: `:latest` is a mutable tag, so the
-Deployment's pod spec never changes and Kubernetes sees nothing to roll.
+commit, and merge it through a pull request. The pod spec genuinely changes,
+so ArgoCD rolls it on the next poll — no `kubectl rollout restart`. Rolling
+back is the same edit with the previous number, and it works, which it could
+not when the tag was `:latest` and a revert changed nothing.
+
+The app repository publishes `ghcr.io/maxim-grin/jobboard:<version>` only when
+a `v<version>` git tag is pushed there. Naming a version here that has not been
+published yet gives `ImagePullBackOff` until it is — loud and self-correcting.
 
 ## Layout
 

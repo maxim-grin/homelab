@@ -430,13 +430,14 @@ Each step depends on the one above it.
     ClusterRoleBinding and `vault-auth-token` Secret in
     `argocd/base/vault-auth-delegator.yaml` — needed by the next step.
 
-    ArgoCD syncs the jobboard manifests as soon as this applies, but the app
-    repo's `image` job only publishes `ghcr.io/maxim-grin/jobboard:latest`
-    on a push to that repo's `main`, so merge order matters: merge the app
-    repo to `main` first, wait for its `image` CI job to go green, *then*
-    merge and push this repo. Pushing this repo before the image exists
-    just trades one CrashLoop for another — AVP renders the Secrets, but
-    there is no image to pull.
+    ArgoCD syncs the jobboard manifests as soon as this applies, and
+    `argocd/apps/jobboard/dev/kustomization.yaml` names a specific published
+    version. That version must already exist in GHCR: the app repo publishes
+    only from a `v<version>` git tag. If it does not, the pod sits in
+    `ImagePullBackOff` until someone cuts the tag, and recovers on its own
+    once the image appears — the manifests are correct either way. This is
+    the one ordering hazard that used to be silent: with `:latest` the pod
+    would happily start the *previous* build instead.
 
     Separately, expect jobboard's sync status to sit at `Unknown` with a
     `ComparisonError` naming a permission denied or a sealed Vault for
