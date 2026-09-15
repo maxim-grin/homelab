@@ -123,10 +123,10 @@ rewriting it would mean the `name:` field is wrong.
 - [ ] **Step 5: Verify the version appears exactly once**
 
 ```bash
-grep -rn "0\.1\.0" argocd/apps/jobboard/ ; echo "matches: $(grep -rc '0\.1\.0' argocd/apps/jobboard/ | grep -v ':0' | wc -l)"
+grep -rn '0\.1\.0' argocd/apps/jobboard/
 ```
 
-Expected: one file, one line — `dev/kustomization.yaml`. Any second hit is the
+Expected: exactly one line, in `dev/kustomization.yaml`. Any second hit is the
 duplication this design exists to avoid.
 
 - [ ] **Step 6: Commit**
@@ -153,9 +153,11 @@ git commit -m "feat(jobboard): pin the image to a version"
 
 In `README.md`, replace the entire `## jobboard image tag` section — heading,
 prose, the fenced `kubectl rollout restart` block, and the closing sentence —
-with:
+with the block below. **The outer fence here is four backticks** so the
+inner three-backtick block nests; what you paste into `README.md` is
+everything between them, starting at `## jobboard image version`.
 
-```markdown
+````markdown
 ## jobboard image version
 
 `argocd/apps/jobboard/dev/kustomization.yaml` names the published version to
@@ -174,11 +176,16 @@ the previous number, and it works, which it could not when the tag was
 The app repository publishes `ghcr.io/maxim-grin/jobboard:<version>` only when
 a `v<version>` git tag is pushed there. Naming a version here that has not been
 published yet gives `ImagePullBackOff` until it is — loud and self-correcting.
+````
+
+After editing, confirm `README.md` has one balanced fenced block in that
+section and no stray backticks:
+
+```bash
+awk '/^## jobboard image version/,/^## Layout/' README.md | grep -c '^```'
 ```
 
-Note the nested fence: the inner block is three backticks inside a section that
-is itself being pasted from this plan. Check the rendered file has one fenced
-block, not a broken nest.
+Expected: `2`.
 
 - [ ] **Step 2: Rewrite the rebuild merge-order caveat**
 
