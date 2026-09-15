@@ -18,15 +18,15 @@ exists before starting Task 1.
 
 ## Global Constraints
 
-- **ArgoCD syncs `main` from GitHub, not your working copy.** A commit is not a deploy; a push is.
-- Branch before the first commit. `main` receives finished work as a merge.
+- **ArgoCD syncs `main` from GitHub, not your working copy.** A commit is not a deploy, nor is a push; the merged PR is.
+- Branch before the first commit. `main` receives finished work through a pull request the owner merges (`gh`; see `CLAUDE.md`).
 - Conventional Commits. **Subject <= 50 characters**, imperative, lowercase, no trailing period. Body wrapped at 72. Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `ops`.
 - **No `Co-Authored-By` trailer and no generated-with footer.**
 - **No test suite.** Verification is `kustomize build` plus inspecting the cluster. "It applied" is not "it works".
 - jobboard's Application sets `spec.source.plugin.name: argocd-vault-plugin`, so ArgoCD delegates generation to the CMP sidecar, whose `generate` runs `kustomize build .`. The `images:` transformer runs inside that build, so it takes effect on the plugin path exactly as on the plain one.
 - `newTag` values are **quoted**. `newTag: 1.0` parses as a float and renders as `jobboard:1`.
 - The version appears in **exactly one place** in this repository. Do not add it to the base, to a label, or to an annotation.
-- Steps marked **[operator]** need cluster access or push rights.
+- Steps marked **[operator]** need cluster access or merge rights.
 
 ---
 
@@ -40,7 +40,7 @@ exists before starting Task 1.
 - Consumes: `ghcr.io/maxim-grin/jobboard:0.1.0`, published by the job-board repository's release plan.
 - Produces: a rendered Deployment naming `ghcr.io/maxim-grin/jobboard:0.1.0`. Task 3 verifies it in the cluster.
 
-- [ ] **Step 1: Remove the tag from the base image reference**
+- [x] **Step 1: Remove the tag from the base image reference**
 
 In `argocd/apps/jobboard/base/app-deployment.yaml`, replace:
 
@@ -60,7 +60,7 @@ with:
           image: ghcr.io/maxim-grin/jobboard
 ```
 
-- [ ] **Step 2: Rewrite the imagePullPolicy and its comment**
+- [x] **Step 2: Rewrite the imagePullPolicy and its comment**
 
 Immediately below, replace the whole existing block:
 
@@ -88,7 +88,7 @@ with:
           imagePullPolicy: IfNotPresent
 ```
 
-- [ ] **Step 3: Add the version to the dev overlay**
+- [x] **Step 3: Add the version to the dev overlay**
 
 Append to `argocd/apps/jobboard/dev/kustomization.yaml`:
 
@@ -102,7 +102,7 @@ images:
     newTag: "0.1.0"
 ```
 
-- [ ] **Step 4: Verify the overlay renders the pinned version**
+- [x] **Step 4: Verify the overlay renders the pinned version**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -120,7 +120,7 @@ Expected exactly:
 `postgres:17` must be untouched — the transformer matches by image name, and
 rewriting it would mean the `name:` field is wrong.
 
-- [ ] **Step 5: Verify the version appears exactly once**
+- [x] **Step 5: Verify the version appears exactly once**
 
 ```bash
 grep -rn '0\.1\.0' argocd/apps/jobboard/
@@ -129,7 +129,7 @@ grep -rn '0\.1\.0' argocd/apps/jobboard/
 Expected: exactly one line, in `dev/kustomization.yaml`. Any second hit is the
 duplication this design exists to avoid.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add argocd/apps/jobboard/base/app-deployment.yaml \
@@ -149,7 +149,7 @@ git commit -m "feat(jobboard): pin the image to a version"
 - Consumes: the behaviour from Task 1.
 - Produces: nothing other tasks depend on.
 
-- [ ] **Step 1: Replace the README section**
+- [x] **Step 1: Replace the README section**
 
 In `README.md`, replace the entire `## jobboard image tag` section — heading,
 prose, the fenced `kubectl rollout restart` block, and the closing sentence —
@@ -187,7 +187,7 @@ awk '/^## jobboard image version/,/^## Layout/' README.md | grep -c '^```'
 
 Expected: `2`.
 
-- [ ] **Step 2: Rewrite the rebuild merge-order caveat**
+- [x] **Step 2: Rewrite the rebuild merge-order caveat**
 
 In `docs/rebuild.md`, replace:
 
@@ -214,7 +214,7 @@ with:
     would happily start the *previous* build instead.
 ```
 
-- [ ] **Step 3: Verify nothing stale survives**
+- [x] **Step 3: Verify nothing stale survives**
 
 ```bash
 grep -rn "rollout restart deployment/jobboard" . --include='*.md' | grep -v docs/superpowers
@@ -224,7 +224,7 @@ grep -rn "jobboard:latest" . --include='*.md' --include='*.yaml' | grep -v docs/
 Expected: both print nothing. Hits under `docs/superpowers/` are historical plans
 and specs and are left alone.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md docs/rebuild.md
@@ -245,13 +245,13 @@ git commit -m "docs(jobboard): describe the pinned version"
 build; `0.1.0` was built fresh from the app repo's `main`. Treat this as a real
 deploy.
 
-- [ ] **Step 1: Merge and push**
+- [ ] **Step 1: Merge the pull request**
 
 ```bash
-git checkout main && git merge --no-ff <branch> && git push origin main
+gh pr merge <number> --merge
 ```
 
-Pushing is the deploy. ArgoCD picks it up within about three minutes.
+Merging is the deploy. ArgoCD picks it up within about three minutes.
 
 - [ ] **Step 2: Watch the roll**
 
@@ -293,6 +293,7 @@ Worth doing once, while you are watching, because this is the capability the
 whole change buys and the first time you need it will not be a good time to
 discover it does not.
 
-Once a second version exists, bump `newTag` to it, push, confirm the new image
-is running, then revert the commit and push again. The previous version should
-come back on its own within a poll.
+Once a second version exists, bump `newTag` to it in a PR and merge it,
+confirm the new image is running, then merge a PR that reverts the bump
+(`git revert` on a branch). The previous version should come back on its own
+within a poll.
