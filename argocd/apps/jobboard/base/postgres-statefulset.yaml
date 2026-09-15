@@ -60,7 +60,15 @@ spec:
             limits:
               memory: 1Gi
   volumeClaimTemplates:
-    - metadata:
+    # apiVersion and kind are spelled out so ArgoCD owns them. The API server
+    # stores both on every claim template; ArgoCD's server-side diff drops
+    # fields argocd-controller does not own from its predicted state, so
+    # without these two lines postgres sits OutOfSync forever while every
+    # selfHeal sync "succeeds" as a no-op. The values match what is already
+    # stored, so this is not a (forbidden) change to the claim templates.
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: data
       spec:
         accessModes: [ReadWriteOnce]
