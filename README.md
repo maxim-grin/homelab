@@ -38,10 +38,10 @@ a new build is one line:
 newTag: "0.2.0"
 ```
 
-commit, and push. The pod spec genuinely changes, so ArgoCD rolls it on the
-next poll — no `kubectl rollout restart`. Rolling back is the same edit with
-the previous number, and it works, which it could not when the tag was
-`:latest` and a revert changed nothing.
+commit, and merge it through a pull request. The pod spec genuinely changes,
+so ArgoCD rolls it on the next poll — no `kubectl rollout restart`. Rolling
+back is the same edit with the previous number, and it works, which it could
+not when the tag was `:latest` and a revert changed nothing.
 
 The app repository publishes `ghcr.io/maxim-grin/jobboard:<version>` only when
 a `v<version>` git tag is pushed there. Naming a version here that has not been
