@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: homelab
+  # Two sources, the same shape ingress-nginx.yaml uses: the chart from
+  # upstream, and this repository only so `$values` can point at a values
+  # file that lives beside the rest of the app configuration rather than
+  # inline in this Application.
+  #
+  # https://charts.jetstack.io had to be added to sourceRepos in
+  # argocd/base/projects.yaml. Without it ArgoCD refuses this Application
+  # with "application repo is not permitted" and never attempts a sync.
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: v1.21.2
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/argocd/apps/cert-manager/dev/values.yaml
+    - repoURL: https://github.com/maxim-grin/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # cert-manager's CRDs carry large validation schemas. Applied
+      # client-side they exceed the 262144-byte annotation limit that
+      # kubectl's last-applied-configuration uses, and the sync fails with
+      # "metadata.annotations: Too long". ServerSideApply has no such
+      # limit -- the same reason ingress-nginx sets it, different cause.
+      - ServerSideApply=true
