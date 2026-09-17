@@ -2,12 +2,37 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: jobboard
+  annotations:
+    # Names a ClusterIssuer, not an Issuer -- cert-manager-issuers owns
+    # both, cluster scoped. Staging first, deliberately: its certificates
+    # chain to an untrusted root and the browser will warn, which proves
+    # the DNS-01 plumbing without spending Let's Encrypt's production
+    # rate limits on a misconfiguration. Flip to letsencrypt-prod once
+    # `kubectl -n jobboard describe certificate jobboard-tls` reports
+    # Ready, and delete the jobboard-tls Secret so it re-issues.
+    cert-manager.io/cluster-issuer: letsencrypt-staging
 spec:
   # ingress-nginx runs as a DaemonSet on host ports 80/443 -- this cluster
-  # is bare metal with no LoadBalancer and no MetalLB. There is no DNS
-  # server here, so jobs.mgryn.cc resolves through /etc/hosts on the
-  # workstation, pointing at any node IP.
+  # is bare metal with no LoadBalancer and no MetalLB. jobs.mgryn.cc now
+  # has a DNS-only (grey cloud) A record in Cloudflare pointing at
+  # 10.0.0.101, so it resolves on any device on the LAN rather than only
+  # on a workstation carrying an /etc/hosts entry. Public DNS answering
+  # with a private address is fine, but some resolvers and routers drop
+  # it as DNS-rebinding protection.
   ingressClassName: nginx
+  # cert-manager watches this block: it creates a Certificate named after
+  # secretName, solves the challenge, and writes the result there.
+  # Nothing pre-creates jobboard-tls -- an empty Secret of that name
+  # would be adopted and left empty.
+  #
+  # ingress-nginx redirects HTTP to HTTPS by default once a host has TLS
+  # configured, so http://jobs.mgryn.cc starts 308-ing to https once this
+  # lands. That is also what makes the app's secure-cookie default
+  # workable: the cookie will not travel over plain HTTP at all.
+  tls:
+    - hosts:
+        - jobs.mgryn.cc
+      secretName: jobboard-tls
   rules:
     - host: jobs.mgryn.cc
       http:
