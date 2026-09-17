@@ -1,0 +1,36 @@
+# cert-manager for the dev cluster.
+#
+# Here to put a real, publicly trusted certificate on jobs.mgryn.cc without
+# exposing the cluster. mgryn.cc's Cloudflare certificate cannot help: it
+# terminates at Cloudflare's edge, and jobs.mgryn.cc resolves to 10.0.0.101,
+# so that traffic never reaches the edge to be terminated there.
+#
+# The ACME HTTP-01 challenge is equally useless here -- it requires Let's
+# Encrypt to reach the host from the public internet, and nothing about this
+# cluster is reachable from outside. DNS-01 proves control of the domain by
+# writing a TXT record instead, which a machine on a private address can do
+# perfectly well. That is the whole reason this is possible at all.
+
+# The CRDs ship with the chart rather than being applied separately. Argo
+# prunes what it installs, so splitting them across two Applications means a
+# resync of one can delete resources the other still owns; keeping them in
+# this release makes cert-manager a single unit to install or remove.
+crds:
+  enabled: true
+
+# Cloudflare's resolvers are authoritative for mgryn.cc, so cert-manager can
+# ask them directly instead of walking down from the recursive resolvers the
+# nodes use. This also sidesteps the split-horizon problem this homelab
+# creates for itself: jobs.mgryn.cc resolves to a private address, and a
+# self-check that followed the normal resolution path would look at the A
+# record rather than the challenge TXT.
+extraArgs:
+  - --dns01-recursive-nameservers-only
+  - --dns01-recursive-nameservers=1.1.1.1:53,1.0.0.1:53
+
+# Single-node bare metal; the chart's defaults assume more headroom than
+# this box has and nothing here is latency-sensitive.
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
