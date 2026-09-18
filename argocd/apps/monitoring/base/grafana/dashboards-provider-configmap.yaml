@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-providers
+  namespace: monitoring
+data:
+  # Tells Grafana where to find dashboard JSON, not the JSON itself --
+  # this file lives at /etc/grafana/provisioning/dashboards (the fixed
+  # location Grafana scans for provider configs), while `options.path`
+  # points at /etc/grafana/dashboards, a separate mount holding the
+  # actual dashboard JSON (grafana-dashboards ConfigMap). The two can't
+  # share a mount path: /var/lib/grafana is already the grafana-storage
+  # PVC's mount point in deployment.yaml, so dashboard JSON needed a
+  # path outside it.
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        # UI edits to a provisioned dashboard don't survive the next
+        # provisioning pass anyway (the file on disk wins) -- disabling
+        # them outright means a change made by hand fails loudly at
+        # save time instead of silently vanishing 30 seconds later.
+        allowUiUpdates: false
+        options:
+          path: /etc/grafana/dashboards

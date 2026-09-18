@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-cert-manager
+  namespace: monitoring
+data:
+  cert-manager.json: |
+    {
+      "id": null,
+      "uid": "cert-manager",
+      "title": "cert-manager",
+      "tags": ["homelab", "cert-manager"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "5m",
+      "time": {"from": "now-30d", "to": "now"},
+      "panels": [
+        {
+          "id": 1,
+          "title": "Days until expiry",
+          "type": "table",
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "d"}, "overrides": []},
+          "description": "This is what would have caught issuing against letsencrypt-staging by mistake -- a staging cert's shorter lifetime shows up here as a number nobody expects.",
+          "targets": [
+            {
+              "expr": "(certmanager_certificate_expiration_timestamp_seconds - time()) / 86400",
+              "legendFormat": "{{exported_namespace}}/{{name}}",
+              "refId": "A",
+              "instant": true,
+              "format": "table"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Certificates not Ready",
+          "type": "stat",
+          "gridPos": {"h": 6, "w": 24, "x": 0, "y": 10},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+          "targets": [
+            {
+              "expr": "sum(certmanager_certificate_ready_status{condition=\"False\"} == 1) or vector(0)",
+              "legendFormat": "not ready",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }

@@ -15,6 +15,12 @@ resources:
   - prometheus/pvc.yaml
   # Grafana
   - grafana/configmap.yaml
+  - grafana/dashboards-provider-configmap.yaml
+  - grafana/dashboards/node-health.yaml
+  - grafana/dashboards/k8s-cluster.yaml
+  - grafana/dashboards/ingress-nginx.yaml
+  - grafana/dashboards/cert-manager.yaml
+  - grafana/dashboards/harbor.yaml
   - grafana/deployment.yaml
   - grafana/service.yaml
   - grafana/pvc.yaml

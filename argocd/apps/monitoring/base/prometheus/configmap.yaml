@@ -68,10 +68,18 @@ data:
             target_label: __metrics_path__
             replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
 
-      # Node Exporter
-      - job_name: 'node-exporter'
-        static_configs:
-          - targets: ['node-exporter.monitoring.svc.cluster.local:9100']
+      # Node Exporter is deliberately NOT its own static-target job here.
+      # node-exporter is a hostNetwork DaemonSet behind a ClusterIP Service;
+      # a static_configs target naming that Service's DNS name gets load-
+      # balanced to one random pod per scrape, and Prometheus labels every
+      # sample `instance="node-exporter.monitoring.svc.cluster.local:9100"`
+      # regardless of which node actually answered -- per-node breakdown is
+      # structurally impossible that way, not merely inaccurate. The
+      # node-exporter Service already carries the prometheus.io/scrape
+      # annotations the 'kubernetes-service-endpoints' job below reads, and
+      # that job's `role: endpoints` discovery creates one target per pod
+      # IP -- since node-exporter uses hostNetwork, that IS the node's own
+      # address, so each node gets its own `instance` label for real.
 
       # kube-state-metrics
       - job_name: 'kube-state-metrics'
@@ -133,3 +141,24 @@ data:
           - source_labels: [__meta_kubernetes_pod_name]
             action: replace
             target_label: kubernetes_pod_name
+
+      # Harbor. Its chart (goharbor/harbor v1.18.0) has no annotation-based
+      # discovery path -- metrics.enabled=true only adds a `metrics` port to
+      # each component's own Service (verified against the chart's actual
+      # Service templates), never a prometheus.io/scrape annotation, and its
+      # only scrape-related template is a ServiceMonitor for the Prometheus
+      # Operator, which this cluster doesn't run. Static targets are the
+      # only option; names match `harbor.fullname`-derived Service names for
+      # releaseName "harbor" (fullname resolves to "harbor" itself, since
+      # the release name already contains the chart name).
+      - job_name: 'harbor'
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['harbor-core.harbor.svc.cluster.local:8001']
+            labels: {component: core}
+          - targets: ['harbor-registry.harbor.svc.cluster.local:8001']
+            labels: {component: registry}
+          - targets: ['harbor-jobservice.harbor.svc.cluster.local:8001']
+            labels: {component: jobservice}
+          - targets: ['harbor-exporter.harbor.svc.cluster.local:8001']
+            labels: {component: exporter}

@@ -52,6 +52,10 @@ spec:
           volumeMounts:
             - name: grafana-datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-dashboard-providers
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards
+              mountPath: /etc/grafana/dashboards
             - name: grafana-storage
               mountPath: /var/lib/grafana
           resources:
@@ -65,6 +69,25 @@ spec:
         - name: grafana-datasources
           configMap:
             name: grafana-datasources
+        - name: grafana-dashboard-providers
+          configMap:
+            name: grafana-dashboard-providers
+        # A `configMap` volume source can only name one ConfigMap; `projected`
+        # combines all five dashboard ConfigMaps' single JSON key each into
+        # this one directory instead of needing five separate mounts.
+        - name: grafana-dashboards
+          projected:
+            sources:
+              - configMap:
+                  name: grafana-dashboard-node-health
+              - configMap:
+                  name: grafana-dashboard-k8s-cluster
+              - configMap:
+                  name: grafana-dashboard-ingress-nginx
+              - configMap:
+                  name: grafana-dashboard-cert-manager
+              - configMap:
+                  name: grafana-dashboard-harbor
         - name: grafana-storage
           persistentVolumeClaim:
             claimName: grafana-storage

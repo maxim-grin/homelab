@@ -51,3 +51,15 @@ controller:
       memory: 128Mi
     limits:
       memory: 512Mi
+
+  # metrics.service is independent of the main `service` above (which is
+  # disabled -- hostPort is the entry point for traffic). It defaults to
+  # enabled: true on its own, so this only needs the scrape annotations;
+  # the 'kubernetes-service-endpoints' job in the monitoring stack's
+  # prometheus.yml discovers any Service carrying them.
+  metrics:
+    enabled: true
+    service:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10254"

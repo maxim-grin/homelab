@@ -170,3 +170,14 @@ affinity: {}
 logLevel: warn
 gc:
   schedule: "0 2 * * *"
+
+# Adds a `metrics` port (default 8001) to core/registry/jobservice's own
+# Services plus a dedicated exporter Service -- verified against the
+# chart's actual Service templates, not the values.yaml comments alone.
+# No prometheus.io/scrape annotation comes with it (the chart's only
+# scrape-discovery template is a ServiceMonitor, for the Prometheus
+# Operator this cluster doesn't run), so the monitoring stack's
+# prometheus.yml has a static 'harbor' job naming these four Services
+# directly instead.
+metrics:
+  enabled: true

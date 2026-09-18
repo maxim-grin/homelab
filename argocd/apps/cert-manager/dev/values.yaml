@@ -30,3 +30,14 @@ resources:
   requests:
     cpu: 10m
     memory: 32Mi
+
+# No `metrics`/`podAnnotations` block here on purpose. The chart already
+# puts prometheus.io/scrape, /port and /path annotations on the
+# controller pod by default (prometheus.enabled: true, with neither
+# podmonitor nor servicemonitor enabled -- verified against
+# templates/deployment.yaml) -- the monitoring stack's
+# 'kubernetes-pods' scrape job already picks it up with zero config here.
+# Careful if this ever needs a `podAnnotations` override for something
+# else: the chart's own template only adds its prometheus.io annotations
+# when `.Values.podAnnotations` is unset, so setting one for an unrelated
+# reason would silently turn this off.
