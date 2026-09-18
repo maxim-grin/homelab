@@ -127,8 +127,17 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   class lands on the NFS server VM. When that provisioner is down, PVCs sit
   `Pending` and the apps above them read as broken for unrelated reasons.
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
-  is bare metal with no LoadBalancer and no MetalLB. Hostnames resolve via
-  `/etc/hosts` on the workstation; there is no DNS server in this homelab.
+  is bare metal with no LoadBalancer and no MetalLB. There is no DNS server
+  here, so most hostnames resolve via `/etc/hosts` on the workstation.
+  `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
+  record pointing at a node IP, so it resolves on any device on the LAN.
+- **`jobs.mgryn.cc`'s certificate comes from cert-manager, not Cloudflare.**
+  Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
+  traffic to a private address never reaches. cert-manager solves ACME
+  DNS-01 with a Cloudflare API token from Vault
+  (`secret/cert-manager/cloudflare`) and renews on its own. Debug a failed
+  issuance by pointing the Ingress annotation at `letsencrypt-staging` --
+  production limits 5 failed validations per hostname per hour.
 - **`secret.yaml` is committed encrypted; its password is not.** That file is
   the only record of every host address and vmid. Losing the password loses
   them. Keep it in a password manager.
