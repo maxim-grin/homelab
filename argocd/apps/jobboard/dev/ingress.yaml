@@ -4,13 +4,21 @@ metadata:
   name: jobboard
   annotations:
     # Names a ClusterIssuer, not an Issuer -- cert-manager-issuers owns
-    # both, cluster scoped. Staging first, deliberately: its certificates
-    # chain to an untrusted root and the browser will warn, which proves
-    # the DNS-01 plumbing without spending Let's Encrypt's production
-    # rate limits on a misconfiguration. Flip to letsencrypt-prod once
-    # `kubectl -n jobboard describe certificate jobboard-tls` reports
-    # Ready, and delete the jobboard-tls Secret so it re-issues.
-    cert-manager.io/cluster-issuer: letsencrypt-staging
+    # both, cluster scoped.
+    #
+    # letsencrypt-staging issued here first and reached Ready on
+    # 2026-09-17, which is what proved the DNS-01 path: the Cloudflare
+    # token's two permissions, the zone selector, and cert-manager
+    # resolving the challenge TXT through Cloudflare's resolvers rather
+    # than following this homelab's split-horizon A record. Staging
+    # chains to an untrusted root, so that certificate proved the
+    # plumbing without spending production rate limits (5 failed
+    # validations per hostname per hour, 50 certificates per domain per
+    # week) on a misconfiguration.
+    #
+    # Switching back to staging is the diagnostic if issuance ever breaks
+    # again -- letsencrypt-staging stays defined for exactly that.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   # ingress-nginx runs as a DaemonSet on host ports 80/443 -- this cluster
   # is bare metal with no LoadBalancer and no MetalLB. jobs.mgryn.cc now
