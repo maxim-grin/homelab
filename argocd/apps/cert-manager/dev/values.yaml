@@ -18,15 +18,11 @@
 crds:
   enabled: true
 
-# Cloudflare's resolvers are authoritative for mgryn.cc, so cert-manager can
-# ask them directly instead of walking down from the recursive resolvers the
-# nodes use. This also sidesteps the split-horizon problem this homelab
-# creates for itself: jobs.mgryn.cc resolves to a private address, and a
-# self-check that followed the normal resolution path would look at the A
-# record rather than the challenge TXT.
-extraArgs:
-  - --dns01-recursive-nameservers-only
-  - --dns01-recursive-nameservers=1.1.1.1:53,1.0.0.1:53
+# Leave the DNS-01 propagation check on its default, which asks the zone's
+# authoritative servers. Pinning it to recursive resolvers
+# (--dns01-recursive-nameservers-only) stalled issuance for half an hour on
+# 2026-09-18: they cache the NODATA from before the challenge record exists,
+# and mgryn.cc's SOA sets a 1800s negative TTL.
 
 # Single-node bare metal; the chart's defaults assume more headroom than
 # this box has and nothing here is latency-sensitive.
