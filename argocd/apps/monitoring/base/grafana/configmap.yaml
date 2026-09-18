@@ -8,6 +8,12 @@ data:
     apiVersion: 1
     datasources:
       - name: Prometheus
+        # Fixed rather than left to Grafana's auto-generated one: every
+        # provisioned dashboard's panels reference this uid directly, and
+        # an auto-generated one is only stable as long as nobody re-runs
+        # provisioning against an empty database -- pinning it here is
+        # what lets dashboard JSON be committed at all.
+        uid: prometheus
         type: prometheus
         access: proxy
         url: http://prometheus:9090

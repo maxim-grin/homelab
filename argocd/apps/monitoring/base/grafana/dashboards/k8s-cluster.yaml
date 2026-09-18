@@ -1,0 +1,134 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-k8s-cluster
+  namespace: monitoring
+data:
+  k8s-cluster.json: |
+    {
+      "id": null,
+      "uid": "k8s-cluster",
+      "title": "Kubernetes Cluster",
+      "tags": ["homelab", "k8s"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-6h", "to": "now"},
+      "panels": [
+        {
+          "id": 1,
+          "title": "Pods by phase",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+          "targets": [
+            {
+              "expr": "sum by (phase) (kube_pod_status_phase == 1)",
+              "legendFormat": "{{phase}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Node Ready condition",
+          "type": "stat",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {"type": "value", "options": {"1": {"text": "Ready", "color": "green"}}},
+                {"type": "value", "options": {"0": {"text": "Not Ready", "color": "red"}}}
+              ]
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "kube_node_status_condition{condition=\"Ready\", status=\"true\"}",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Deployment replicas: available vs desired",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+          "description": "A deployment whose available line drops below its desired line, or diverges from it for more than a few minutes, is not healthy even if kubectl shows it Running.",
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_available",
+              "legendFormat": "{{namespace}}/{{deployment}} available",
+              "refId": "A"
+            },
+            {
+              "expr": "kube_deployment_spec_replicas",
+              "legendFormat": "{{namespace}}/{{deployment}} desired",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "CPU requests vs allocatable, by node",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+          "targets": [
+            {
+              "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"cpu\"} * on(pod, namespace) group_left(node) kube_pod_info)",
+              "legendFormat": "{{node}} requested",
+              "refId": "A"
+            },
+            {
+              "expr": "kube_node_status_allocatable{resource=\"cpu\"}",
+              "legendFormat": "{{node}} allocatable",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Memory requests vs allocatable, by node",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "bytes", "min": 0}, "overrides": []},
+          "targets": [
+            {
+              "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"memory\"} * on(pod, namespace) group_left(node) kube_pod_info)",
+              "legendFormat": "{{node}} requested",
+              "refId": "A"
+            },
+            {
+              "expr": "kube_node_status_allocatable{resource=\"memory\"}",
+              "legendFormat": "{{node}} allocatable",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Container restarts (rate, 1h)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+          "targets": [
+            {
+              "expr": "sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[1h])) > 0",
+              "legendFormat": "{{namespace}}/{{pod}}",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }
