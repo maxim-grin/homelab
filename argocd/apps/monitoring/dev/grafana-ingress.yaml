@@ -3,11 +3,24 @@ kind: Ingress
 metadata:
   name: grafana
   namespace: monitoring
+  annotations:
+    # cert-manager issues via ACME DNS-01 against the mgryn.cc zone, so no
+    # public A record is needed for grafana.mgryn.cc -- the challenge is a
+    # TXT record, never the host's own address. Resolution stays /etc/hosts.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   # ingress-nginx is a DaemonSet on host ports 80/443; no LoadBalancer, no
   # MetalLB, no DNS server. grafana.mgryn.cc resolves through /etc/hosts on
   # the workstation, pointing at any node IP.
   ingressClassName: nginx
+  # cert-manager writes the certificate into grafana-tls; nothing should
+  # pre-create that Secret. ingress-nginx redirects HTTP to HTTPS once a
+  # host has TLS, so GF_SERVER_ROOT_URL must be the https:// form or every
+  # login redirect lands on a URL that immediately 308s.
+  tls:
+    - hosts:
+        - grafana.mgryn.cc
+      secretName: grafana-tls
   rules:
     - host: grafana.mgryn.cc
       http:
