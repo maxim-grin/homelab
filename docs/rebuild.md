@@ -495,10 +495,15 @@ Each step depends on the one above it.
       already holds a Grafana database, reset it explicitly:
       `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
 15. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
-    `jobs.mgryn.cc`, `argocd.mgryn.cc`, `gitea.mgryn.cc`,
-    `grafana.mgryn.cc` and `prometheus.mgryn.cc`. One line per name, all
-    pointing at the same node -- ingress-nginx is a DaemonSet on host ports
-    80/443, so any node answers.
+    `argocd.mgryn.cc`, `gitea.mgryn.cc`, `grafana.mgryn.cc` and
+    `prometheus.mgryn.cc`. One line per name, all pointing at the same node
+    -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
+    answers.
+
+    `jobs.mgryn.cc` needs no entry: it is a DNS-only Cloudflare record
+    holding a node IP. If the node IPs changed in this rebuild, update that
+    record in Cloudflare instead. Its certificate re-issues on its own,
+    provided the Vault seed in step 8 included `cert-manager/cloudflare`.
     Gitea and Grafana each render absolute URLs from configuration
     (`GITEA__server__ROOT_URL`, `GF_SERVER_ROOT_URL`), so a name that does not
     resolve produces broken clone URLs and login redirects rather than a

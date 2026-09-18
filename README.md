@@ -19,14 +19,47 @@ _not_ contain, which is the part that will bite.
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
 | GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`              | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
+| TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
 | Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
 | Secrets    | Vault (`vault.mgryn.cc:8200`), LXC `vault-01`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `proxmox/environments/dev` |
 
-Hostnames resolve through `/etc/hosts` on the workstation. Most point at a
-node IP, since ingress-nginx answers on every node; `vault.mgryn.cc` is the
-exception and points straight at `vault-01`. There is no Pi-hole, no
-Traefik and no Cloudflare Tunnel yet.
+Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
+a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the
+exception and points straight at `vault-01`. There is no Pi-hole, no Traefik
+and no Cloudflare Tunnel.
+
+`jobs.mgryn.cc` is the one name in public DNS: a DNS-only (grey cloud)
+Cloudflare record holding a node IP, so any device on the LAN resolves it
+without a hosts entry. Public DNS answering with a private address is fine,
+though some routers drop it as DNS-rebinding protection. It is also the only
+name served over HTTPS — see TLS, below.
+
+## TLS
+
+`jobs.mgryn.cc` is served over HTTPS with a Let's Encrypt certificate.
+cert-manager obtains it with an ACME DNS-01 challenge, writing a TXT record
+through the Cloudflare API with a token held in Vault at
+`secret/cert-manager/cloudflare`. Renewal is automatic, 30 days before
+expiry.
+
+DNS-01 rather than HTTP-01 because nothing here is reachable from the public
+internet, and DNS-01 proves domain control by writing a record rather than
+by answering a request. Nothing is exposed to add TLS.
+
+Cloudflare's own certificate for `mgryn.cc` cannot be used: it terminates at
+Cloudflare's edge, and traffic to a private address never goes there.
+
+Two issuers exist — `letsencrypt-prod` and `letsencrypt-staging`. If
+issuance breaks, point the Ingress annotation at staging while debugging.
+Staging certificates are untrusted, so the browser warns, but production
+allows only 5 failed validations per hostname per hour and 50 certificates
+per domain per week.
+
+```bash
+kubectl -n jobboard describe certificate jobboard-tls
+kubectl -n jobboard get order,challenge
+```
 
 ## jobboard image version
 
@@ -95,6 +128,7 @@ git push -u origin <branch>
 gh pr create --base main --fill
 ```
 
+jobboard: `https://jobs.mgryn.cc` -- the only name with TLS; HTTP 308s to it
 ArgoCD UI: `http://argocd.mgryn.cc`
 Gitea: `http://gitea.mgryn.cc` · Grafana: `http://grafana.mgryn.cc`
 Prometheus: `http://prometheus.mgryn.cc` (no authentication -- Prometheus ships none)
