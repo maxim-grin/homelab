@@ -21,7 +21,7 @@ crds:
 # Leave the DNS-01 propagation check on its default, which asks the zone's
 # authoritative servers. Pinning it to recursive resolvers
 # (--dns01-recursive-nameservers-only) stalled issuance for half an hour once:
-# 2026-09-18: they cache the NODATA from before the challenge record exists,
+they cache the NODATA from before the challenge record exists,
 # and mgryn.cc's SOA sets a 1800s negative TTL.
 
 # Single-node bare metal; the chart's defaults assume more headroom than
