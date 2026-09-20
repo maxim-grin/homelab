@@ -57,14 +57,12 @@ repos:
       # changed files: handed a single playbook, ansible-lint cannot resolve
       # its roles and reports "The role 'nfs_server' was not found".
       #
-      # ansible/.ansible-lint-ignore records the 51 findings this repo
-      # inherited from the homelab it was copied from -- fqcn, var-naming,
-      # yaml[truthy] and friends. Pre-existing debt is listed, so it stays
-      # visible, while anything new still fails. Regenerate with
-      # `ansible-lint --generate-ignore .` only after deliberately accepting
-      # a new violation.
+      # The project lints clean at profile production with no ignore file,
+      # so any finding fails the commit. Fix it; do not add a skip.
       #
-      # Needs ansible-lint on PATH: uv tool install ansible-lint
+      # Needs ansible-lint on PATH (uv tool install ansible-lint) and the
+      # collections in ansible/requirements.yml:
+      #   ansible-galaxy collection install -r ansible/requirements.yml
       - id: ansible-lint
         name: ansible-lint
         language: system

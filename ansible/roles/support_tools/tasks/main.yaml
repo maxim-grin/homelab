@@ -8,15 +8,16 @@
       - --output=yaml
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
-  register: kubectl_check
+  register: support_tools_kubectl_check
   changed_when: false
-  failed_when: kubectl_check.rc != 0
+  failed_when: support_tools_kubectl_check.rc != 0
 
 
 - name: Set useful aliases for root
   ansible.builtin.blockinfile:
     path: /root/.bashrc
     create: true
+    mode: '0644'
     marker: "# {mark} ANSIBLE-K8S ALIASES"
     block: |
       alias k='kubectl'
@@ -27,6 +28,7 @@
   ansible.builtin.blockinfile:
     path: "/home/{{ cluster_admin_user }}/.bashrc"
     create: true
+    mode: '0644'
     owner: "{{ cluster_admin_user }}"
     group: "{{ cluster_admin_user }}"
     marker: "# {mark} ANSIBLE-K8S ALIASES"

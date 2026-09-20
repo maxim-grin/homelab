@@ -105,11 +105,12 @@ uv tool install ansible-lint
 pre-commit install                          # wires pre-commit AND commit-msg
 ```
 
-Nine hooks: file hygiene, `check-yaml`, `detect-private-key`, `gitleaks`,
+The hooks: file hygiene, `check-yaml`, `detect-private-key`, `gitleaks`,
 `ansible-lint`, `terraform fmt`, and a conventional-commit check on the
-message. `ansible/.ansible-lint-ignore` holds the 26 findings inherited from
-the repository this was copied from — they stay visible rather than silenced,
-and anything new fails.
+message. `ansible-lint` runs at profile `production` with no ignore file:
+any finding fails. It needs the collections pinned in
+`ansible/requirements.yml` (`ansible-galaxy collection install -r
+ansible/requirements.yml`), and so do the playbooks themselves.
 
 ## Day-to-day
 

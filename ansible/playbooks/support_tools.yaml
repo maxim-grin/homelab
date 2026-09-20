@@ -1,5 +1,6 @@
 ---
-- hosts: k8s_control_plane
+- name: Install support tools on the control plane
+  hosts: k8s_control_plane
   gather_facts: false
   roles:
     - support_tools
