@@ -48,16 +48,34 @@
     dest: /etc/apt/keyrings/nodesource.asc
     mode: "0644"
 
-- name: Add NodeSource repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [signed-by=/etc/apt/keyrings/nodesource.asc]
-      https://deb.nodesource.com/node_{{ workstation_nodejs_major }}.x nodistro main
-    filename: nodesource
+- name: Install python3-debian for deb822_repository
+  ansible.builtin.apt:
+    name: python3-debian
     state: present
-    # Refreshes only when the repo entry actually changes, which is what we
-    # want: the NodeSource index has to land before nodejs can resolve.
+
+- name: Add NodeSource repository
+  ansible.builtin.deb822_repository:
+    name: nodesource
+    types: [deb]
+    uris: "https://deb.nodesource.com/node_{{ workstation_nodejs_major }}.x"
+    suites: [nodistro]
+    components: [main]
+    signed_by: /etc/apt/keyrings/nodesource.asc
+    state: present
+  register: workstation_nodesource_repo
+
+- name: Remove the old one-line NodeSource repository
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/nodesource.list
+    state: absent
+  register: workstation_nodesource_old_list
+
+# Refreshes only when the repo entry actually changes, which is what we
+# want: the NodeSource index has to land before nodejs can resolve.
+- name: Refresh apt cache for NodeSource
+  ansible.builtin.apt:
     update_cache: true
+  when: workstation_nodesource_repo is changed or workstation_nodesource_old_list is changed
 
 - name: Install Node.js
   ansible.builtin.apt:
@@ -150,13 +168,25 @@
     mode: "0644"
 
 - name: Add the Kubernetes apt repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [signed-by=/etc/apt/keyrings/kubernetes-workstation.asc]
-      https://pkgs.k8s.io/core:/stable:/v{{ workstation_kubectl_version }}/deb/ /
-    filename: kubernetes
+  ansible.builtin.deb822_repository:
+    name: kubernetes
+    types: [deb]
+    uris: "https://pkgs.k8s.io/core:/stable:/v{{ workstation_kubectl_version }}/deb/"
+    suites: ["/"]
+    signed_by: /etc/apt/keyrings/kubernetes-workstation.asc
     state: present
+  register: workstation_kubernetes_repo
+
+- name: Remove the old one-line Kubernetes apt repository
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/kubernetes.list
+    state: absent
+  register: workstation_kubernetes_old_list
+
+- name: Refresh apt cache for Kubernetes
+  ansible.builtin.apt:
     update_cache: true
+  when: workstation_kubernetes_repo is changed or workstation_kubernetes_old_list is changed
 
 - name: Install kubectl
   ansible.builtin.apt:
@@ -170,13 +200,26 @@
     mode: "0644"
 
 - name: Add the HashiCorp apt repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [signed-by=/etc/apt/keyrings/hashicorp.asc]
-      https://apt.releases.hashicorp.com {{ workstation_terraform_channel }} main
-    filename: hashicorp
+  ansible.builtin.deb822_repository:
+    name: hashicorp
+    types: [deb]
+    uris: https://apt.releases.hashicorp.com
+    suites: ["{{ workstation_terraform_channel }}"]
+    components: [main]
+    signed_by: /etc/apt/keyrings/hashicorp.asc
     state: present
+  register: workstation_hashicorp_repo
+
+- name: Remove the old one-line HashiCorp apt repository
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/hashicorp.list
+    state: absent
+  register: workstation_hashicorp_old_list
+
+- name: Refresh apt cache for HashiCorp
+  ansible.builtin.apt:
     update_cache: true
+  when: workstation_hashicorp_repo is changed or workstation_hashicorp_old_list is changed
 
 - name: Install terraform
   ansible.builtin.apt:

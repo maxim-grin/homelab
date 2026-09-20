@@ -30,12 +30,26 @@
   when: kube_packages_repo_key.changed or not kube_packages_repo_keyring.stat.exists
   changed_when: kube_packages_repo_key.changed or not kube_packages_repo_keyring.stat.exists
 
-- name: Add Kubernetes apt repository
-  ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] {{ kubernetes_repo_channel }} /"
-    filename: kubernetes
+- name: Install python3-debian for deb822_repository
+  ansible.builtin.apt:
+    name: python3-debian
     state: present
-    update_cache: true
+
+- name: Add Kubernetes apt repository
+  ansible.builtin.deb822_repository:
+    name: kubernetes
+    types: [deb]
+    uris: "{{ kubernetes_repo_channel }}"
+    suites: ["/"]
+    signed_by: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    state: present
+
+# apt_repository wrote a one-line .list file; deb822_repository writes
+# kubernetes.sources. Left in place, both files describe the same source.
+- name: Remove the old one-line Kubernetes apt repository
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/kubernetes.list
+    state: absent
 
 - name: Install Kubernetes core packages
   ansible.builtin.apt:
