@@ -22,7 +22,7 @@
 
 - name: Disable swap at runtime
   ansible.builtin.command: swapoff -a
-  when: ansible_swaptotal_mb | int > 0
+  when: ansible_facts['swaptotal_mb'] | int > 0
   changed_when: false
 
 - name: Ensure swap is commented in fstab
