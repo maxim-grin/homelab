@@ -22,7 +22,8 @@ change appears to do nothing.
 
 Terraform with `telmate/proxmox` (pinned `3.0.2-rc10`, local state), Ansible
 with `kubernetes.core`, kubeadm, ArgoCD app-of-apps, kustomize for plain
-manifests and Helm for third-party charts. No CI, no test suite.
+manifests and Helm for third-party charts. CI on GitHub Actions
+(`.github/workflows/ci.yaml`), no test suite.
 
 Only the `dev` environment exists. `proxmox/environments/prod` and `talos/`
 are scaffolding that has never been applied — do not extend them without
@@ -202,11 +203,18 @@ ansible-lint <role-or-playbook>                # profile: production
 ansible-playbook <playbook> --syntax-check -e @secret.yaml --ask-vault-pass
 kustomize build argocd/apps/<app>/dev          # overlays only, not Helm values dirs
 helm template <chart> -f argocd/apps/<app>/dev/values.yaml
+pre-commit run --all-files                     # what the CI pre-commit job runs
+scripts/check-manifests.sh                     # every kustomization and Helm chart, rendered and schema-checked
 ```
 
 `argocd/apps/harbor/dev` and `argocd/apps/ingress-nginx/dev` hold only
 `values.yaml` — they are Helm inputs, not kustomize overlays, and
 `kustomize build` on them fails by design.
+
+CI runs the same checks on every PR: `pre-commit`, `commits`, `terraform`,
+`manifests`. Green CI is the floor, not the finish: it renders and
+schema-checks manifests, it does not prove anything serves traffic. The
+checks below still apply.
 
 **"It applied" is not "it works."** Argo reporting `Synced` means the
 manifests were accepted, not that anything serves traffic — Harbor ran

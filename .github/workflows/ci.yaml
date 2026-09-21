@@ -1,0 +1,145 @@
+name: ci
+
+# No path filters: with required checks, a workflow skipped by a path filter
+# leaves its check pending forever and blocks merge.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PRE_COMMIT_VERSION: "4.6.2"
+  ANSIBLE_LINT_VERSION: "26.8.0"
+  TERRAFORM_VERSION: "1.16.2"
+  TFLINT_VERSION: "v0.64.0"
+  HELM_VERSION: "v3.22.0"
+  KUSTOMIZE_VERSION: "5.8.1"
+  KUBECONFORM_VERSION: "0.8.0"
+  YQ_VERSION: "4.53.6"
+  GITLEAKS_VERSION: "8.30.0"
+
+jobs:
+  # The repo's own hooks, unchanged: file hygiene, check-yaml, private-key
+  # and gitleaks scans, ansible-lint, terraform fmt. ansible-lint and
+  # terraform-fmt are `language: system` hooks, so the runner needs the
+  # binaries and the collections in ansible/requirements.yml. No --syntax-check with
+  # secret.yaml: it needs the vault password, which CI does not have.
+  pre-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: Install pre-commit, ansible-lint and the collection
+        run: |
+          pip install "pre-commit==${PRE_COMMIT_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
+          ansible-galaxy collection install -r ansible/requirements.yml
+      - name: Run hooks
+        run: pre-commit run --all-files --show-diff-on-failure
+      # The gitleaks hook above scans only staged changes, and nothing is
+      # staged in CI, so it passes having scanned nothing. This is the real
+      # scan: the full checked-out history, same gitleaks version as the hook.
+      - name: Install gitleaks
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin" gitleaks
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Scan history for secrets
+        run: gitleaks git --redact --no-banner --verbose
+
+  # Same commit-msg hook as locally, run over every non-merge commit in the
+  # PR. Not on push to main: GitHub's "Merge pull request #N" commits would
+  # fail the convention.
+  commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install pre-commit
+        run: pip install "pre-commit==${PRE_COMMIT_VERSION}"
+      - name: Check commit messages
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          status=0
+          msg=$(mktemp)
+          for sha in $(git rev-list --no-merges "${BASE_SHA}..${HEAD_SHA}"); do
+            git log -1 --format=%B "$sha" > "$msg"
+            echo "-- $(git log -1 --format='%h %s' "$sha")"
+            pre-commit run conventional-pre-commit \
+              --hook-stage commit-msg --commit-msg-filename "$msg" || status=1
+          done
+          exit "$status"
+
+  terraform:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef # v6.3.1
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+      # backend.tf is gitignored, so -backend=false is the only init that
+      # can work here; validate needs no variables and no credentials.
+      - name: terraform init and validate
+        run: |
+          terraform -chdir=proxmox/environments/dev init -backend=false -input=false
+          terraform -chdir=proxmox/environments/dev validate
+      - name: tflint
+        run: tflint --chdir=proxmox/environments/dev --config="${GITHUB_WORKSPACE}/.tflint.hcl"
+
+  manifests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Install kustomize, kubeconform and yq
+        run: |
+          bin="$HOME/.local/bin"
+          mkdir -p "$bin"
+          gh="https://github.com"
+          curl -fsSL "${gh}/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C "$bin" kustomize
+          curl -fsSL "${gh}/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C "$bin" kubeconform
+          curl -fsSL -o "$bin/yq" "${gh}/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+          chmod +x "$bin/yq"
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Render and schema-check manifests
+        run: scripts/check-manifests.sh
