@@ -122,9 +122,9 @@ secret; it only reads. Four jobs, in parallel:
 | Job | What it runs |
 | --- | --- |
 | `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes) |
-| `commits` | the conventional-commit hook over every commit in the PR (PRs only) |
+| `commits` | the conventional-commit hook over every non-merge commit in the PR (PRs only) |
 | `terraform` | `terraform init -backend=false`, `validate` and `tflint` in `proxmox/environments/dev` |
-| `manifests` | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output |
+| `manifests` | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
 `kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`
@@ -145,6 +145,7 @@ gh api -X POST repos/maxim-grin/homelab/rulesets --input - <<'EOF'
   "name": "protect main",
   "target": "branch",
   "enforcement": "active",
+  "bypass_actors": [],
   "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
   "rules": [
     { "type": "deletion" },

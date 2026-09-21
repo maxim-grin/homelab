@@ -22,7 +22,8 @@ change appears to do nothing.
 
 Terraform with `telmate/proxmox` (pinned `3.0.2-rc10`, local state), Ansible
 with `kubernetes.core`, kubeadm, ArgoCD app-of-apps, kustomize for plain
-manifests and Helm for third-party charts. CI on GitHub Actions (`.github/workflows/ci.yaml`), no test suite.
+manifests and Helm for third-party charts. CI on GitHub Actions
+(`.github/workflows/ci.yaml`), no test suite.
 
 Only the `dev` environment exists. `proxmox/environments/prod` and `talos/`
 are scaffolding that has never been applied — do not extend them without
