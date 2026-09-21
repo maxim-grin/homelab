@@ -83,6 +83,7 @@ published yet gives `ImagePullBackOff` until it is — loud and self-correcting.
 ## Layout
 
 ```txt
+.github/          workflows/ci.yaml: the checks GitHub runs on every PR.
 ansible/          Roles and playbooks. Inventory per environment, secrets in
                   an ansible-vault file. roles/vault/ installs and seeds
                   HashiCorp Vault.
@@ -92,7 +93,7 @@ argocd/           base/       AppProject
 proxmox/          modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, talos-*
                   environments/dev/  the machines that exist
 talos/            Unused. Templates for a Talos cluster that was never built.
-scripts/          Ad-hoc checks.
+scripts/          check-manifests.sh (the CI manifests check, runnable locally) and ad-hoc helpers.
 docs/rebuild.md   How to recreate all of this from a bare Proxmox install.
 ```
 
@@ -111,6 +112,63 @@ message. `ansible-lint` runs at profile `production` with no ignore file:
 any finding fails. It needs the collections pinned in
 `ansible/requirements.yml` (`ansible-galaxy collection install -r
 ansible/requirements.yml`), and so do the playbooks themselves.
+
+### CI
+
+GitHub Actions (`.github/workflows/ci.yaml`) runs on every pull request and
+every push to `main`. Nothing in it touches the cluster, Proxmox or any
+secret; it only reads. Four jobs, in parallel:
+
+| Job | What it runs |
+| --- | --- |
+| `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes) |
+| `commits` | the conventional-commit hook over every commit in the PR (PRs only) |
+| `terraform` | `terraform init -backend=false`, `validate` and `tflint` in `proxmox/environments/dev` |
+| `manifests` | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output |
+
+Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
+`kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`
+placeholders are checked as plain strings; nothing resolves them against Vault.
+
+**Branch protection.** CI only blocks a merge once the four checks are
+required. That is a repository setting, not a file in git. Suggested rules
+for `main`: pull request required with 0 approvals (you cannot approve your
+own PR), the four checks required, "up to date" not required, force-push and
+deletion blocked, no bypass. Enable it *after* `main` is green, or it blocks
+the PR that fixes it. A check name only appears in the picker once it has run
+once. From the UI: Settings → Rules → Rulesets → New branch ruleset. Or, as a
+repo admin:
+
+```bash
+gh api -X POST repos/maxim-grin/homelab/rulesets --input - <<'EOF'
+{
+  "name": "protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false } },
+    { "type": "required_status_checks", "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [
+          { "context": "pre-commit" }, { "context": "commits" },
+          { "context": "terraform" }, { "context": "manifests" } ] } }
+  ]
+}
+EOF
+```
+
+If `gh` returns 403, run `gh auth status`: a `GH_TOKEN` in the environment
+overrides the logged-in account. To check it works, open a throwaway PR with
+a trailing space in a file: `pre-commit` should go red and merge should be
+blocked.
 
 ## Day-to-day
 
