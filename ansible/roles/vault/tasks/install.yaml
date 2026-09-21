@@ -33,13 +33,16 @@
     signed_by: /usr/share/keyrings/hashicorp-archive-keyring.gpg
     state: present
 
-# apt_repository chose its own .list filename here, so find the old file by
-# content instead of guessing its name.
+# apt_repository chose its own .list filename here (on vault-01 it is
+# apt_releases_hashicorp_com.list), so find the old file by content instead
+# of guessing its name. find anchors `contains` at the start of each line,
+# and the repository line starts with `deb [signed-by=...`, so the leading
+# `.*` is what makes this match at all.
 - name: Find the old one-line HashiCorp repository files
   ansible.builtin.find:
     paths: /etc/apt/sources.list.d
     patterns: "*.list"
-    contains: 'apt\.releases\.hashicorp\.com'
+    contains: '.*apt\.releases\.hashicorp\.com'
   register: vault_old_hashicorp_lists
 
 - name: Remove the old one-line HashiCorp repository files
