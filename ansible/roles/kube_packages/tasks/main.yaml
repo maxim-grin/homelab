@@ -8,14 +8,14 @@
 - name: Check for existing Kubernetes repo key
   ansible.builtin.stat:
     path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  register: kubernetes_repo_keyring
+  register: kube_packages_repo_keyring
 
 - name: Download Kubernetes repository key
   ansible.builtin.get_url:
     url: "{{ kubernetes_repo_key_url }}"
     dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
     mode: '0644'
-  register: kubernetes_repo_key
+  register: kube_packages_repo_key
 
 - name: Convert Kubernetes repository key to GPG
   ansible.builtin.command:
@@ -27,15 +27,29 @@
       - --output
       - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
       - /etc/apt/keyrings/kubernetes-apt-keyring.asc
-  when: kubernetes_repo_key.changed or not kubernetes_repo_keyring.stat.exists
-  changed_when: kubernetes_repo_key.changed or not kubernetes_repo_keyring.stat.exists
+  when: kube_packages_repo_key.changed or not kube_packages_repo_keyring.stat.exists
+  changed_when: kube_packages_repo_key.changed or not kube_packages_repo_keyring.stat.exists
+
+- name: Install python3-debian for deb822_repository
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
 
 - name: Add Kubernetes apt repository
-  ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] {{ kubernetes_repo_channel }} /"
-    filename: kubernetes
+  ansible.builtin.deb822_repository:
+    name: kubernetes
+    types: [deb]
+    uris: "{{ kubernetes_repo_channel }}"
+    suites: ["/"]
+    signed_by: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
     state: present
-    update_cache: yes
+
+# apt_repository wrote a one-line .list file; deb822_repository writes
+# kubernetes.sources. Left in place, both files describe the same source.
+- name: Remove the old one-line Kubernetes apt repository
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/kubernetes.list
+    state: absent
 
 - name: Install Kubernetes core packages
   ansible.builtin.apt:
@@ -45,8 +59,8 @@
       - "{{ (install_kubectl | default(true) | bool) | ternary('kubectl=' ~ kubernetes_package_version, omit) }}"
     allow_downgrade: true
     state: present
-    update_cache: yes
-  notify: enable kubelet
+    update_cache: true
+  notify: Enable kubelet
 
 - name: Hold kube packages at current minor
   ansible.builtin.dpkg_selections:

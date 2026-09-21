@@ -18,12 +18,37 @@
     cmd: gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg /tmp/hashicorp.asc
     creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
 
-- name: Add the HashiCorp repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg]
-      https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main
+- name: Install python3-debian for deb822_repository
+  ansible.builtin.apt:
+    name: python3-debian
     state: present
+
+- name: Add the HashiCorp repository
+  ansible.builtin.deb822_repository:
+    name: hashicorp
+    types: [deb]
+    uris: https://apt.releases.hashicorp.com
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [main]
+    signed_by: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    state: present
+
+# apt_repository chose its own .list filename here, so find the old file by
+# content instead of guessing its name.
+- name: Find the old one-line HashiCorp repository files
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns: "*.list"
+    contains: 'apt\.releases\.hashicorp\.com'
+  register: vault_old_hashicorp_lists
+
+- name: Remove the old one-line HashiCorp repository files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ vault_old_hashicorp_lists.files }}"
+  loop_control:
+    label: "{{ item.path }}"
 
 - name: Install Vault
   ansible.builtin.apt:

@@ -1,5 +1,6 @@
 ---
-- hosts: k8s_workers
+- name: Join worker nodes to the cluster
+  hosts: k8s_workers
   gather_facts: false
   roles:
     - node_join

@@ -52,7 +52,7 @@
 
 - name: Enable the kubernetes auth method
   ansible.builtin.uri:
-    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/sys/auth/kubernetes"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/auth/kubernetes"
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"
@@ -70,7 +70,7 @@
 
 - name: Configure the kubernetes auth method
   ansible.builtin.uri:
-    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/auth/kubernetes/config"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/auth/kubernetes/config"
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"
@@ -88,7 +88,7 @@
 
 - name: Write the argocd-read policy
   ansible.builtin.uri:
-    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/sys/policies/acl/argocd-read"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/policies/acl/argocd-read"
     method: PUT
     headers:
       X-Vault-Token: "{{ vault_token }}"
@@ -105,7 +105,7 @@
 
 - name: Bind the argocd role to the repo-server ServiceAccount
   ansible.builtin.uri:
-    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/auth/kubernetes/role/argocd"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/auth/kubernetes/role/argocd"
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"

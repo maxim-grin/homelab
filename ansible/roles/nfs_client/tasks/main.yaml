@@ -1,23 +1,23 @@
 ---
 - name: Install NFS client packages
-  apt:
+  ansible.builtin.apt:
     name:
       - nfs-common
     state: present
-    update_cache: yes
+    update_cache: true
 
 - name: Test NFS mount accessibility
-  command: "showmount -e {{ nfs_server }}"
-  register: nfs_test
+  ansible.builtin.command: "showmount -e {{ nfs_server }}"
+  register: nfs_client_test
   changed_when: false
   failed_when: false
 
 - name: Display NFS mounts available
-  debug:
-    msg: "{{ nfs_test.stdout_lines }}"
-  when: nfs_test.rc == 0
+  ansible.builtin.debug:
+    msg: "{{ nfs_client_test.stdout_lines }}"
+  when: nfs_client_test.rc == 0
 
 - name: Warn if NFS server is unreachable
-  debug:
+  ansible.builtin.debug:
     msg: "WARNING: Cannot reach NFS server {{ nfs_server }}. Check connectivity and NFS server configuration."
-  when: nfs_test.rc != 0
+  when: nfs_client_test.rc != 0

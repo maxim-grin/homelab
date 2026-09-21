@@ -1,5 +1,5 @@
 ---
-- name: enable kubelet
+- name: Enable kubelet
   ansible.builtin.service:
     name: kubelet
     enabled: true

@@ -10,7 +10,7 @@
 
 - name: Enable the KV v2 secrets engine
   ansible.builtin.uri:
-    url: "http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/sys/mounts/secret"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/mounts/secret"
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"
@@ -32,7 +32,7 @@
 - name: Seed the KV paths
   ansible.builtin.uri:
     url: >-
-      http://{{ ansible_default_ipv4.address }}:{{ vault_api_port }}/v1/secret/data/{{ item.key }}
+      http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/secret/data/{{ item.key }}
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"
