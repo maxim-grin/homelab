@@ -25,6 +25,9 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 failed=0
 
+# This applies to every schema_check call (kustomize output, argocd/base and
+# the Application CRs too), not only the Helm ones; a CRD committed under
+# argocd/ is therefore not validated.
 # CustomResourceDefinition is skipped: --include-crds renders the charts' own
 # CRDs (cert-manager) and neither the built-in schemas nor the datree
 # catalogue publish one for that kind.
@@ -47,17 +50,29 @@ while IFS= read -r kfile; do
 done < <(find argocd -name kustomization.yaml | sort)
 
 echo "== helm"
+# Helm sources sit under spec.sources[] (multi-source) or spec.source.
+chart_source='(.spec.sources[]?, .spec.source) | select(. != null) | select(.chart)'
+rendered=0
 for app in "$apps_dir"/*.yaml; do
   # A source with `chart:` is a Helm source; the plain git source is not.
-  count=$(yq '[.spec.sources[]? | select(.chart)] | length' "$app")
+  count=$(yq "[$chart_source] | length" "$app")
   [ "$count" -gt 0 ] || continue
 
   name=$(yq '.metadata.name' "$app")
+
+  # Inline values are not passed to helm below, so the render would use chart
+  # defaults, not the app's real config, and still report success.
+  inline=$(yq "[$chart_source | (.helm.values, .helm.valuesObject, .helm.parameters, .helm.fileParameters) | select(. != null)] | length" "$app")
+  if [ "$inline" -gt 0 ]; then
+    fail "helm inline values not supported in $name: keep values in a values file"
+    continue
+  fi
+
   ns=$(yq '.spec.destination.namespace' "$app")
-  repo=$(yq '.spec.sources[] | select(.chart) | .repoURL' "$app")
-  chart=$(yq '.spec.sources[] | select(.chart) | .chart' "$app")
-  version=$(yq '.spec.sources[] | select(.chart) | .targetRevision' "$app")
-  release=$(yq ".spec.sources[] | select(.chart) | .helm.releaseName // \"$name\"" "$app")
+  repo=$(yq "$chart_source | .repoURL" "$app")
+  chart=$(yq "$chart_source | .chart" "$app")
+  version=$(yq "$chart_source | .targetRevision" "$app")
+  release=$(yq "$chart_source | .helm.releaseName // \"$name\"" "$app")
 
   # `$values/argocd/...` is ArgoCD's reference to the git source; locally
   # the same file is simply relative to the repository root.
@@ -65,14 +80,16 @@ for app in "$apps_dir"/*.yaml; do
   while IFS= read -r vf; do
     [ -n "$vf" ] || continue
     values+=(-f "${vf#\$values/}")
-  done < <(yq '.spec.sources[] | select(.chart) | .helm.valueFiles[]?' "$app")
+  done < <(yq "$chart_source | .helm.valueFiles[]?" "$app")
 
   echo "-- $name ($chart $version)"
   helm template "$release" "$chart" --repo "$repo" --version "$version" \
     --namespace "$ns" --include-crds "${values[@]}" > "$work/out.yaml" \
     || { fail "helm template $name"; continue; }
+  rendered=$((rendered + 1))
   schema_check "$work/out.yaml" || fail "kubeconform $name"
 done
+[ "$rendered" -gt 0 ] || fail "no Helm sources were rendered"
 
 echo "== argocd resources"
 # Not the kustomization.yaml files: those are not Kubernetes objects.
