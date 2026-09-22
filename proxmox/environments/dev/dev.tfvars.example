@@ -55,8 +55,5 @@ n8n_ip   = "dhcp"
 # Claude Code workstation VM. Must include CIDR.
 claude_code_ip = "10.0.0.130/24"
 
-# NFS server VM. Must include CIDR.
-nfs_vm_ip = "10.0.0.131/24"
-
 # Vault container. Must include CIDR.
 vault_lxc_ip = "10.0.0.132/24"
