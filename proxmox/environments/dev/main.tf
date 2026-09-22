@@ -129,43 +129,6 @@ module "ubunut-k8s-1" {
 }
 
 ################################################################################
-# n8n Workflow Automation (migrated from prod)
-################################################################################
-# module "n8n" {
-#   source = "../../modules/lxc"
-
-#   vmid         = 383
-#   target_node  = var.pm_target_node
-#   hostname     = "n8n"
-#   ostemplate   = var.debian_os_template
-#   password     = var.lxc_pass
-#   start_at_node_boot       = false
-#   unprivileged = true
-#   pool         = "LXC"
-
-#   cores  = 2
-#   memory = 2048
-#   swap   = 0
-
-#   # Storage
-#   rootfs_storage = "local-lvm"
-#   rootfs_size    = "10G"
-
-#   # Network
-#   network_bridge = "vmbr0"
-#   network_ip     = var.n8n_ip
-#   network_gw     = var.gateway
-
-#   features_enabled = true
-#   features = {
-#     nesting = true
-#   }
-
-#   # Tags
-#   tags = "lxc,n8n,dev"
-# }
-
-################################################################################
 # Claude Code AI Assistant VM
 ################################################################################
 module "claude_code" {
@@ -186,21 +149,6 @@ module "claude_code" {
   memory    = 8192
   cpu_cores = 4
 
-  # Disk Configuration
-  # 40G. 20G was measured against a box that only ran Claude Code; it now
-  # carries Docker, and postgres:17 plus a python base plus the built image
-  # and build cache run to several GB before any repository is cloned.
-  # Growing is the safe direction: raise this, apply, and reboot -- the
-  # cloud image's cloud-init growpart extends the root partition on boot.
-  #
-  # Changing this number is not free in either direction. Proxmox cannot
-  # shrink a disk: qm resize only grows, the provider's attempt to detach and
-  # re-add scsi0 fails with "can't unplug bootdisk 'scsi0'", and the failed
-  # apply still writes the smaller value into state, leaving Terraform
-  # believing a size the host does not have. Lowering it means
-  # `terraform apply -replace` and rebuilding the host from its playbook.
-  # Growing works in place but needs growpart and resize2fs in the guest
-  # if cloud-init's growpart does not run.
   disk_size    = "40G"
   disk_storage = "local-lvm"
 
