@@ -58,7 +58,7 @@
 
 The VM already exists and was created by `ubuntu-vm`. Every setting that `ubuntu-vm` hard-codes (machine, CPU type, scsi0 disk flags, ide3 cloud-init, serial, network) must be copied **exactly** — a difference is drift the import will try to "fix", and some differences force replacement.
 
-- [ ] **Step 1: Write `versions.tf`**
+- [x] **Step 1: Write `versions.tf`**
 
 ```hcl
 terraform {
@@ -72,7 +72,7 @@ terraform {
 }
 ```
 
-- [ ] **Step 2: Write `variables.tf`**
+- [x] **Step 2: Write `variables.tf`**
 
 ```hcl
 # VM Basic Configuration
@@ -208,7 +208,7 @@ variable "tags" {
 }
 ```
 
-- [ ] **Step 3: Write `main.tf`**
+- [x] **Step 3: Write `main.tf`**
 
 ```hcl
 # A copy of modules/ubuntu-vm with two data disks. nfs-01 was created by
@@ -351,7 +351,7 @@ resource "proxmox_vm_qemu" "nfs_server" {
 }
 ```
 
-- [ ] **Step 4: Write `outputs.tf`**
+- [x] **Step 4: Write `outputs.tf`**
 
 ```hcl
 output "vm_id" {
@@ -375,19 +375,19 @@ output "vm_ip_config" {
 }
 ```
 
-- [ ] **Step 5: Diff the hard-coded settings against `ubuntu-vm`**
+- [x] **Step 5: Diff the hard-coded settings against `ubuntu-vm`**
 
 Run: `diff <(sed -n '/^  # System settings/,/^  # Tags/p' proxmox/modules/ubuntu-vm/main.tf) <(sed -n '/^  # System settings/,/^  # Tags/p' proxmox/modules/nfs-server/main.tf)`
 
 Expected: the only differences are `boot = var.boot_order` → `"order=scsi0"`, `agent = var.qemu_agent` → `1`, `model = var.network_model` → `"virtio"`, the removed `cicustom` lines, the disk comment, and the added `scsi1`/`scsi2` blocks. Anything else is a copy error: fix it.
 
-- [ ] **Step 6: Validate the module**
+- [x] **Step 6: Validate the module**
 
 Run: `cd proxmox/modules/nfs-server && terraform init -backend=false -input=false >/dev/null && terraform validate && terraform fmt -check && tflint --config=/home/ubuntu/homelab/.tflint.hcl; rm -rf .terraform .terraform.lock.hcl`
 
 Expected: `Success! The configuration is valid.`, no fmt output, no tflint findings. If `automatic_reboot` is rejected as unsupported, stop and report it — do not delete the line silently; the supervisor decides.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add proxmox/modules/nfs-server
@@ -413,7 +413,7 @@ for adopting nfs-01 into its own root."
 - Consumes: module `../../modules/nfs-server` from Task 1, resource address `module.nfs.proxmox_vm_qemu.nfs_server`.
 - Produces: root `proxmox/environments/shared` with output `nfs_vm_details { id, name, mac, ip }`; variables `pm_target_node, pm_api_url, pm_api_token_id, pm_api_token_secret, ci_user, ci_password, ssh_public_key, clone_template_ubuntu, gateway, nfs_vm_ip`.
 
-- [ ] **Step 1: Write `versions.tf`** — identical to `proxmox/environments/dev/versions.tf`:
+- [x] **Step 1: Write `versions.tf`** — identical to `proxmox/environments/dev/versions.tf`:
 
 ```hcl
 terraform {
@@ -434,7 +434,7 @@ provider "proxmox" {
 }
 ```
 
-- [ ] **Step 2: Write `variables.tf`**
+- [x] **Step 2: Write `variables.tf`**
 
 ```hcl
 # ProxMox Variables
@@ -494,7 +494,7 @@ variable "nfs_vm_ip" {
 }
 ```
 
-- [ ] **Step 3: Write `main.tf`**
+- [x] **Step 3: Write `main.tf`**
 
 ```hcl
 ################################################################################
@@ -568,7 +568,7 @@ import {
 
 Note the tag changes from `ubuntu,nfs,dev` to `ubuntu,nfs,shared`. That is an intended in-place update the Task 9 plan will show.
 
-- [ ] **Step 4: Write `outputs.tf`**
+- [x] **Step 4: Write `outputs.tf`**
 
 ```hcl
 # NFS Server VM Output
@@ -582,7 +582,7 @@ output "nfs_vm_details" {
 }
 ```
 
-- [ ] **Step 5: Write `shared.tfvars.example`**
+- [x] **Step 5: Write `shared.tfvars.example`**
 
 ```hcl
 # Copy to shared.tfvars and fill in. shared.tfvars is gitignored (*.tfvars)
@@ -613,7 +613,7 @@ gateway = "10.0.0.1"
 nfs_vm_ip = "10.0.0.131/24"
 ```
 
-- [ ] **Step 6: Write `backend.tf.example`** and copy the lock file
+- [x] **Step 6: Write `backend.tf.example`** and copy the lock file
 
 ```hcl
 terraform {
@@ -625,13 +625,13 @@ terraform {
 
 Run: `cp proxmox/environments/dev/.terraform.lock.hcl proxmox/environments/shared/.terraform.lock.hcl`
 
-- [ ] **Step 7: Confirm the gitignore rules match the new files**
+- [x] **Step 7: Confirm the gitignore rules match the new files**
 
 Run: `for f in shared.tfvars backend.tf terraform.tfstate terraform.tfstate.backup .terraform/x; do git check-ignore -v proxmox/environments/shared/$f || echo "NOT IGNORED: $f"; done`
 
 Expected: five lines naming a `.gitignore` rule, no `NOT IGNORED`. If any is not ignored, stop and report — do not add a rule without the supervisor.
 
-- [ ] **Step 8: Validate the root**
+- [x] **Step 8: Validate the root**
 
 Run: `cd proxmox/environments/shared && terraform init -backend=false -input=false >/dev/null && terraform validate && terraform fmt -check && tflint --config=/home/ubuntu/homelab/.tflint.hcl; rm -rf .terraform`
 
@@ -639,7 +639,7 @@ Then: `diff proxmox/environments/dev/.terraform.lock.hcl proxmox/environments/sh
 
 Expected: `Success! The configuration is valid.`, no fmt or tflint output, and an empty `diff` — `init` did not rewrite the copied lock file.
 
-- [ ] **Step 9: Add `shared/` to the CI terraform job**
+- [x] **Step 9: Add `shared/` to the CI terraform job**
 
 In `.github/workflows/ci.yaml`, replace:
 
@@ -668,13 +668,13 @@ with:
           done
 ```
 
-- [ ] **Step 10: Run pre-commit on the changed files**
+- [x] **Step 10: Run pre-commit on the changed files**
 
 Run: `pre-commit run --files .github/workflows/ci.yaml proxmox/environments/shared/*.tf proxmox/environments/shared/*.example`
 
 Expected: all hooks Passed or Skipped.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add proxmox/environments/shared .github/workflows/ci.yaml
@@ -696,13 +696,13 @@ own the server both depend on. CI validates and lints it alongside dev."
 - Consumes: nothing from earlier tasks. Must not reference `proxmox/environments/shared`.
 - Produces: dev root with no `module.nfs`, no output `nfs_vm_details`, no variable `nfs_vm_ip`, and a `removed { from = module.nfs }` block.
 
-- [ ] **Step 1: Confirm nothing else in dev references the module or variable**
+- [x] **Step 1: Confirm nothing else in dev references the module or variable**
 
 Run: `grep -n -E "module\.nfs|nfs_vm_ip|nfs_vm_details" proxmox/environments/dev/*.tf proxmox/environments/dev/*.example`
 
 Expected: only `main.tf` (the module block's own `var.nfs_vm_ip` lines), `outputs.tf:56-64`, `variables.tf:128-132`, `dev.tfvars.example`. Any other hit: stop and report.
 
-- [ ] **Step 2: Replace the module block**
+- [x] **Step 2: Replace the module block**
 
 In `proxmox/environments/dev/main.tf`, delete everything from the `# NFS Server` banner (the `####` line above it through the closing `}` of `module "nfs"`, including its trailing blank line) and put in its place:
 
@@ -723,7 +723,7 @@ removed {
 }
 ```
 
-- [ ] **Step 3: Update the startup-order comment**
+- [x] **Step 3: Update the startup-order comment**
 
 In `proxmox/environments/dev/main.tf`, replace:
 
@@ -740,7 +740,7 @@ with:
   # lives in proxmox/environments/shared.
 ```
 
-- [ ] **Step 4: Delete the output, the variable and the example lines**
+- [x] **Step 4: Delete the output, the variable and the example lines**
 
 - `outputs.tf`: delete the `# NFS Server VM Output` comment and the whole `output "nfs_vm_details"` block, plus one of the surrounding blank lines.
 - `variables.tf`: delete the `# NFS Server VM Variables` comment and the whole `variable "nfs_vm_ip"` block, plus one of the surrounding blank lines.
@@ -753,13 +753,13 @@ nfs_vm_ip = "10.0.0.131/24"
 
 A leftover `nfs_vm_ip` in a real `dev.tfvars` only produces an "undeclared variable" warning, not an error; Task 9 tells the operator to delete it.
 
-- [ ] **Step 5: Validate dev**
+- [x] **Step 5: Validate dev**
 
 Run: `cd proxmox/environments/dev && terraform init -backend=false -input=false >/dev/null && terraform validate && terraform fmt -check && tflint --config=/home/ubuntu/homelab/.tflint.hcl; cd /home/ubuntu/homelab && git status --short proxmox/environments/dev`
 
 Expected: `Success! The configuration is valid.`, no fmt or tflint output, and git status lists exactly `main.tf`, `outputs.tf`, `variables.tf`, `dev.tfvars.example` as modified — `.terraform.lock.hcl` unchanged.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add proxmox/environments/dev
@@ -779,7 +779,7 @@ without touching the VM; environments/shared imports it."
 - Consumes: `host_ips['nfs-01']`, `proxmox_vm_ids['nfs-01']`, `user_name`, `ssh_private_key` from `ansible/secret.yaml` (passed at run time by the operator, never by the agent).
 - Produces: inventory `inventories/shared` with group `nfs` holding host `nfs-01`. `playbooks/nfs_server.yaml` (`hosts: nfs`) runs against it unchanged.
 
-- [ ] **Step 1: Write `ansible/inventories/shared/hosts.yaml`**
+- [x] **Step 1: Write `ansible/inventories/shared/hosts.yaml`**
 
 ```yaml
 # Machines no single environment owns. nfs-01 serves both nfs-dev and
@@ -799,7 +799,7 @@ all:
           proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"
 ```
 
-- [ ] **Step 2: Remove the `nfs` group from dev**
+- [x] **Step 2: Remove the `nfs` group from dev**
 
 In `ansible/inventories/dev/hosts.yaml`, delete these lines:
 
@@ -811,7 +811,7 @@ In `ansible/inventories/dev/hosts.yaml`, delete these lines:
           proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"
 ```
 
-- [ ] **Step 3: Check both inventories parse and hold the right hosts**
+- [x] **Step 3: Check both inventories parse and hold the right hosts**
 
 Run: `cd ansible && $ANSIBLE_BIN/ansible-inventory -i inventories/shared --graph && $ANSIBLE_BIN/ansible-inventory -i inventories/dev --graph`
 
@@ -819,19 +819,19 @@ Run: `cd ansible && $ANSIBLE_BIN/ansible-inventory -i inventories/shared --graph
 
 Expected: shared shows `@nfs:` → `nfs-01` and nothing else; dev shows `k8s_cluster`, `claude_code`, `vault` and no `nfs` group or `nfs-01`.
 
-- [ ] **Step 4: Syntax-check the server playbook against the new inventory**
+- [x] **Step 4: Syntax-check the server playbook against the new inventory**
 
 Run: `cd ansible && $ANSIBLE_BIN/ansible-playbook -i inventories/shared playbooks/nfs_server.yaml --syntax-check`
 
 Expected: `playbook: playbooks/nfs_server.yaml`. No `secret.yaml` is needed for a syntax check.
 
-- [ ] **Step 5: Lint**
+- [x] **Step 5: Lint**
 
 Run: `cd ansible && ansible-lint .`
 
 Expected: `Passed: 0 failure(s), 0 warning(s)` at profile production.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ansible/inventories
@@ -853,13 +853,13 @@ git commit -m "refactor: move nfs-01 to a shared ansible inventory"
 - Consumes: `host_ips` (dict, from `secret.yaml`); devices `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1` and `...-scsi2` from Task 1's disks; `ansible_facts.mounts` (the playbook sets `gather_facts: true`).
 - Produces: variables `nfs_server_shares` (list of `{name, device, path, clients}`), `nfs_server_dev_nodes`, `nfs_server_dev_clients`, `nfs_server_prod_clients`, `nfs_server_export_options`. Filesystem labels `nfs-dev`, `nfs-prod`. Removes `nfs_server_export_path` and `nfs_server_export_clients` — confirm nothing else uses them in Step 1.
 
-- [ ] **Step 1: Confirm the old variables are used only inside the role**
+- [x] **Step 1: Confirm the old variables are used only inside the role**
 
 Run: `grep -rn -E "nfs_server_export_(path|clients)" ansible argocd docs proxmox README.md CLAUDE.md | grep -v "^ansible/roles/nfs_server/"`
 
 Expected: no output. Any hit: stop and report.
 
-- [ ] **Step 2: Write the failing template test**
+- [x] **Step 2: Write the failing template test**
 
 Create `$SCRATCH/exports-test.yaml`:
 
@@ -894,13 +894,13 @@ Create `$SCRATCH/exports-test.yaml`:
           - "'/srv/nfs/prod 10.0.0.200(rw,sync,no_subtree_check,no_root_squash)' in lookup('ansible.builtin.template', '/home/ubuntu/homelab/ansible/roles/nfs_server/templates/exports.j2', template_vars={'nfs_server_shares': [{'name': 'prod', 'path': '/srv/nfs/prod', 'clients': ['10.0.0.200']}]}).splitlines()"
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `$ANSIBLE_BIN/ansible-playbook -i localhost, $SCRATCH/exports-test.yaml`
 
 Expected: FAIL — the old template renders `/srv/nfs/k8s 10.0.0.0/24(...)` from `nfs_server_export_path`, so the first assertion fails.
 
-- [ ] **Step 4: Rewrite `defaults/main.yaml`**
+- [x] **Step 4: Rewrite `defaults/main.yaml`**
 
 ```yaml
 ---
@@ -943,7 +943,7 @@ nfs_server_prod_clients: []
 nfs_server_export_options: rw,sync,no_subtree_check,no_root_squash
 ```
 
-- [ ] **Step 5: Rewrite `templates/exports.j2`**
+- [x] **Step 5: Rewrite `templates/exports.j2`**
 
 ```jinja
 # Managed by ansible (roles/nfs_server). Manual edits will be overwritten.
@@ -955,13 +955,13 @@ nfs_server_export_options: rw,sync,no_subtree_check,no_root_squash
 {% endfor %}
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `$ANSIBLE_BIN/ansible-playbook -i localhost, $SCRATCH/exports-test.yaml`
 
 Expected: `ok=3 ... failed=0`. If the line assertion fails on whitespace, print `rendered` from `fail_msg` and fix the template, not the test.
 
-- [ ] **Step 7: Write `templates/requires-mounts.conf.j2`**
+- [x] **Step 7: Write `templates/requires-mounts.conf.j2`**
 
 ```jinja
 # Managed by ansible (roles/nfs_server).
@@ -972,7 +972,7 @@ Expected: `ok=3 ... failed=0`. If the line assertion fails on whitespace, print 
 RequiresMountsFor={{ nfs_server_shares | map(attribute='path') | join(' ') }}
 ```
 
-- [ ] **Step 8: Rewrite `tasks/main.yaml`**
+- [x] **Step 8: Rewrite `tasks/main.yaml`**
 
 ```yaml
 ---
@@ -1084,7 +1084,7 @@ RequiresMountsFor={{ nfs_server_shares | map(attribute='path') | join(' ') }}
 
 `handlers/main.yaml` is unchanged (`exportfs -ra`).
 
-- [ ] **Step 9: Test the guard's expression against both cases**
+- [x] **Step 9: Test the guard's expression against both cases**
 
 Append to `$SCRATCH/exports-test.yaml` a second play:
 
@@ -1110,13 +1110,13 @@ Run: `$ANSIBLE_BIN/ansible-playbook -i localhost, $SCRATCH/exports-test.yaml`
 
 Expected: all assertions pass, `failed=0`. This expression must match the one in the role's assert task character for character; if you change one, change both.
 
-- [ ] **Step 10: Lint and syntax-check**
+- [x] **Step 10: Lint and syntax-check**
 
 Run: `cd ansible && ansible-lint . && $ANSIBLE_BIN/ansible-playbook -i inventories/shared playbooks/nfs_server.yaml --syntax-check`
 
 Expected: `Passed: 0 failure(s), 0 warning(s)`; `playbook: playbooks/nfs_server.yaml`.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add ansible/roles/nfs_server
@@ -1136,19 +1136,19 @@ nfs-server waits for every mount rather than exporting what is under it."
 - Consumes: server `10.0.0.131`, path `/srv/nfs/prod` (Global Constraints).
 - Produces: nothing consumed by later tasks. No Application syncs this directory.
 
-- [ ] **Step 1: Replace the placeholders**
+- [x] **Step 1: Replace the placeholders**
 
 Run: `sed -i 's|value: <server>|value: 10.0.0.131|; s|value: <path>|value: /srv/nfs/prod|; s|server: <server>|server: 10.0.0.131|; s|path: <path>|path: /srv/nfs/prod|' argocd/apps/nfs_provisioner/prod/deployment.yaml && grep -n -E "<server>|<path>|10.0.0.131|/srv/nfs/prod" argocd/apps/nfs_provisioner/prod/deployment.yaml`
 
 Expected: four lines with the real values, none with `<server>` or `<path>`.
 
-- [ ] **Step 2: Render it**
+- [x] **Step 2: Render it**
 
 Run: `kustomize build argocd/apps/nfs_provisioner/prod | grep -n -E "server:|path:|value:"` then `scripts/check-manifests.sh`
 
 Expected: the rendered Deployment shows `10.0.0.131` and `/srv/nfs/prod`; `check-manifests.sh` exits 0.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add argocd/apps/nfs_provisioner/prod/deployment.yaml
@@ -1170,7 +1170,7 @@ git commit -m "chore: point prod provisioner at nfs-prod share" -m "Prod scaffol
 
 Locate each anchor with `grep -n` first; the line numbers below are from 2026-09-22 and may have drifted.
 
-- [ ] **Step 1: `docs/rebuild.md` — files table (section 4)**
+- [x] **Step 1: `docs/rebuild.md` — files table (section 4)**
 
 After the `proxmox/environments/dev/dev.tfvars` row, add:
 
@@ -1186,7 +1186,7 @@ After the `proxmox/environments/dev/terraform.tfstate` row, add:
 
 Then run `pre-commit run --files docs/rebuild.md` — if a markdown table formatter hook realigns the columns, accept its output.
 
-- [ ] **Step 2: `docs/rebuild.md` — section 5**
+- [x] **Step 2: `docs/rebuild.md` — section 5**
 
 Replace the code block in "### 5. Terraform state after a disk replacement" with:
 
@@ -1202,7 +1202,7 @@ done
 
 and change "The state file lists VMs" to "Each state file lists VMs".
 
-- [ ] **Step 3: `docs/rebuild.md` — Rebuild order**
+- [x] **Step 3: `docs/rebuild.md` — Rebuild order**
 
 Replace step 4:
 
@@ -1240,7 +1240,7 @@ and keep the rest of step 5's sentence ("storage first, because everything else 
 
 Check the "six VMs" count: run `grep -c '^module' proxmox/environments/dev/main.tf` and list the modules; if the number of VM modules (excluding `vault`) is not five, correct the sentence to the real count.
 
-- [ ] **Step 4: `CLAUDE.md`**
+- [x] **Step 4: `CLAUDE.md`**
 
 a. Stack paragraph — replace:
 
@@ -1315,7 +1315,7 @@ with:
   password.
 ```
 
-- [ ] **Step 5: `proxmox/README.md`**
+- [x] **Step 5: `proxmox/README.md`**
 
 a. In the tree, after the `dev/` block and before `prod/`, add:
 
@@ -1350,7 +1350,7 @@ terraform apply -var-file="shared.tfvars"
 
 d. Where the README tells you to copy `dev.tfvars.example` and `backend.tf.example`, add the same two `cp` lines for `shared`.
 
-- [ ] **Step 6: `ansible/README.md`**
+- [x] **Step 6: `ansible/README.md`**
 
 Replace:
 
@@ -1382,19 +1382,19 @@ ansible-playbook -i inventories/shared playbooks/nfs_server.yaml -e @secret.yaml
 
 Also check lines 50-66 (`grep -n -A3 "nfs-01" ansible/README.md`): if they show a dev inventory example containing `nfs-01`, move it to a shared-inventory example.
 
-- [ ] **Step 7: Check nothing still says NFS lives in dev**
+- [x] **Step 7: Check nothing still says NFS lives in dev**
 
 Run: `grep -rn -E "environments/dev.*(nfs|module .nfs.)|nfs.*environments/dev|nfs_vm_ip" --include=*.md . | grep -v docs/superpowers/`
 
 Expected: no hits except ones that are still true. Fix any that are not.
 
-- [ ] **Step 8: Run pre-commit**
+- [x] **Step 8: Run pre-commit**
 
 Run: `pre-commit run --all-files`
 
 Expected: all hooks Passed.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add docs/rebuild.md CLAUDE.md proxmox/README.md ansible/README.md
