@@ -1,0 +1,15 @@
+# Machines no single environment owns. nfs-01 serves both nfs-dev and
+# nfs-prod, so it is here rather than in inventories/dev or
+# inventories/prod. Run its playbook with -i inventories/shared; ansible.cfg
+# defaults to inventories/dev, where nfs-01 no longer is.
+all:
+  vars:
+    ansible_user: "{{ user_name }}"
+    ansible_private_key_file: "{{ ssh_private_key }}"
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  children:
+    nfs:
+      hosts:
+        nfs-01:
+          ansible_host: "{{ host_ips['nfs-01'] }}"
+          proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"
