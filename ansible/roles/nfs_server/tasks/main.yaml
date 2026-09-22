@@ -5,14 +5,80 @@
     state: present
     update_cache: true
 
-- name: Create the export directory
+- name: Look for files at each share's mount point
+  ansible.builtin.find:
+    paths: "{{ item.path }}"
+    file_type: any
+    hidden: true
+  register: nfs_server_mount_point_contents
+  loop: "{{ nfs_server_shares }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+# Mounting a disk over a directory that already holds data hides that data
+# from every client. On the first run after the disks are attached, dev's
+# PVCs are still on the OS disk at /srv/nfs/k8s; this stops the play before
+# the empty new disk goes over them. Move the data first -- the Migration
+# section of docs/superpowers/specs/2026-09-22-nfs-shared-server-design.md.
+- name: Refuse to mount over files that are not on the share's own disk
+  ansible.builtin.assert:
+    that: >-
+      item.matched == 0 or
+      item.item.path in (ansible_facts.mounts | map(attribute='mount') | list)
+    fail_msg: >-
+      {{ item.item.path }} holds files but is not a mount point. Mounting the
+      {{ item.item.name }} disk there would hide them. Move them onto the
+      disk first.
+    quiet: true
+  loop: "{{ nfs_server_mount_point_contents.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Create each share's filesystem
+  community.general.filesystem:
+    dev: "{{ item.device }}"
+    fstype: ext4
+    opts: "-L nfs-{{ item.name }}"
+  loop: "{{ nfs_server_shares }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# By label, not device path, so fstab survives a disk moving slots. No
+# nofail: a missing disk should stop the boot's NFS, not be exported empty.
+- name: Mount each share's disk
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "LABEL=nfs-{{ item.name }}"
+    fstype: ext4
+    opts: defaults
+    state: mounted
+  loop: "{{ nfs_server_shares }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Open each share's root to the provisioner
   ansible.builtin.file:
-    path: "{{ nfs_server_export_path }}"
+    path: "{{ item.path }}"
     state: directory
     # 0777 with no_root_squash: the provisioner creates a subdirectory per
     # PersistentVolume as root and the workloads that mount them run as
     # arbitrary uids. Tightening this breaks PVC provisioning.
     mode: "0777"
+  loop: "{{ nfs_server_shares }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Create the nfs-server drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/nfs-server.service.d
+    state: directory
+    mode: "0755"
+
+- name: Hold nfs-server until every share's disk is mounted
+  ansible.builtin.template:
+    src: requires-mounts.conf.j2
+    dest: /etc/systemd/system/nfs-server.service.d/requires-mounts.conf
+    mode: "0644"
 
 - name: Write /etc/exports
   ansible.builtin.template:
@@ -21,11 +87,13 @@
     mode: "0644"
   notify: Reload exports
 
+# daemon_reload picks up the drop-in before the start.
 - name: Enable and start the NFS server
   ansible.builtin.systemd_service:
-    name: nfs-kernel-server
+    name: nfs-server
     enabled: true
     state: started
+    daemon_reload: true
 
 - name: Confirm the export is published
   ansible.builtin.command: showmount -e localhost

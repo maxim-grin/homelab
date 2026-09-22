@@ -1,10 +1,36 @@
 ---
 # Default values for the NFS server role
-nfs_server_export_path: /srv/nfs/k8s
 
-# The cluster subnet allowed to mount the export. Narrow this if the homelab
-# ever grows a separate VLAN for Kubernetes.
-nfs_server_export_clients: 10.0.0.0/24
+# One entry per share, each on its own virtual disk (scsi1, scsi2 in
+# proxmox/modules/nfs-server), so one environment filling its share cannot
+# stop the other writing. Disks are found by their Proxmox slot, which does
+# not change between boots the way /dev/sdX can.
+#
+# The dev path is /srv/nfs/k8s, not /srv/nfs/dev, and must stay that way:
+# every existing PV carries nfs.path: /srv/nfs/k8s/<ns>-<pvc>-<pv>, that
+# field is immutable, and nfs-dev deletes a volume's data when its PVC goes.
+# Renaming it means hand-recreating every PV.
+nfs_server_shares:
+  - name: dev
+    device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
+    path: /srv/nfs/k8s
+    clients: "{{ nfs_server_dev_clients }}"
+  - name: prod
+    device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi2
+    path: /srv/nfs/prod
+    clients: "{{ nfs_server_prod_clients }}"
+
+# Exact node addresses, not the subnet: a dev pod cannot mount prod data even
+# by mistake. Names are keys of host_ips in secret.yaml.
+nfs_server_dev_nodes:
+  - master-01
+  - worker-01
+  - worker-02
+nfs_server_dev_clients: "{{ nfs_server_dev_nodes | map('extract', host_ips) | list }}"
+
+# Empty until a prod cluster exists. An empty list means no export line at
+# all -- see templates/exports.j2.
+nfs_server_prod_clients: []
 
 # no_root_squash is required, not lazy: nfs-subdir-external-provisioner
 # creates a directory per PersistentVolume and chowns it. With root squashed

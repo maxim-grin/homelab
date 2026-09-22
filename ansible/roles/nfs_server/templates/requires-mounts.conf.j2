@@ -1,0 +1,6 @@
+# Managed by ansible (roles/nfs_server).
+# nfs-server does not start until every share's disk is mounted. Without
+# this, a disk that fails to mount leaves the empty directory underneath it
+# exported, and PVC writes land silently on the OS disk.
+[Unit]
+RequiresMountsFor={{ nfs_server_shares | map(attribute='path') | join(' ') }}
