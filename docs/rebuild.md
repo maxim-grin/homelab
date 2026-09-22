@@ -238,8 +238,10 @@ laptop, and they are what the rebuild needs.
 | File                                         | Contains                                                             | If lost                                                                                                                  |
 | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `proxmox/environments/dev/dev.tfvars`        | Proxmox API token, cloud-init password, SSH key paths, every VM's IP | Recreate from the committed `dev.tfvars.example`, then fill in the secrets                                               |
+| `proxmox/environments/shared/shared.tfvars`  | Proxmox API token, cloud-init password, `nfs-01`'s IP                | Recreate from `shared.tfvars.example`; every value is also in `dev.tfvars`                                               |
 | `~/.ssh/homelab_dev`                         | The key every VM trusts                                              | No SSH to any VM. Cloud-init injects the _public_ half at create time, so a new key means recreating every VM            |
 | `proxmox/environments/dev/terraform.tfstate` | Local backend, 67 KB                                                 | See below                                                                                                                |
+| `proxmox/environments/shared/terraform.tfstate` | Local backend for `nfs-01`                                        | See below                                                                                                                |
 | The ansible-vault password                   | Unlocks `ansible/secret.yaml`                                        | `secret.yaml` is unrecoverable. It holds `host_ips`, `proxmox_vm_ids`, `nfs_server_ip`, `user_name`, `vault_kv` and the SSH key path |
 | The Vault unseal key                         | Unseals `vault-01` after every reboot                                | No unseal, ever. Vault stays sealed, AVP renders nothing, every app reading a `<path:...>` degrades                     |
 | The Vault root token                         | Auth for `vault kv`, seeding, and configuring auth methods           | Nothing already stored in Vault is lost, but re-seeding or reconfiguring k8s auth needs a new root token from a fresh `vault operator init` |
@@ -249,16 +251,19 @@ password is not, and should not be. Keep it in a password manager.
 
 ### 5. Terraform state after a disk replacement
 
-The state file lists VMs that no longer exist. Terraform will try to
+Each state file lists VMs that no longer exist. Terraform will try to
 reconcile against a machine that is gone and produce confusing errors.
 
 After the SSD is replaced, discard it rather than fighting it:
 
 ```bash
-cd proxmox/environments/dev
-rm terraform.tfstate terraform.tfstate.backup
-terraform init
-terraform apply -var-file=dev.tfvars    # creates everything fresh
+for env in shared dev; do
+  cd proxmox/environments/$env
+  rm terraform.tfstate terraform.tfstate.backup
+  terraform init
+  terraform apply -var-file=$env.tfvars    # creates everything fresh
+  cd -
+done
 ```
 
 This is safe _because_ nothing in Proxmox survives the disk swap. Never do it
@@ -367,9 +372,15 @@ Each step depends on the one above it.
    template-not-found error. Put the token in `dev.tfvars`.
 3. **Build the cloud-init template** — section 2. It must be named whatever
    `clone_template_ubuntu` says.
-4. **`terraform apply -var-file=dev.tfvars`** — six VMs plus the `vault-01`
-   LXC container (module `proxmox/modules/lxc`, pool `LXC`).
-5. **`ansible-playbook playbooks/nfs_server.yaml`** then `nfs_setup.yaml` —
+4. **`terraform apply`, `shared` first, then `dev`** —
+   `proxmox/environments/shared` with `-var-file=shared.tfvars` creates
+   `nfs-01` (vmid 103) with its OS disk and the `nfs-dev` and `nfs-prod`
+   data disks; `proxmox/environments/dev` with `-var-file=dev.tfvars`
+   creates the other six VMs plus the `vault-01` LXC container (module
+   `proxmox/modules/lxc`, pool `LXC`).
+5. **`ansible-playbook -i inventories/shared playbooks/nfs_server.yaml`**
+   then `nfs_setup.yaml` (default dev inventory) — the first formats and
+   mounts both data disks and exports `nfs-dev` to the dev nodes;
    storage first, because everything else claims PVCs from it.
 6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.

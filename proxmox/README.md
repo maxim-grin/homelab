@@ -16,6 +16,14 @@ proxmox/
 │   │   ├── outputs.tf
 │   │   ├── variables.tf
 │   │   └── versions.tf
+│   ├── shared/
+│   │   ├── .terraform.lock.hcl
+│   │   ├── backend.tf.example
+│   │   ├── main.tf              # nfs-01, serves nfs-dev and nfs-prod
+│   │   ├── outputs.tf
+│   │   ├── shared.tfvars.example
+│   │   ├── variables.tf
+│   │   └── versions.tf
 │   └── prod/
 │       ├── .terraform.lock.hcl
 │       ├── backend.tf.example
@@ -26,6 +34,11 @@ proxmox/
 │       └── versions.tf
 ├── modules/
 │   ├── lxc/
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   │   ├── variables.tf
+│   │   └── versions.tf
+│   ├── nfs-server/
 │   │   ├── main.tf
 │   │   ├── outputs.tf
 │   │   ├── variables.tf
@@ -68,6 +81,11 @@ cp proxmox/environments/dev/dev.tfvars.example proxmox/environments/dev/dev.tfva
 
 cp proxmox/environments/dev/backend.tf.example proxmox/environments/dev/backend.tf
 # local backend, state file next to main.tf -- nothing to fill in
+
+cp proxmox/environments/shared/shared.tfvars.example proxmox/environments/shared/shared.tfvars
+# same fields as dev.tfvars, plus nfs-01's IP
+
+cp proxmox/environments/shared/backend.tf.example proxmox/environments/shared/backend.tf
 ```
 
 `backend.tf` is gitignored alongside `*.tfvars`, for the same reason: it is
@@ -101,6 +119,14 @@ terraform plan  -var-file="dev.tfvars"
 terraform apply -var-file="dev.tfvars"
 ```
 
+### Shared
+
+```bash
+cd proxmox/environments/shared
+terraform plan  -var-file="shared.tfvars"
+terraform apply -var-file="shared.tfvars"
+```
+
 ### Production (Prod)
 
 ```bash
@@ -118,6 +144,7 @@ terraform apply -var-file="prod.tfvars"
 ## Module Overview
 
 - **modules/lxc** – reusable module for lightweight Proxmox containers; backs `vault-01` (vmid 104) in `environments/dev`.
+- **modules/nfs-server** – `ubuntu-vm` plus two data disks (`scsi1` for `nfs-dev`, `scsi2` for `nfs-prod`); backs `nfs-01` (vmid 103) in `environments/shared`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
 - **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles.
 - **modules/ubuntu-k8s** – Ubuntu-based Kubernetes nodes via kubeadm.
