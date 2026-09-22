@@ -1,0 +1,26 @@
+# Copy to shared.tfvars and fill in. shared.tfvars is gitignored (*.tfvars)
+# and has no backup anywhere -- see docs/rebuild.md before you need it.
+#
+# Every value here also appears in dev.tfvars. Copy them from there rather
+# than re-typing: nfs-01 was created from dev.tfvars, and a different
+# ci_password or ssh_public_key is drift on the imported VM.
+
+# Proxmox
+pm_target_node      = "pve"
+pm_api_url          = "https://<PROXMOX_IP>:8006/api2/json"
+pm_api_token_id     = "root@pam!terraform"
+pm_api_token_secret = "<UUID>"
+
+# Cloud-init user
+ci_user        = "ubuntu"
+ci_password    = "<PASSWORD>"
+ssh_public_key = "ssh-ed25519 AAAA... homelab-dev"
+
+# Template that must already exist on the host; docs/rebuild.md has the qm
+# commands that build it.
+clone_template_ubuntu = "ubuntu-cid-tp"
+
+gateway = "10.0.0.1"
+
+# NFS server VM. Must include CIDR.
+nfs_vm_ip = "10.0.0.131/24"
