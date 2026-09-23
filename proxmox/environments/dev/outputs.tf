@@ -1,23 +1,3 @@
-# ubuntu-1 VM Outputs
-output "ub_1_vm_details" {
-  value = {
-    id   = module.ubuntu_vm_1.vm_id
-    name = module.ubuntu_vm_1.vm_name
-    mac  = module.ubuntu_vm_1.vm_mac
-    ip   = module.ubuntu_vm_1.vm_ip_config
-  }
-}
-
-# ubuntu-2 VM Outputs
-output "ub_2_vm_details" {
-  value = {
-    id   = module.ubuntu_vm_2.vm_id
-    name = module.ubuntu_vm_2.vm_name
-    mac  = module.ubuntu_vm_2.vm_mac
-    ip   = module.ubuntu_vm_2.vm_ip_config
-  }
-}
-
 # Ubuntu K8s Cluster Ouputs
 output "master_nodes" {
   description = "Details for all master nodes."
@@ -33,15 +13,6 @@ output "all_node_vmids" {
   description = "Map of logical node names to assigned VMIDs."
   value       = module.ubunut-k8s-1.all_node_vmids
 }
-
-# n8n LXC Output
-# output "n8n_details" {
-#   value = {
-#     id   = module.n8n.container_id
-#     name = module.n8n.container_name
-#     ip   = module.n8n.container_ip
-#   }
-# }
 
 # Claude Code VM Output
 output "claude_code_vm_details" {
