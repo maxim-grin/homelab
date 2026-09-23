@@ -882,7 +882,7 @@ Expected: five placeholders, every one beginning `<path:secret/data/dev/`.
 - [ ] **Step 3: Render both overlays**
 
 ```bash
-kustomize build argocd/apps/jobboard/dev | grep -n -E "kind: Secret|<path:" 
+kustomize build argocd/apps/jobboard/dev | grep -n -E "kind: Secret|<path:"
 kustomize build argocd/apps/jobboard/base | grep -c "kind: Secret"
 kustomize build argocd/apps/cert-manager-issuers/dev | grep -n "<path:"
 scripts/check-manifests.sh
