@@ -57,11 +57,3 @@ module "nfs" {
   # Tags
   tags = "ubuntu,nfs,shared"
 }
-
-# Adopts the existing nfs-01 instead of creating a new one. Remove this block
-# once the first apply has imported it: on a rebuilt host vmid 103 does not
-# exist yet, and an import of a missing VM fails the plan.
-import {
-  to = module.nfs.proxmox_vm_qemu.nfs_server
-  id = "${var.pm_target_node}/qemu/103"
-}

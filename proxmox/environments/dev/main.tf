@@ -181,20 +181,7 @@ module "claude_code" {
   tags = "ubuntu,claude-code,dev"
 }
 
-################################################################################
-# NFS Server -- moved to environments/shared
-################################################################################
-# nfs-01 serves both nfs-dev and nfs-prod, so it is owned by
-# proxmox/environments/shared. destroy = false drops it from this state
-# without touching the VM. Delete this block once `terraform apply` here has
-# run with it once.
-removed {
-  from = module.nfs
-
-  lifecycle {
-    destroy = false
-  }
-}
+# nfs-01 (vmid 103) lives in proxmox/environments/shared.
 
 ################################################################################
 # HashiCorp Vault
