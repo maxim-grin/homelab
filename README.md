@@ -23,7 +23,7 @@ _not_ contain, which is the part that will bite.
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
 | Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
-| Secrets    | Vault (`vault.mgryn.cc:8200`), LXC `vault-01`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `proxmox/environments/dev` |
+| Secrets    | Vault (`vault.mgryn.cc:8200`), LXC `vault-01`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `proxmox/environments/shared` |
 
 Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
 a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the

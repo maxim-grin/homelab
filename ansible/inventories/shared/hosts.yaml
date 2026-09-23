@@ -18,8 +18,7 @@ all:
       # Every other host is a cloud-init VM with an `ubuntu` account; this is a
       # Debian LXC template, which has only root, and proxmox_lxc injects
       # ssh_public_keys for root. Without this override the play fails at the
-      # connection, before any task runs. inventories/prod/hosts.yaml sets the
-      # same override on its vault-lxc host, which is a working reference.
+      # connection, before any task runs.
       vars:
         ansible_user: root
       hosts:
