@@ -1630,7 +1630,7 @@ Run only after Task 9 Steps 2 and 3 are reported applied.
 **Interfaces:**
 - Consumes: Task 9's confirmation that both applies succeeded.
 
-- [ ] **Step 1: Delete the blocks**
+- [x] **Step 1: Delete the blocks**
 
 In `shared/main.tf`, delete the `# Adopts the existing nfs-01 ...` comment and the `import { ... }` block. In `dev/main.tf`, replace the `NFS Server -- moved to environments/shared` banner, its comment and the `removed { ... }` block with a single comment line:
 
@@ -1638,7 +1638,7 @@ In `shared/main.tf`, delete the `# Adopts the existing nfs-01 ...` comment and t
 # nfs-01 (vmid 103) lives in proxmox/environments/shared.
 ```
 
-- [ ] **Step 2: Validate both roots**
+- [x] **Step 2: Validate both roots**
 
 Run: `for env in dev shared; do (cd proxmox/environments/$env && terraform init -backend=false -input=false >/dev/null && terraform validate && tflint --config=/home/ubuntu/homelab/.tflint.hcl); done; rm -rf proxmox/environments/shared/.terraform; terraform fmt -recursive -check proxmox`
 
