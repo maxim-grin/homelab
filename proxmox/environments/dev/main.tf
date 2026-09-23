@@ -117,6 +117,16 @@ module "ubunut-k8s-1" {
   master_memory = 8192
   worker_memory = 4096
 
+  # 30G, not the module's 10G default. On 10G disks /var/lib/containerd
+  # alone reached 3.8G and kubelet crossed its ephemeral-storage threshold
+  # whenever a new image was pulled: worker-02 flapped in and out of
+  # DiskPressure six times in nine days, evicting argocd-repo-server and
+  # harbor-jobservice pods. Raising this only grows the virtual disk --
+  # growpart and resize2fs inside each guest do the rest -- and it can
+  # never be lowered again.
+  master_disk_size = "30G"
+  worker_disk_size = "30G"
+
   # Come back after a host power loss. Without this the module defaulted to
   # false and the entire cluster stayed down on 2026-09-10 while nfs-01 and
   # claude-code-01, which set it, returned on their own.
