@@ -43,7 +43,6 @@ talos_k8s_cidr = ""
 # LXC container addresses, matched to the vmids in main.tf
 tk_nas_ip   = "10.0.0.30"   # vmid 300, TurnKey NAS
 pi_hole_ip  = "10.0.0.31"   # vmid 311, Pi-hole
-vault_ip    = "10.0.0.33"   # vmid 333, HashiCorp Vault
 traefik_ip  = "10.0.0.38"   # vmid 388, Traefik
 homepage_ip = "10.0.0.39"   # vmid 399, homepage
 

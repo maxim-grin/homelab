@@ -76,13 +76,6 @@ variable "pi_hole_ip" {
   default     = "dhcp"
 }
 
-# Hashicorp Vault variables
-variable "vault_ip" {
-  description = "Hashicorp Vault Container IP"
-  type        = string
-  default     = "dhcp"
-}
-
 # Traefik variables
 variable "traefik_ip" {
   description = "Traefik Reverse Proxy Container IP"

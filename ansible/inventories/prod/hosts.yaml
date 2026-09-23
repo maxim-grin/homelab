@@ -1,7 +1,2 @@
-all:
-  children:
-    vault:
-      hosts:
-        vault-lxc:
-          ansible_host: "{{ vault_ip }}"
-          ansible_user: root
+# Prod hosts arrive with the prod cluster; nothing has been applied yet.
+all: {}
