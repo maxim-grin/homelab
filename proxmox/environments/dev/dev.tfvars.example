@@ -31,18 +31,10 @@ ssh_public_key       = "ssh-ed25519 AAAA... homelab-dev"
 # hunting for the exact build pinned here.
 clone_template_ubuntu = "ubuntu-cid-tp"
 clone_template_k8s    = "ubuntu-cid-tp"
-debian_os_template    = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
 
 # Kubernetes nodes are addressed from this CIDR by the ubuntu-k8s module.
 ub_k8s_cidr = "10.0.0.0/24"
 gateway     = "10.0.0.1"
 
-# LXC. lxc_pass is the root password for every module/lxc container --
-# required now that the vault container uses it
-lxc_pass = "<PASSWORD>"
-
 # Claude Code workstation VM. Must include CIDR.
 claude_code_ip = "10.0.0.130/24"
-
-# Vault container. Must include CIDR.
-vault_lxc_ip = "10.0.0.132/24"

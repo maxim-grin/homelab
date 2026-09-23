@@ -68,11 +68,6 @@ variable "clone_template_k8s" {
   type        = string
 }
 
-variable "debian_os_template" {
-  description = "OS template for Debian distro"
-  type        = string
-}
-
 # Ubuntu-K8s Variables
 variable "gateway" {
   description = "LXC Container Gateway"
@@ -84,21 +79,8 @@ variable "ub_k8s_cidr" {
   type        = string
 }
 
-# LXC Container Variables (for n8n)
-variable "lxc_pass" {
-  description = "LXC Container Password"
-  type        = string
-  sensitive   = true
-}
-
 # Claude Code VM Variables
 variable "claude_code_ip" {
   description = "Claude Code VM IP with CIDR (e.g. '10.0.0.130/24')"
-  type        = string
-}
-
-# Vault LXC Container Variables
-variable "vault_lxc_ip" {
-  description = "Vault container IP with CIDR (e.g. '10.0.0.132/24')"
   type        = string
 }

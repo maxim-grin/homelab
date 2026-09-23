@@ -53,3 +53,20 @@ variable "nfs_vm_ip" {
   description = "NFS server VM IP with CIDR (e.g. '10.0.0.131/24')"
   type        = string
 }
+
+# Vault LXC Container Variables
+variable "debian_os_template" {
+  description = "Debian LXC template, e.g. 'local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst'"
+  type        = string
+}
+
+variable "lxc_pass" {
+  description = "Root password for LXC containers"
+  type        = string
+  sensitive   = true
+}
+
+variable "vault_lxc_ip" {
+  description = "Vault container IP with CIDR (e.g. '10.0.0.132/24')"
+  type        = string
+}

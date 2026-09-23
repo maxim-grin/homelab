@@ -24,3 +24,14 @@ gateway = "10.0.0.1"
 
 # NFS server VM. Must include CIDR.
 nfs_vm_ip = "10.0.0.131/24"
+
+# Debian LXC template that must already exist on the host. It has to match a
+# file actually downloaded by `pveam download local <name>` -- check
+# `pveam available | grep debian-13`. docs/rebuild.md has the command.
+debian_os_template = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
+
+# Root password for the vault container.
+lxc_pass = "<PASSWORD>"
+
+# Vault container. Must include CIDR.
+vault_lxc_ip = "10.0.0.132/24"

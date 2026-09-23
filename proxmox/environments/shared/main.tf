@@ -57,3 +57,62 @@ module "nfs" {
   # Tags
   tags = "ubuntu,nfs,shared"
 }
+
+################################################################################
+# HashiCorp Vault
+################################################################################
+module "vault" {
+  source = "../../modules/lxc"
+
+  vmid        = 104
+  target_node = var.pm_target_node
+  hostname    = "vault"
+  ostemplate  = var.debian_os_template
+  password    = var.lxc_pass
+  # The LXC pool and its TerraformProv ACL on /pool/LXC were created by hand
+  # on the host; Terraform does not create pools and terraform@pve carries no
+  # Pool.* privileges. Placement into a pool without that ACL fails with a
+  # permission error that never mentions pools.
+  pool         = "LXC"
+  unprivileged = true
+
+  ssh_public_keys = var.ssh_public_key
+
+  # A file-backed Vault with a handful of KV paths needs almost nothing.
+  # Matches the known-working vault_lxc block in environments/prod.
+  cores  = 1
+  memory = 1024
+  swap   = 0
+
+  rootfs_storage = "local-lvm"
+  rootfs_size    = "8G"
+
+  network_bridge = "vmbr0"
+  network_ip     = var.vault_lxc_ip
+  network_gw     = var.gateway
+
+  # First up, ahead of nfs-01 at order=10. Vault is the root of trust: when it
+  # is sealed or absent, argocd-vault-plugin renders nothing and every
+  # Application carrying a <path:...> placeholder fails to sync.
+  start              = true
+  start_at_node_boot = true
+  startup            = "order=5,up=20"
+
+  # No nesting, fuse, keyctl or mount. environments/prod sets nesting = true
+  # on its vault container -- but it sets it on all five of its containers
+  # identically, so that is a blanket habit, not evidence Vault needs it.
+  # Proxmox documents nesting as exposing host procfs and sysfs to the guest.
+  # If vault.service will not start even with the drop-in from Task 2, adding
+  # nesting here is the documented fallback; do not reach for it first.
+  features_enabled = false
+
+  tags = "lxc,vault,shared"
+}
+
+# Adopts the existing vault-01 instead of creating a new one. Remove this
+# block once the first apply has imported it: on a rebuilt host vmid 104 does
+# not exist yet, and an import of a missing container fails the plan.
+import {
+  to = module.vault.proxmox_lxc.lxc_container
+  id = "${var.pm_target_node}/lxc/104"
+}
