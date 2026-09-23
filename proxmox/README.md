@@ -19,7 +19,7 @@ proxmox/
 │   ├── shared/
 │   │   ├── .terraform.lock.hcl
 │   │   ├── backend.tf.example
-│   │   ├── main.tf              # nfs-01, serves nfs-dev and nfs-prod
+│   │   ├── main.tf              # nfs-01 (nfs-dev, nfs-prod) and vault-01
 │   │   ├── outputs.tf
 │   │   ├── shared.tfvars.example
 │   │   ├── variables.tf
@@ -143,7 +143,7 @@ terraform apply -var-file="prod.tfvars"
 
 ## Module Overview
 
-- **modules/lxc** – reusable module for lightweight Proxmox containers; backs `vault-01` (vmid 104) in `environments/dev`.
+- **modules/lxc** – reusable module for lightweight Proxmox containers; backs `vault-01` (vmid 104) in `environments/shared`.
 - **modules/nfs-server** – `ubuntu-vm` plus two data disks (`scsi1` for `nfs-dev`, `scsi2` for `nfs-prod`); backs `nfs-01` (vmid 103) in `environments/shared`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
 - **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles.

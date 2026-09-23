@@ -5,12 +5,14 @@
 ├── ansible.cfg                         # Ansible common config
 ├── secrets.yaml                        # Ansible Vault Secret
 ├── inventories/                        # All inventory directory
-│   └── dev/                            # Dev Environement
-│       ├── hosts.yaml                   # Holds all Dev Hosts Data
-│       └── group_vars/                 # Group Variables
-│           ├── all.yaml
-│           ├── k8s_control_plane.yaml
-│           └── k8s_workers.yaml
+│   ├── dev/                            # Dev Environement
+│   │   ├── hosts.yaml                   # Holds all Dev Hosts Data
+│   │   └── group_vars/                 # Group Variables
+│   │       ├── all.yaml
+│   │       ├── k8s_control_plane.yaml
+│   │       └── k8s_workers.yaml
+│   └── shared/                         # Hosts no single environment owns
+│       └── hosts.yaml                   # nfs-01 and vault-01
 ├── playbooks/
 │   ├── argocd-dev.yaml          # ArgoCD Setup to Dev Server
 │   ├── site.yaml                # Initial Setup for all hosts
@@ -83,9 +85,10 @@ See `secret.yaml.example` for the annotated shape, including how
 
 `vault_kv` is not read directly by anything in the cluster. It is the seed:
 `roles/vault/tasks/seed.yaml` writes each sub-key into Vault's KV v2 store
-at `secret/jobboard/db` and `secret/jobboard/ghcr`, and from there
-argocd-vault-plugin resolves `<path:secret/data/jobboard/...#FIELD>`
-placeholders in the committed jobboard manifests at ArgoCD sync time. The
+under `vault_kv_prefix` (default `dev`), at `secret/dev/jobboard/db` and
+`secret/dev/jobboard/ghcr`, and from there argocd-vault-plugin resolves
+`<path:secret/data/dev/jobboard/...#FIELD>` placeholders in the committed
+jobboard manifests at ArgoCD sync time. The
 vault of record for a running secret is Vault, not `secret.yaml` — this
 block only exists so a lost or resealed Vault can be re-seeded from
 something already backed up in the password manager.
@@ -191,30 +194,41 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
 
 7. **Install, seed and configure Vault:**
 
-   Terraform creates the LXC container (`proxmox/environments/dev`, module
-   `vault`, vmid 104); this playbook installs Vault from HashiCorp's apt
-   repo and templates its config. Bare, it only installs -- seeding and
-   Kubernetes auth are opt-in behind their own flags because both need a
-   root token that only exists after `vault operator init`, which this
-   playbook does not and cannot run for you:
+   Terraform creates the LXC container (`proxmox/environments/shared`,
+   module `vault`, vmid 104); it serves both clusters, so its host lives in
+   `inventories/shared`, not `inventories/dev`. This playbook installs
+   Vault from HashiCorp's apt repo and templates its config. Bare, it only
+   installs -- seeding and Kubernetes auth are opt-in behind their own
+   flags because both need a root token that only exists after `vault
+   operator init`, which this playbook does not and cannot run for you:
 
    ```bash
-   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass
+   ansible-playbook -i inventories/shared playbooks/vault.yaml \
+     -e @secret.yaml --ask-vault-pass
    ```
 
    After `vault operator init` and `vault operator unseal` on `vault-01`
    (see `docs/rebuild.md`), seed the KV store from `vault_kv`:
 
    ```bash
-   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+   ansible-playbook -i inventories/shared playbooks/vault.yaml \
+     -e @secret.yaml --ask-vault-pass \
      -e vault_seed=true -e vault_token=<root token>
    ```
 
+   Seeding writes under `vault_kv_prefix` (default `dev`), so `vault_kv`'s
+   `jobboard.db` lands at `secret/dev/jobboard/db`; `secret.yaml`'s own
+   keys stay unprefixed.
+
    Then, once `argocd-config` has synced `argocd/base/` and created the
-   `vault-auth-token` Secret, configure Vault's Kubernetes auth method:
+   `vault-auth-token` Secret, configure Vault's Kubernetes auth method.
+   This run needs both inventories: the role delegates the CA and
+   token-reviewer JWT reads to a control-plane host that lives in the dev
+   inventory.
 
    ```bash
-   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+   ansible-playbook -i inventories/shared -i inventories/dev \
+     playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
      -e vault_configure_k8s_auth=true -e vault_token=<root token>
    ```
 

@@ -74,9 +74,9 @@ not just the commented-out n8n module. Skip its pool or ACL and
 `terraform apply` fails placing `vault-01`, with a permission error that
 never mentions pools.
 
-**LXC templates**, now a hard blocker for dev too: `vault-01` (module
-`proxmox/modules/lxc`) clones one, not just the commented-out n8n module or
-the never-applied prod environment:
+**LXC templates**, now a hard blocker for the shared apply too: `vault-01`
+(module `proxmox/modules/lxc`) clones one, not just the commented-out n8n
+module or the never-applied prod environment:
 
 ```bash
 pveam update
@@ -84,7 +84,7 @@ pveam available | grep debian-13
 pveam download local debian-13-standard_13.0-1_amd64.tar.zst
 ```
 
-The version string matters: `dev.tfvars` pins
+The version string matters: `shared.tfvars` pins
 `local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst`, and whatever is
 downloaded has to match that string exactly or container creation fails
 with a template-not-found error. Update the tfvars to whatever `pveam
@@ -378,22 +378,25 @@ Each step depends on the one above it.
    `pveam available | grep debian-13` first — the build string drifts):
    `pveam download local debian-13-standard_13.1-2_amd64.tar.zst`. Skip it
    and `terraform apply` fails creating `vault-01` (vmid 104) with a
-   template-not-found error. Put the token in `dev.tfvars`.
+   template-not-found error. Put the token in `dev.tfvars` and
+   `shared.tfvars`.
 3. **Build the cloud-init template** — section 2. It must be named whatever
    `clone_template_ubuntu` says.
 4. **`terraform apply`, `shared` first, then `dev`** —
    `proxmox/environments/shared` with `-var-file=shared.tfvars` creates
-   `nfs-01` (vmid 103) with its OS disk and the `nfs-dev` and `nfs-prod`
-   data disks; `proxmox/environments/dev` with `-var-file=dev.tfvars`
-   creates the other six VMs plus the `vault-01` LXC container (module
-   `proxmox/modules/lxc`, pool `LXC`).
+   `nfs-01` (vmid 103, order 10) with its OS disk and the `nfs-dev` and
+   `nfs-prod` data disks, and `vault-01` (vmid 104, order 5, module
+   `proxmox/modules/lxc`, pool `LXC`); `proxmox/environments/dev` with
+   `-var-file=dev.tfvars` creates the other four VMs (the k8s module makes
+   three, plus `claude-code`).
 5. **`ansible-playbook -i inventories/shared playbooks/nfs_server.yaml`**
    then `nfs_setup.yaml` (default dev inventory) — the first formats and
    mounts both data disks and exports `nfs-dev` to the dev nodes;
    storage first, because everything else claims PVCs from it.
 6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.
-8. **Install and unseal Vault** — `ansible-playbook playbooks/vault.yaml`.
+8. **Install and unseal Vault** — `ansible-playbook -i inventories/shared
+   playbooks/vault.yaml`.
    Then, by hand on `vault-01` (Ansible never sees the unseal key or root
    token, and should not):
 
@@ -415,14 +418,16 @@ Each step depends on the one above it.
    and back on the Ansible control machine, seed the KV store:
 
    ```bash
-   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+   ansible-playbook -i inventories/shared playbooks/vault.yaml \
+     -e @secret.yaml --ask-vault-pass \
      -e vault_seed=true -e vault_token=<root token>
    ```
 
    `vault_seed` replays the `vault_kv` block from `secret.yaml` into
-   `secret/jobboard/db` and `secret/jobboard/ghcr`. The root token is
-   passed with `-e` for this one invocation only; it is never written to
-   disk.
+   `secret/dev/jobboard/db` and `secret/dev/jobboard/ghcr` — namespaced
+   under `vault_kv_prefix` (default `dev`); `secret.yaml`'s own keys stay
+   unprefixed. The root token is passed with `-e` for this one invocation
+   only; it is never written to disk.
 9. **`ansible-playbook playbooks/argocd-dev.yaml`** — ArgoCD via Helm. The
    UI login is `admin`, with the password whose bcrypt hash is
    `argocd_admin_password_hash` in `secret.yaml`. The play asserts that hash
@@ -469,9 +474,14 @@ Each step depends on the one above it.
     this step reads the `vault-auth-token` Secret that sync just created:
 
     ```bash
-    ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
+    ansible-playbook -i inventories/shared -i inventories/dev \
+      playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
       -e vault_configure_k8s_auth=true -e vault_token=<root token>
     ```
+
+    Both inventories are required: the role delegates the CA and
+    token-reviewer JWT reads to a control-plane host that lives in the dev
+    inventory.
 
     This wires Vault's Kubernetes auth method (`disable_local_ca_jwt: true`),
     the `argocd-read` policy, and the `argocd` role bound to
@@ -523,14 +533,14 @@ Each step depends on the one above it.
     `jobs.mgryn.cc` needs no entry: it is a DNS-only Cloudflare record
     holding a node IP. If the node IPs changed in this rebuild, update that
     record in Cloudflare instead. Its certificate re-issues on its own,
-    provided the Vault seed in step 8 included `cert-manager/cloudflare`.
+    provided the Vault seed in step 8 included `dev/cert-manager/cloudflare`.
     Gitea and Grafana each render absolute URLs from configuration
     (`GITEA__server__ROOT_URL`, `GF_SERVER_ROOT_URL`), so a name that does not
     resolve produces broken clone URLs and login redirects rather than a
     connection error.
 
     `vault.mgryn.cc` is different: point it straight at `vault-01`'s own
-    IP (`vault_lxc_ip` in `dev.tfvars`), not at a node. Vault is not behind
+    IP (`vault_lxc_ip` in `shared.tfvars`), not at a node. Vault is not behind
     ingress-nginx, so it stays reachable at `http://vault.mgryn.cc:8200`
     even when the cluster itself is down — which is exactly when an
     operator needs to check whether it is sealed.
