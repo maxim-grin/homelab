@@ -136,7 +136,7 @@ removed {
 
 Delete `variable "vault_lxc_ip"` (with its `# Vault LXC Container Variables` comment) from `variables.tf`, and the `# Vault container. Must include CIDR.` / `vault_lxc_ip = ...` pair from `dev.tfvars.example`.
 
-Leave `debian_os_template` and `lxc_pass` in the dev root **only if** something else there still uses them — check with `grep -n "debian_os_template\|lxc_pass" proxmox/environments/dev/*.tf` and delete any that are now unused, along with their `dev.tfvars.example` lines.
+`vault` is the only LXC left in the dev root (PR #33 retired `ubuntu` and `ubuntu-2`), so `debian_os_template` and `lxc_pass` become unused there. Confirm with `grep -n "debian_os_template\|lxc_pass" proxmox/environments/dev/*.tf` — expect hits only in `variables.tf` after the module block is gone — then delete both variables and their `dev.tfvars.example` lines. If the grep shows another user, leave them and say so in the report.
 
 - [ ] **Step 4: Validate both roots from a clean copy**
 
@@ -644,6 +644,7 @@ The three-places paragraph stays true; add that Vault's KV is namespaced per env
 - [ ] **Step 5: `docs/rebuild.md`**
 
 - The rebuild-order step that applies `shared`: it now creates `vault-01` (vmid 104, order 5) as well as `nfs-01` (order 10), and needs the Debian LXC template.
+- Line ~388 says the dev apply "creates the other six VMs plus the `vault-01` LXC container". Both halves are now wrong: PR #33 retired `ubuntu` (100) and `ubuntu-2` (101), and `vault-01` moves to the shared root. Count the VM modules actually left in `proxmox/environments/dev/main.tf` (`grep -n '^module' proxmox/environments/dev/main.tf`, remembering the k8s module makes three) and write that number, with no LXC.
 - The Vault step ("Install and unseal Vault"): the playbook runs with `-i inventories/shared`; the seeding run stays `-e vault_seed=true -e vault_token=...`; the Kubernetes-auth run needs **both** inventories: `-i inventories/shared -i inventories/dev`, because the role delegates the CA and token-reviewer reads to a control-plane host that lives in the dev inventory.
 - Wherever the KV paths are named, they are now `secret/dev/...`.
 - The LXC-template blocker moves from the dev apply to the shared apply.
