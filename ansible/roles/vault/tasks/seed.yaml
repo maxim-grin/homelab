@@ -32,7 +32,7 @@
 - name: Seed the KV paths
   ansible.builtin.uri:
     url: >-
-      http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/secret/data/{{ item.key }}
+      http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/secret/data/{{ vault_kv_prefix }}/{{ item.key }}
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"

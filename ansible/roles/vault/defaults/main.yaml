@@ -38,3 +38,10 @@ vault_k8s_clusters:
     role_name: argocd
     service_account_names: ["argocd-repo-server"]
     service_account_namespaces: ["argocd"]
+
+# Secrets are namespaced per environment so one Vault can serve both
+# clusters: dev's live under secret/dev/, prod's under secret/prod/, and each
+# cluster's policy grants only its own prefix. The keys in secret.yaml's
+# vault_kv block stay unprefixed -- that file is ansible-vault ciphertext and
+# does not need editing to add an environment.
+vault_kv_prefix: dev
