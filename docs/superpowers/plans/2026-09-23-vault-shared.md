@@ -55,7 +55,7 @@
 - Consumes: `proxmox/modules/lxc` as-is — do not modify that module.
 - Produces: `module.vault.proxmox_lxc.lxc_container` in the shared root; shared variables `debian_os_template`, `lxc_pass`, `vault_lxc_ip`.
 
-- [ ] **Step 1: Copy the module block into the shared root**
+- [x] **Step 1: Copy the module block into the shared root**
 
 Read `proxmox/environments/dev/main.tf`'s `module "vault"` block (from the `# HashiCorp Vault` banner to its closing `}`) and append it verbatim to `proxmox/environments/shared/main.tf`, with three edits:
 
@@ -75,7 +75,7 @@ import {
 
 Everything else — the pool ACL comment, the resource sizes, `features_enabled = false` and its reasoning, `ssh_public_keys`, `start`, `start_at_node_boot`, `startup` — is copied unchanged. Those comments record incidents; do not reword them.
 
-- [ ] **Step 2: Add the three variables to the shared root**
+- [x] **Step 2: Add the three variables to the shared root**
 
 Append to `proxmox/environments/shared/variables.tf`:
 
@@ -113,7 +113,7 @@ lxc_pass = "<PASSWORD>"
 vault_lxc_ip = "10.0.0.132/24"
 ```
 
-- [ ] **Step 3: Release it from the dev root**
+- [x] **Step 3: Release it from the dev root**
 
 In `proxmox/environments/dev/main.tf`, replace the whole `# HashiCorp Vault` banner and `module "vault"` block with:
 
@@ -138,7 +138,7 @@ Delete `variable "vault_lxc_ip"` (with its `# Vault LXC Container Variables` com
 
 `vault` is the only LXC left in the dev root (PR #33 retired `ubuntu` and `ubuntu-2`), so `debian_os_template` and `lxc_pass` become unused there. Confirm with `grep -n "debian_os_template\|lxc_pass" proxmox/environments/dev/*.tf` — expect hits only in `variables.tf` after the module block is gone — then delete both variables and their `dev.tfvars.example` lines. If the grep shows another user, leave them and say so in the report.
 
-- [ ] **Step 4: Validate both roots from a clean copy**
+- [x] **Step 4: Validate both roots from a clean copy**
 
 The workstation's `proxmox/environments/dev/.terraform` cache fails a checksum check against the committed lock file, so validate from a `git archive` copy with your edits laid over it:
 
@@ -154,7 +154,7 @@ rm -rf $S
 
 Expected: two `Success! The configuration is valid.` and two `OK`, no tflint output, `fmt ok`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add proxmox/environments/dev proxmox/environments/shared
@@ -179,13 +179,13 @@ destroy = false."
 - Consumes: nothing from Task 1. Must not touch `environments/shared` or `environments/dev`.
 - Produces: a prod scaffold with no Vault of its own.
 
-- [ ] **Step 1: Check what else references them**
+- [x] **Step 1: Check what else references them**
 
 Run: `grep -rn "vault_ip\|vault_lxc\|vault-lxc" proxmox/environments/prod ansible/inventories/prod`
 
 Expected: hits only in the four files above. Anything else — stop and report.
 
-- [ ] **Step 2: Delete the module, variable and example line**
+- [x] **Step 2: Delete the module, variable and example line**
 
 Remove the whole `module "vault_lxc" { ... }` block from `prod/main.tf` (vmid 333) and the banner comment directly above it if it names Vault. Remove `variable "vault_ip"` from `prod/variables.tf` and the `vault_ip` line from `prod.tfvars.example`.
 
@@ -196,11 +196,11 @@ In place of the module, leave one line so the next reader knows where it went:
 # both clusters authenticate against it. Do not add a second one here.
 ```
 
-- [ ] **Step 3: Remove the prod inventory's vault group**
+- [x] **Step 3: Remove the prod inventory's vault group**
 
 In `ansible/inventories/prod/hosts.yaml`, delete the `vault:` group with its `vault-lxc` host and `ansible_host`/`ansible_user` lines. If that leaves `children:` with no entries, leave the file valid YAML — `all:` with a comment saying the prod hosts arrive with the prod cluster, and no empty `children:` key.
 
-- [ ] **Step 4: Verify the prod inventory still parses**
+- [x] **Step 4: Verify the prod inventory still parses**
 
 ```bash
 cd ansible && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-inventory -i inventories/prod --graph 2>&1 | cat
@@ -211,7 +211,7 @@ Expected: the graph prints without error (an inventory with no hosts is fine), a
 
 CI does not validate the prod Terraform root, so `terraform validate` there is optional; if you run it, do it from a `git archive` copy as in Task 1.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add proxmox/environments/prod ansible/inventories/prod
@@ -231,7 +231,7 @@ second unseal ritual and a second silent failure after a power loss."
 - Consumes: `host_ips['vault-01']`, `proxmox_vm_ids['vault-01']` from `secret.yaml` (supplied by the operator at run time).
 - Produces: `inventories/shared` resolving group `vault` → host `vault-01`. `playbooks/vault.yaml` (`hosts: vault`) is unchanged.
 
-- [ ] **Step 1: Read dev's vault group and move it verbatim**
+- [x] **Step 1: Read dev's vault group and move it verbatim**
 
 Run: `grep -n -A12 "^    vault:" ansible/inventories/dev/hosts.yaml`
 
@@ -239,7 +239,7 @@ Append that group — including its `vars: ansible_user: root` override and the 
 
 Update the shared inventory's header comment so it covers both hosts, e.g. "nfs-01 serves both clusters' shares and vault-01 is the root of trust for both, so neither belongs to one environment's inventory."
 
-- [ ] **Step 2: Verify both inventories**
+- [x] **Step 2: Verify both inventories**
 
 ```bash
 cd ansible
@@ -251,7 +251,7 @@ $B/ansible-inventory -i inventories/shared -i inventories/dev --graph 2>&1 | cat
 
 Expected: shared shows `@nfs` and `@vault` (with `vault-01`); dev shows `k8s_cluster`, `claude_code` and **no** `vault`; the combined run shows all of them — that combination is what a Kubernetes-auth run uses.
 
-- [ ] **Step 3: Syntax-check the playbook against the shared inventory**
+- [x] **Step 3: Syntax-check the playbook against the shared inventory**
 
 ```bash
 cd ansible && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-playbook -i inventories/shared playbooks/vault.yaml --syntax-check 2>&1 | cat
@@ -259,7 +259,7 @@ cd ansible && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-playbo
 
 Expected: `playbook: playbooks/vault.yaml`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add ansible/inventories
@@ -281,7 +281,7 @@ git commit -m "refactor: move vault-01 to the shared inventory"
 - Consumes: the inventory from Task 3; `host_ips` from `secret.yaml`.
 - Produces: `vault_k8s_clusters` (list of dicts with keys `name, auth_path, api_host, control_plane_host, policy_name, role_name, service_account_names, service_account_namespaces`), loop variable named `cluster`, and `tasks/validate_clusters.yaml` which fails on a malformed entry.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `$SCRATCH/vault-clusters-test.yaml`:
 
@@ -363,7 +363,7 @@ Create `$SCRATCH/vault-clusters-test.yaml`:
 
 Two clusters sharing an `auth_path` would have the second silently overwrite the first's `kubernetes_host` — one cluster's ArgoCD would then authenticate against the other's API server. That is the mistake worth failing on.
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 SCRATCH=/tmp/claude-1000/-home-ubuntu-homelab/051a728c-13d3-4268-a0a0-35f7b455d4b8/scratchpad
@@ -372,7 +372,7 @@ SCRATCH=/tmp/claude-1000/-home-ubuntu-homelab/051a728c-13d3-4268-a0a0-35f7b455d4
 
 Expected: FAIL on the first play — `validate_clusters.yaml` does not exist yet.
 
-- [ ] **Step 3: Write `tasks/validate_clusters.yaml`**
+- [x] **Step 3: Write `tasks/validate_clusters.yaml`**
 
 ```yaml
 ---
@@ -414,11 +414,11 @@ Expected: FAIL on the first play — `validate_clusters.yaml` does not exist yet
     quiet: true
 ```
 
-- [ ] **Step 4: Run the test again**
+- [x] **Step 4: Run the test again**
 
 Same command as Step 2. Expected: all three plays pass, `failed=0`. The second and third plays pass by way of their `rescue` assertions.
 
-- [ ] **Step 5: Add the defaults**
+- [x] **Step 5: Add the defaults**
 
 Append to `ansible/roles/vault/defaults/main.yaml`:
 
@@ -442,7 +442,7 @@ vault_k8s_clusters:
     service_account_namespaces: ["argocd"]
 ```
 
-- [ ] **Step 6: Rewrite `tasks/k8s_auth.yaml` in terms of `cluster`**
+- [x] **Step 6: Rewrite `tasks/k8s_auth.yaml` in terms of `cluster`**
 
 This file now configures **one** cluster and is included once per entry. Keep every existing comment — they record real incidents (the no_log reviewer JWT, the 200-vs-204 warning body, the empty-stdout case). Replace the literals:
 
@@ -474,7 +474,7 @@ The policy body becomes prefixed (this is what narrows dev's access; per the Glo
 
 Add a comment above it recording why it is prefixed: one Vault serves both clusters, and an unprefixed `secret/data/*` would let either read the other's secrets.
 
-- [ ] **Step 7: Include it per cluster from `main.yaml`**
+- [x] **Step 7: Include it per cluster from `main.yaml`**
 
 Replace the `Configure Kubernetes authentication` task in `ansible/roles/vault/tasks/main.yaml` with:
 
@@ -492,7 +492,7 @@ Replace the `Configure Kubernetes authentication` task in `ansible/roles/vault/t
   when: vault_configure_k8s_auth | default(false) | bool
 ```
 
-- [ ] **Step 8: Lint and syntax-check**
+- [x] **Step 8: Lint and syntax-check**
 
 ```bash
 cd ansible && ansible-lint . && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-playbook -i inventories/shared playbooks/vault.yaml --syntax-check 2>&1 | cat
@@ -500,7 +500,7 @@ cd ansible && ansible-lint . && /home/ubuntu/.local/share/uv/tools/ansible-lint/
 
 Expected: `Passed: 0 failure(s), 0 warning(s)` and `playbook: playbooks/vault.yaml`. Then re-run the Step 2 test command once more — all three plays still pass against the committed role.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add ansible/roles/vault
@@ -523,7 +523,7 @@ clusters sharing an auth path."
 - Consumes: `vault_kv` from `secret.yaml` — its keys are unchanged and the file is never edited.
 - Produces: seeded paths at `secret/data/{{ vault_kv_prefix }}/<key>`; `vault_kv_prefix` defaults to `dev`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `$SCRATCH/vault-seed-test.yaml`. It asserts the URL the seed task builds, without talking to Vault, by rendering the same expression the task uses from the role's own defaults:
 
@@ -556,7 +556,7 @@ Create `$SCRATCH/vault-seed-test.yaml`. It asserts the URL the seed task builds,
         fail_msg: "{{ urls }}"
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-playbook -i localhost, $SCRATCH/vault-seed-test.yaml 2>&1 | cat
@@ -564,7 +564,7 @@ Create `$SCRATCH/vault-seed-test.yaml`. It asserts the URL the seed task builds,
 
 Expected: FAIL — `vault_kv_prefix` is undefined in the role's defaults.
 
-- [ ] **Step 3: Add the default**
+- [x] **Step 3: Add the default**
 
 Append to `ansible/roles/vault/defaults/main.yaml`:
 
@@ -577,7 +577,7 @@ Append to `ansible/roles/vault/defaults/main.yaml`:
 vault_kv_prefix: dev
 ```
 
-- [ ] **Step 4: Prefix the seed URL**
+- [x] **Step 4: Prefix the seed URL**
 
 In `ansible/roles/vault/tasks/seed.yaml`, change the `Seed the KV paths` task's URL from `/v1/secret/data/{{ item.key }}` to:
 
@@ -588,11 +588,11 @@ In `ansible/roles/vault/tasks/seed.yaml`, change the `Seed the KV paths` task's 
 
 Nothing else in the task changes — it keeps `no_log: true`, the `status_code: 200`, and the loop over `vault_kv | dict2items`.
 
-- [ ] **Step 5: Run the test again**
+- [x] **Step 5: Run the test again**
 
 Same command as Step 2. Expected: PASS, `failed=0`.
 
-- [ ] **Step 6: Lint**
+- [x] **Step 6: Lint**
 
 ```bash
 cd ansible && ansible-lint . 2>&1 | tail -3
@@ -600,7 +600,7 @@ cd ansible && ansible-lint . 2>&1 | tail -3
 
 Expected: `Passed: 0 failure(s), 0 warning(s)`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add ansible/roles/vault
@@ -623,7 +623,7 @@ environment's tree they land in."
 
 Locate every anchor with `grep -n` by content; line numbers drift.
 
-- [ ] **Step 1: `CLAUDE.md` — Layout**
+- [x] **Step 1: `CLAUDE.md` — Layout**
 
 Change the `environments/shared/` line to name both hosts:
 
@@ -631,19 +631,19 @@ Change the `environments/shared/` line to name both hosts:
                   environments/shared/  nfs-01 and vault-01, serving both
 ```
 
-- [ ] **Step 2: `CLAUDE.md` — the LXC template bullet**
+- [x] **Step 2: `CLAUDE.md` — the LXC template bullet**
 
 It currently says the Debian LXC template must exist before any *dev* apply, and that `module "vault"` clones it for `vault-01`, failing "on vmid 104". Update it: the template is needed before the **shared** apply, and a missing template fails there, not in dev.
 
-- [ ] **Step 3: `CLAUDE.md` — the sealed-Vault bullet**
+- [x] **Step 3: `CLAUDE.md` — the sealed-Vault bullet**
 
 Add, at the end of that bullet: one Vault now serves both clusters from `proxmox/environments/shared`, so a seal stops both — and `vault status` on `vault-01` remains the first check when an app that was fine yesterday will not sync.
 
-- [ ] **Step 4: `CLAUDE.md` — the Secrets section**
+- [x] **Step 4: `CLAUDE.md` — the Secrets section**
 
 The three-places paragraph stays true; add that Vault's KV is namespaced per environment (`secret/dev/...`, later `secret/prod/...`), each cluster's policy grants only its own prefix, and the committed placeholder form is therefore `<path:secret/data/dev/...#FIELD>`. Update the existing `<path:secret/data/...>` bullet's example accordingly.
 
-- [ ] **Step 5: `docs/rebuild.md`**
+- [x] **Step 5: `docs/rebuild.md`**
 
 - The rebuild-order step that applies `shared`: it now creates `vault-01` (vmid 104, order 5) as well as `nfs-01` (order 10), and needs the Debian LXC template.
 - Line ~388 says the dev apply "creates the other six VMs plus the `vault-01` LXC container". Both halves are now wrong: PR #33 retired `ubuntu` (100) and `ubuntu-2` (101), and `vault-01` moves to the shared root. Count the VM modules actually left in `proxmox/environments/dev/main.tf` (`grep -n '^module' proxmox/environments/dev/main.tf`, remembering the k8s module makes three) and write that number, with no LXC.
@@ -651,15 +651,15 @@ The three-places paragraph stays true; add that Vault's KV is namespaced per env
 - Wherever the KV paths are named, they are now `secret/dev/...`.
 - The LXC-template blocker moves from the dev apply to the shared apply.
 
-- [ ] **Step 6: `ansible/README.md`**
+- [x] **Step 6: `ansible/README.md`**
 
 In the Vault section (around lines 195-225), add `-i inventories/shared` to the install and seed commands and `-i inventories/shared -i inventories/dev` to the k8s-auth command, and note that seeding writes under `vault_kv_prefix` (default `dev`) while `secret.yaml`'s keys stay unprefixed. Update the tree at the top of the file if it lists inventories.
 
-- [ ] **Step 7: `proxmox/README.md`**
+- [x] **Step 7: `proxmox/README.md`**
 
 Add `vault-01` to the `environments/shared/` description, and mention `modules/lxc` backs it — the existing `modules/lxc` bullet says it backs `vault-01` in `environments/dev`; correct that to `environments/shared`.
 
-- [ ] **Step 8: Check nothing still says Vault lives in dev**
+- [x] **Step 8: Check nothing still says Vault lives in dev**
 
 ```bash
 grep -rn -E "environments/dev.*vault|vault.*environments/dev|inventories/dev.*vault|vault_lxc_ip" --include=*.md . | grep -v docs/superpowers/
@@ -667,7 +667,7 @@ grep -rn -E "environments/dev.*vault|vault.*environments/dev|inventories/dev.*va
 
 Expected: no hits, or only ones still true. Fix any that are not.
 
-- [ ] **Step 9: pre-commit and commit**
+- [x] **Step 9: pre-commit and commit**
 
 ```bash
 pre-commit run --all-files
@@ -683,7 +683,7 @@ Expected: all hooks Passed.
 
 **Files:** none changed; writes the PR body to the scratchpad.
 
-- [ ] **Step 1: Full verification**
+- [x] **Step 1: Full verification**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -698,11 +698,11 @@ git status --short
 
 Expected: two `Success!`/`OK`, `fmt ok`, ansible-lint `Passed`, all hooks Passed, `manifests ok`, clean tree.
 
-- [ ] **Step 2: Code review** — invoke `superpowers:requesting-code-review` on the branch diff from `main`. Fix findings on the branch.
+- [x] **Step 2: Code review** — invoke `superpowers:requesting-code-review` on the branch diff from `main`. Fix findings on the branch.
 
-- [ ] **Step 3: Pre-merge checks** — invoke `superpowers:finishing-a-development-branch`; choose "push and open a PR". Never merge.
+- [x] **Step 3: Pre-merge checks** — invoke `superpowers:finishing-a-development-branch`; choose "push and open a PR". Never merge.
 
-- [ ] **Step 4: Write the PR body** to `$SCRATCH/pr-vault-1.md`:
+- [x] **Step 4: Write the PR body** to `$SCRATCH/pr-vault-1.md`:
 
 ```markdown
 Moves `vault-01` (vmid 104) out of the dev environment into
@@ -746,7 +746,7 @@ exist and the import would fail the plan.
 - `pre-commit run --all-files`, `scripts/check-manifests.sh`
 ```
 
-- [ ] **Step 5: Push and open**
+- [x] **Step 5: Push and open**
 
 ```bash
 git push -u origin vault-shared
