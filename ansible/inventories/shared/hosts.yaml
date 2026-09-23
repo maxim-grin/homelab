@@ -1,7 +1,7 @@
-# Machines no single environment owns. nfs-01 serves both nfs-dev and
-# nfs-prod, so it is here rather than in inventories/dev or
-# inventories/prod. Run its playbook with -i inventories/shared; ansible.cfg
-# defaults to inventories/dev, where nfs-01 no longer is.
+# Machines no single environment owns. nfs-01 serves both clusters' shares
+# and vault-01 is the root of trust for both, so neither belongs to one
+# environment's inventory. Run their playbooks with -i inventories/shared;
+# ansible.cfg defaults to inventories/dev, where neither host is anymore.
 all:
   vars:
     ansible_user: "{{ user_name }}"
@@ -13,3 +13,16 @@ all:
         nfs-01:
           ansible_host: "{{ host_ips['nfs-01'] }}"
           proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"
+    vault:
+      # ansible_user: root, overriding the all-level "{{ user_name }}".
+      # Every other host is a cloud-init VM with an `ubuntu` account; this is a
+      # Debian LXC template, which has only root, and proxmox_lxc injects
+      # ssh_public_keys for root. Without this override the play fails at the
+      # connection, before any task runs. inventories/prod/hosts.yaml sets the
+      # same override on its vault-lxc host, which is a working reference.
+      vars:
+        ansible_user: root
+      hosts:
+        vault-01:
+          ansible_host: "{{ host_ips['vault-01'] }}"
+          proxmox_vm_id: "{{ proxmox_vm_ids['vault-01'] }}"
