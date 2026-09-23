@@ -172,6 +172,8 @@ destroy = false."
 - Modify: `proxmox/environments/prod/variables.tf` (`variable "vault_ip"`)
 - Modify: `proxmox/environments/prod/prod.tfvars.example` (its `vault_ip` line)
 - Modify: `ansible/inventories/prod/hosts.yaml` (the `vault` group and `vault-lxc` host)
+- Modify: `proxmox/environments/prod/outputs.tf` (`output "vault_details"`, which reads `module.vault_lxc`)
+- Delete: `ansible/inventories/prod/group_vars/all.yaml` (its only content is `vault_ip: "{{ vault_ip }}"`, a variable defined as itself)
 
 **Interfaces:**
 - Consumes: nothing from Task 1. Must not touch `environments/shared` or `environments/dev`.
