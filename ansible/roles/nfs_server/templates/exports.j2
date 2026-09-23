@@ -1,2 +1,7 @@
 # Managed by ansible (roles/nfs_server). Manual edits will be overwritten.
-{{ nfs_server_export_path }} {{ nfs_server_export_clients }}({{ nfs_server_export_options }})
+# A share with no clients gets no line: an export with no client list is
+# exported to every host.
+{% for share in nfs_server_shares if share.clients | length > 0 %}
+{{ share.path }} {% for client in share.clients %}{{ client }}({{ nfs_server_export_options }}){{ ' ' if not loop.last }}{% endfor %}
+
+{% endfor %}

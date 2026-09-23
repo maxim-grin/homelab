@@ -114,10 +114,15 @@ jobs:
       # can work here; validate needs no variables and no credentials.
       - name: terraform init and validate
         run: |
-          terraform -chdir=proxmox/environments/dev init -backend=false -input=false
-          terraform -chdir=proxmox/environments/dev validate
+          for env in dev shared; do
+            terraform -chdir=proxmox/environments/$env init -backend=false -input=false
+            terraform -chdir=proxmox/environments/$env validate
+          done
       - name: tflint
-        run: tflint --chdir=proxmox/environments/dev --config="${GITHUB_WORKSPACE}/.tflint.hcl"
+        run: |
+          for env in dev shared; do
+            tflint --chdir=proxmox/environments/$env --config="${GITHUB_WORKSPACE}/.tflint.hcl"
+          done
 
   manifests:
     runs-on: ubuntu-24.04

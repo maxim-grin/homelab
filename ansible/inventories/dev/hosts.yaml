@@ -24,11 +24,6 @@ all:
         claude-code-01:
           ansible_host: "{{ host_ips['claude-code-01'] }}"
           proxmox_vm_id: "{{ proxmox_vm_ids['claude-code-01'] }}"
-    nfs:
-      hosts:
-        nfs-01:
-          ansible_host: "{{ host_ips['nfs-01'] }}"
-          proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"
     vault:
       # ansible_user: root, overriding the all-level "{{ user_name }}".
       # Every other host is a cloud-init VM with an `ubuntu` account; this is a

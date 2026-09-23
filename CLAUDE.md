@@ -25,9 +25,10 @@ with `kubernetes.core`, kubeadm, ArgoCD app-of-apps, kustomize for plain
 manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`), no test suite.
 
-Only the `dev` environment exists. `proxmox/environments/prod` and `talos/`
-are scaffolding that has never been applied — do not extend them without
-saying so.
+Only the `dev` environment exists, plus `proxmox/environments/shared` for
+`nfs-01`, which serves both environments. `proxmox/environments/prod` and
+`talos/` are scaffolding that has never been applied — do not extend them
+without saying so.
 
 ## Layout
 
@@ -37,8 +38,10 @@ ansible/          roles/ + playbooks/, inventory per environment,
 argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays, or Helm values
                   environments/dev/applications/  Application CRs, synced by root-dev
-proxmox/          modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, talos-*
-                  environments/dev/  the machines that exist
+proxmox/          modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
+                              nfs-server, talos-*
+                  environments/dev/     the dev machines
+                  environments/shared/  nfs-01, serving dev and prod
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
 ```
 
@@ -48,7 +51,7 @@ Three different paths, and mixing them up wastes an afternoon:
 
 | Layer | Applied by | Takes effect |
 | --- | --- | --- |
-| VMs, disks, network | `terraform apply -var-file=dev.tfvars` | immediately |
+| VMs, disks, network | `terraform apply -var-file=<env>.tfvars` in `environments/dev` or `environments/shared` | immediately |
 | OS, packages, cluster | `ansible-playbook … -e @secret.yaml --ask-vault-pass` | immediately |
 | Kubernetes workloads | **PR merged to `main`**, then ArgoCD syncs | on Argo's next poll, ~3 min |
 | `argocd/base/projects.yaml` | **PR merged to `main`**, then ArgoCD syncs | on Argo's next poll, ~3 min |
@@ -127,6 +130,14 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
 - **`nfs-dev` is the default StorageClass.** Every PVC without an explicit
   class lands on the NFS server VM. When that provisioner is down, PVCs sit
   `Pending` and the apps above them read as broken for unrelated reasons.
+- **The `nfs-dev` share's path is `/srv/nfs/k8s`, not `/srv/nfs/dev`.**
+  Every dev PV has `nfs.path: /srv/nfs/k8s/...` baked in, the field is
+  immutable, and `nfs-dev` deletes a volume's data when its PVC is deleted.
+  Each share is its own disk on `nfs-01` (`scsi1` dev, `scsi2` prod),
+  mounted by label; the `nfs_server` role refuses to mount over a
+  non-empty directory, and `nfs-server` will not start until both disks
+  are mounted. `nfs-prod` has no export line until prod has nodes — an
+  export with no client list is exported to everyone.
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
   is bare metal with no LoadBalancer and no MetalLB. There is no DNS server
   here, so most hostnames resolve via `/etc/hosts` on the workstation.
@@ -143,7 +154,8 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   the only record of every host address and vmid. Losing the password loses
   them. Keep it in a password manager.
 - **`*.tfvars` is gitignored and has no backup anywhere.** `dev.tfvars`
-  carries the Proxmox API token and the cloud-init password.
+  and `shared.tfvars` carry the Proxmox API token and the cloud-init
+  password.
 - **Generated output stays out of git.** `talos/_out/` once carried a
   talosconfig with its private key into a public repository because the
   ignore rule said `talos/secrets.yaml` and the file was at

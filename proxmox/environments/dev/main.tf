@@ -123,7 +123,8 @@ module "ubunut-k8s-1" {
   start_at_node_boot = true
 
   # Master ahead of the workers, with 60s for the API server to answer before
-  # kubelets start trying to reach it. Both after nfs-01 at order=10.
+  # kubelets start trying to reach it. Both after nfs-01 at order=10, which
+  # lives in proxmox/environments/shared.
   master_startup = "order=20,up=60"
   worker_startup = "order=30"
 }
@@ -180,56 +181,7 @@ module "claude_code" {
   tags = "ubuntu,claude-code,dev"
 }
 
-################################################################################
-# NFS Server
-################################################################################
-module "nfs" {
-  source = "../../modules/ubuntu-vm"
-
-  # Basic VM Configuration
-  vm_name     = "nfs"
-  vmid        = 103
-  target_node = var.pm_target_node
-  pool        = "VM"
-
-  clone_template = var.clone_template_ubuntu
-  full_clone     = true
-
-  # Resource Allocation
-  # It only serves files; nfsd is kernel-side and needs almost nothing here.
-  memory    = 2048
-  cpu_cores = 2
-
-  disk_size    = "20G"
-  disk_storage = "local-lvm"
-
-  # Start automatically: every PVC in the cluster binds through this host.
-  # Order 10, ahead of the cluster: when the provisioner is down every PVC
-  # without an explicit class sits Pending and the apps above it read as
-  # broken for unrelated reasons.
-  start_at_node_boot = true
-  startup            = "order=10,up=30"
-
-  # Qemu Agent
-  qemu_agent = 1
-
-  # Network Configuration
-  network_firewall = true
-  ip_config        = format("ip=%s,gw=%s", var.nfs_vm_ip, var.gateway)
-  vm_ip            = split("/", var.nfs_vm_ip)[0]
-
-  # Cloud-init Settings
-  ci_user              = var.ci_user
-  ci_password          = var.ci_password
-  ssh_private_key_path = var.ssh_private_key_path
-  ssh_public_key       = var.ssh_public_key
-
-  # OS configuration lives in the ansible/ nfs_server role.
-  enable_provisioners = false
-
-  # Tags
-  tags = "ubuntu,nfs,dev"
-}
+# nfs-01 (vmid 103) lives in proxmox/environments/shared.
 
 ################################################################################
 # HashiCorp Vault
