@@ -6,6 +6,14 @@
   ansible.builtin.import_tasks: seed.yaml
   when: vault_seed | default(false) | bool
 
-- name: Configure Kubernetes authentication
-  ansible.builtin.import_tasks: k8s_auth.yaml
+- name: Check the cluster list
+  ansible.builtin.import_tasks: validate_clusters.yaml
+  when: vault_configure_k8s_auth | default(false) | bool
+
+- name: Configure Kubernetes authentication for each cluster
+  ansible.builtin.include_tasks: k8s_auth.yaml
+  loop: "{{ vault_k8s_clusters }}"
+  loop_control:
+    loop_var: cluster
+    label: "{{ cluster.name }}"
   when: vault_configure_k8s_auth | default(false) | bool

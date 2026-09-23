@@ -20,3 +20,21 @@ vault_version: "2.1.0-1"
 
 vault_seed: false
 vault_configure_k8s_auth: false
+
+# One entry per cluster that authenticates against this Vault. Only dev
+# exists; the prod entry (auth_path: kubernetes-prod, its own api_host and
+# control_plane_host, policy_name: argocd-read-prod) arrives with the prod
+# cluster, against an API server that exists to be configured.
+#
+# dev's auth_path, policy_name and role_name are the values Vault already
+# holds and argocd-vault-plugin already uses. Changing them means
+# reconfiguring AVP's Secret, which this role does not do.
+vault_k8s_clusters:
+  - name: dev
+    auth_path: kubernetes
+    api_host: "{{ host_ips['master-01'] }}"
+    control_plane_host: master-01
+    policy_name: argocd-read
+    role_name: argocd
+    service_account_names: ["argocd-repo-server"]
+    service_account_namespaces: ["argocd"]

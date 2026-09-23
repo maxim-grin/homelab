@@ -9,7 +9,7 @@
 - name: Read the cluster CA certificate
   ansible.builtin.slurp:
     src: /etc/kubernetes/pki/ca.crt
-  delegate_to: "{{ groups['k8s_control_plane'][0] }}"
+  delegate_to: "{{ cluster.control_plane_host }}"
   register: vault_k8s_ca
 
 # vault_k8s_jwt.stdout is the base64 of a non-expiring credential that
@@ -29,7 +29,7 @@
     cmd: >-
       kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd
       get secret vault-auth-token -o jsonpath={.data.token}
-  delegate_to: "{{ groups['k8s_control_plane'][0] }}"
+  delegate_to: "{{ cluster.control_plane_host }}"
   become: true
   register: vault_k8s_jwt
   changed_when: false
@@ -52,7 +52,7 @@
 
 - name: Enable the kubernetes auth method
   ansible.builtin.uri:
-    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/auth/kubernetes"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/auth/{{ cluster.auth_path }}"
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"
@@ -70,13 +70,13 @@
 
 - name: Configure the kubernetes auth method
   ansible.builtin.uri:
-    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/auth/kubernetes/config"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/auth/{{ cluster.auth_path }}/config"
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"
     body_format: json
     body:
-      kubernetes_host: "https://{{ host_ips['master-01'] }}:6443"
+      kubernetes_host: "https://{{ cluster.api_host }}:6443"
       kubernetes_ca_cert: "{{ vault_k8s_ca.content | b64decode }}"
       token_reviewer_jwt: "{{ vault_k8s_jwt.stdout | b64decode }}"
       # Vault is not running in the cluster, so there is no local
@@ -86,33 +86,36 @@
     status_code: [200, 204]
   no_log: true
 
+# One Vault serves both clusters, so the policy is prefixed to this
+# cluster's own secret namespace -- an unprefixed secret/data/* would let
+# either cluster's ArgoCD read the other's secrets.
 - name: Write the argocd-read policy
   ansible.builtin.uri:
-    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/policies/acl/argocd-read"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/policies/acl/{{ cluster.policy_name }}"
     method: PUT
     headers:
       X-Vault-Token: "{{ vault_token }}"
     body_format: json
     body:
       policy: |
-        path "secret/data/*" {
+        path "secret/data/{{ cluster.name }}/*" {
           capabilities = ["read"]
         }
-        path "secret/metadata/*" {
+        path "secret/metadata/{{ cluster.name }}/*" {
           capabilities = ["list", "read"]
         }
     status_code: [200, 204]
 
 - name: Bind the argocd role to the repo-server ServiceAccount
   ansible.builtin.uri:
-    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/auth/kubernetes/role/argocd"
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/auth/{{ cluster.auth_path }}/role/{{ cluster.role_name }}"
     method: POST
     headers:
       X-Vault-Token: "{{ vault_token }}"
     body_format: json
     body:
-      bound_service_account_names: ["argocd-repo-server"]
-      bound_service_account_namespaces: ["argocd"]
-      policies: ["argocd-read"]
+      bound_service_account_names: "{{ cluster.service_account_names }}"
+      bound_service_account_namespaces: "{{ cluster.service_account_namespaces }}"
+      policies: ["{{ cluster.policy_name }}"]
       ttl: "1h"
     status_code: [200, 204]
