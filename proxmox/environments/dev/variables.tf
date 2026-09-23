@@ -73,28 +73,6 @@ variable "debian_os_template" {
   type        = string
 }
 
-# ubuntu VM variables
-variable "ub_ip_config" {
-  description = "ubuntu VM IP configuration (ipconfig0)"
-  type        = string
-}
-
-variable "ub_vm_ip" {
-  description = "ubuntu VM IP address (for provisioners)"
-  type        = string
-}
-
-# ubuntu-2 VM variables
-variable "ub_2_ip_config" {
-  description = "ubuntu-2 VM IP configuration (ipconfig0)"
-  type        = string
-}
-
-variable "ub_2_vm_ip" {
-  description = "ubuntu-2 VM IP address (for provisioners)"
-  type        = string
-}
-
 # Ubuntu-K8s Variables
 variable "gateway" {
   description = "LXC Container Gateway"
@@ -111,12 +89,6 @@ variable "lxc_pass" {
   description = "LXC Container Password"
   type        = string
   sensitive   = true
-}
-
-variable "n8n_ip" {
-  description = "n8n Container IP"
-  type        = string
-  default     = "dhcp"
 }
 
 # Claude Code VM Variables

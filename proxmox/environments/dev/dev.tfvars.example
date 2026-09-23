@@ -33,24 +33,13 @@ clone_template_ubuntu = "ubuntu-cid-tp"
 clone_template_k8s    = "ubuntu-cid-tp"
 debian_os_template    = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
 
-# ------------------------------------------------------------------
-# Machines. ipconfig0 format: ip=<IP>/<CIDR>,gw=<GATEWAY>
-# ------------------------------------------------------------------
-ub_ip_config = "ip=10.0.0.110/24,gw=10.0.0.1"
-ub_vm_ip     = "10.0.0.110"
-
-ub_2_ip_config = "ip=10.0.0.111/24,gw=10.0.0.1"
-ub_2_vm_ip     = "10.0.0.111"
-
 # Kubernetes nodes are addressed from this CIDR by the ubuntu-k8s module.
 ub_k8s_cidr = "10.0.0.0/24"
 gateway     = "10.0.0.1"
 
 # LXC. lxc_pass is the root password for every module/lxc container --
-# required now that the vault container uses it; n8n_ip stays only for the
-# commented-out n8n module.
+# required now that the vault container uses it
 lxc_pass = "<PASSWORD>"
-n8n_ip   = "dhcp"
 
 # Claude Code workstation VM. Must include CIDR.
 claude_code_ip = "10.0.0.130/24"
