@@ -117,6 +117,13 @@ with `-i inventories/shared`.
 
 `inventories/prod/hosts.yaml` loses its `vault` group and `vault-lxc` host.
 
+**Two inventories on one run.** `k8s_auth.yaml` delegates the CA and
+token-reviewer reads to a control-plane host, which lives in
+`inventories/dev`. Once Vault is in `inventories/shared`, a run that
+configures auth needs both: `-i inventories/shared -i inventories/dev`.
+Runs that only install or seed need the shared inventory alone. The prod
+cluster later adds `-i inventories/prod` for its own entry.
+
 ### The role becomes multi-cluster
 
 `roles/vault/defaults/main.yaml` gains a list, and the tasks loop over it:
