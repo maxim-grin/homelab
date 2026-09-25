@@ -3,6 +3,7 @@
   ansible.builtin.slurp:
     src: /etc/kubernetes/pki/ca.crt
   delegate_to: "{{ cluster.control_plane_host }}"
+  become: true
   register: vault_k8s_ca
 
 # vault_k8s_jwt.stdout is the base64 of a non-expiring credential that
@@ -23,6 +24,7 @@
       kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd
       get secret vault-auth-token -o jsonpath={.data.token}
   delegate_to: "{{ cluster.control_plane_host }}"
+  become: true
   register: vault_k8s_jwt
   changed_when: false
   failed_when: false
@@ -95,11 +97,11 @@
       policy: "{{ lookup('ansible.builtin.template', 'k8s-policy.hcl.j2') }}"
     status_code: [200, 204]
 
-# Vault answers 200 with a JSON body when it has a warning to report and
-# 204 with nothing to say -- creating the role without an `audience` is
-# one such warning. Asserting 204 alone turns a successful write into a
-# failed task, which is how this first surfaced: the role was created and
-# the play stopped anyway.
+# Vault answers 204 when it has nothing to say and 200 with a JSON body
+# when it has a warning to report -- creating the role without an
+# `audience` is one such warning. Asserting 204 alone turns a successful
+# write into a failed task, which is how this first surfaced: the role was
+# created and the play stopped anyway.
 - name: "Bind the role to the ServiceAccounts for {{ cluster.name }}"
   ansible.builtin.uri:
     url: "{{ vault_api_url }}/v1/auth/{{ cluster.auth_path }}/role/{{ cluster.role_name }}"
