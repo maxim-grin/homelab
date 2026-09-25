@@ -97,6 +97,14 @@ at order 10 and the cluster at 20/30.
 
 No `import` block: the machine does not exist yet. The LXC is untouched.
 
+`10.0.0.133` answered no ping and no ARP, but the router runs DHCP and its
+pool has not been checked against the static block this repository assigns
+(`.101`, `.110`, `.111`, `.130`, `.131`, `.132`, `.201`, `.202`). Confirming
+that vmid 105 is free and that `.133` sits outside the pool is the first
+operator step of PR 1; if the pool overlaps, the fix is to shrink it on the
+router, which protects the eight addresses already in use rather than just
+this one.
+
 ### Inventory
 
 `ansible/inventories/shared/hosts.yaml` gains group `vault_vm` with host
