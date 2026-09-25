@@ -2,7 +2,8 @@
 # ansible-lint and the playbooks both need these collections. Without them,
 # roles/argocd and roles/nfs_client raise syntax-check[unknown-module], and
 # roles/base_setup cannot resolve community.general.modprobe or
-# ansible.posix.sysctl.
+# ansible.posix.sysctl. roles/vault needs community.crypto for its CA and
+# server certificate.
 collections:
   - name: kubernetes.core
     version: "6.6.0"
@@ -10,3 +11,5 @@ collections:
     version: "13.4.0"
   - name: ansible.posix
     version: "2.2.2"
+  - name: community.crypto
+    version: "3.4.0"

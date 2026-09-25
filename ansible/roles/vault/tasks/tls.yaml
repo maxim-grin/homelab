@@ -1,0 +1,131 @@
+---
+# The CA lives on the workstation that runs Ansible. Its key never reaches
+# the Vault host: the host makes its own key and a signing request, the
+# workstation signs it, and only the certificate travels back.
+#
+# Every workstation task says become: false. The playbook becomes root on
+# the Vault host, and without this Ansible would try sudo on the
+# workstation too.
+- name: Create the CA directory on the workstation
+  ansible.builtin.file:
+    path: "{{ vault_ca_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Create the CA key on the workstation
+  community.crypto.openssl_privatekey:
+    path: "{{ vault_ca_dir }}/ca.key"
+    type: ECC
+    curve: secp384r1
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Build the CA's signing request
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ vault_ca_dir }}/ca.key"
+    common_name: "{{ vault_ca_common_name }}"
+    basic_constraints: ["CA:TRUE"]
+    basic_constraints_critical: true
+    key_usage: [keyCertSign, cRLSign]
+    key_usage_critical: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  register: vault_ca_csr
+
+- name: Self-sign the CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ vault_ca_dir }}/ca.crt"
+    csr_content: "{{ vault_ca_csr.csr }}"
+    privatekey_path: "{{ vault_ca_dir }}/ca.key"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ vault_ca_validity_days }}d"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Create the TLS directory
+  ansible.builtin.file:
+    path: "{{ vault_tls_dir }}"
+    state: directory
+    group: "{{ vault_tls_group }}"
+    mode: "0750"
+
+- name: Create the server key
+  community.crypto.openssl_privatekey:
+    path: "{{ vault_tls_dir }}/server.key"
+    type: ECC
+    curve: secp384r1
+    group: "{{ vault_tls_group }}"
+    mode: "0640"
+
+- name: Build the server's signing request
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ vault_tls_dir }}/server.key"
+    common_name: "{{ vault_tls_dns_names | last }}"
+    subject_alt_name: >-
+      {{ ['IP:' ~ vault_address]
+         + (vault_tls_dns_names | map('regex_replace', '^', 'DNS:') | list) }}
+    extended_key_usage: [serverAuth]
+  changed_when: false
+  register: vault_server_csr
+
+- name: Read the current server certificate
+  ansible.builtin.slurp:
+    src: "{{ vault_tls_dir }}/server.crt"
+  register: vault_server_crt_current
+  failed_when: false
+
+- name: Check whether the current certificate is inside its renewal window
+  community.crypto.x509_certificate_info:
+    content: "{{ vault_server_crt_current.content | b64decode }}"
+    valid_at:
+      renewal: "+{{ vault_cert_renew_within_days }}d"
+  register: vault_server_crt_info
+  when: vault_server_crt_current.content is defined
+
+# Signs when there is no certificate, when the request no longer matches it
+# (a name or the key changed), or when it expires inside the window.
+- name: Sign the server certificate on the workstation
+  community.crypto.x509_certificate_pipe:
+    content: "{{ (vault_server_crt_current.content | b64decode) if vault_server_crt_current.content is defined else omit }}"
+    csr_content: "{{ vault_server_csr.csr }}"
+    provider: ownca
+    ownca_path: "{{ vault_ca_dir }}/ca.crt"
+    ownca_privatekey_path: "{{ vault_ca_dir }}/ca.key"
+    ownca_not_after: "+{{ vault_cert_validity_days }}d"
+    force: "{{ vault_server_crt_info.valid_at.renewal is defined and not vault_server_crt_info.valid_at.renewal }}"
+  delegate_to: localhost
+  become: false
+  register: vault_server_crt
+
+- name: Install the server certificate
+  ansible.builtin.copy:
+    content: "{{ vault_server_crt.certificate }}"
+    dest: "{{ vault_tls_dir }}/server.crt"
+    group: "{{ vault_tls_group }}"
+    mode: "0644"
+  notify: Reload vault
+
+- name: Install the CA certificate beside it
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.file', vault_ca_dir ~ '/ca.crt') }}\n"
+    dest: "{{ vault_tls_dir }}/ca.crt"
+    mode: "0644"
+
+- name: Trust the CA on the Vault host
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.file', vault_ca_dir ~ '/ca.crt') }}\n"
+    dest: /usr/local/share/ca-certificates/homelab-vault-ca.crt
+    owner: root
+    group: root
+    mode: "0644"
+  when: vault_tls_trust_system | bool
+  notify: Update the CA trust store
