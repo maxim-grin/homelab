@@ -1,4 +1,4 @@
-# A copy of modules/ubuntu-vm with two data disks. nfs-01 was created by
+# A copy of modules/ubuntu-vm with three data disks. nfs-01 was created by
 # ubuntu-vm and adopted with an import block, so every hard-coded setting
 # below must stay identical to ubuntu-vm's: a difference is drift the next
 # plan tries to correct, and some of it forces a replacement.
@@ -55,8 +55,8 @@ resource "proxmox_vm_qemu" "nfs_server" {
   agent_timeout          = 300
   skip_ipv6              = true
 
-  # Disk configuration. scsi1 and scsi2 appear in the guest as
-  # /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi{1,2}; the
+  # Disk configuration. scsi1, scsi2 and scsi3 appear in the guest as
+  # /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi{1,2,3}; the
   # nfs_server Ansible role finds them by those names.
   disks {
     scsi {
@@ -91,6 +91,23 @@ resource "proxmox_vm_qemu" "nfs_server" {
       scsi2 {
         disk {
           size       = var.nfs_prod_disk_size
+          storage    = var.disk_storage
+          format     = "raw"
+          iothread   = true
+          discard    = true
+          cache      = "none"
+          backup     = true
+          emulatessd = true
+          readonly   = false
+          replicate  = true
+        }
+      }
+      # Vault's raft snapshots. Its own disk so a filling backup directory
+      # cannot stop the clusters writing PVCs, and so the share above it can
+      # be exported to one host with different permissions.
+      scsi3 {
+        disk {
+          size       = var.nfs_backups_disk_size
           storage    = var.disk_storage
           format     = "raw"
           iothread   = true

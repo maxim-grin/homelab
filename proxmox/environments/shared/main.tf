@@ -29,10 +29,11 @@ module "nfs" {
   # OS disk, then one disk per share. nfs-subdir-external-provisioner does
   # not enforce PVC sizes, so a share can grow until its disk is full; 50G
   # covers what the dev PVCs request today.
-  disk_size          = "20G"
-  nfs_dev_disk_size  = "50G"
-  nfs_prod_disk_size = "50G"
-  disk_storage       = "local-lvm"
+  disk_size             = "20G"
+  nfs_dev_disk_size     = "50G"
+  nfs_prod_disk_size    = "50G"
+  nfs_backups_disk_size = "10G"
+  disk_storage          = "local-lvm"
 
   # Start automatically: every PVC in every cluster binds through this host.
   # Order 10, ahead of the dev cluster (master order=20, workers order=30 in
