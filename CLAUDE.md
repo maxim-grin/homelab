@@ -40,7 +40,7 @@ argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays, or Helm values
                   environments/dev/applications/  Application CRs, synced by root-dev
 proxmox/          modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
-                              nfs-server, talos-*
+                              nfs-server, vault-vm, talos-*
                   environments/dev/     the dev machines
                   environments/shared/  nfs-01, serving dev and prod;
                                         vault-02, not yet in service
@@ -171,6 +171,20 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   there. The `ComparisonError` condition does name Vault, in AVP's stderr;
   it is the health field that lies. `vault status` on `vault-01` is the
   first check when an app that was fine yesterday won't sync today.
+- **`vault-02` is HTTPS from a private CA, reached as `vault.mgryn.cc`.**
+  The CA's key is in `~/.homelab-ca/` on the workstation that runs
+  Ansible and nowhere else; losing it loses no data (re-run the role,
+  refresh the `vault-ca` ConfigMap). The name resolves through a
+  Cloudflare DNS-only record on the LAN and a `hosts` block in the
+  cluster's CoreDNS (`playbooks/coredns_hosts.yaml`) — re-run that after
+  every kubeadm upgrade, which can rewrite the ConfigMap. KV is split
+  into `kv-dev/` and `kv-prod/`, each cluster's policy reading only its
+  own. Raft snapshots go daily to `/srv/nfs/backups` on `nfs-01`, 14
+  kept — the same SSD, so they cover a bad upgrade or a deleted secret,
+  not a lost disk. **If Vault cannot write `/var/log/vault/audit.log` it
+  refuses every request**: a full root disk looks like a healthy Vault
+  answering nothing. A restart seals it; a certificate renewal only
+  reloads it.
 - **`<path:secret/data/...#FIELD>` is the only form a secret value takes in
   a committed manifest.** The placeholder is committed; AVP resolves it
   against Vault at sync time. The value behind it is never committed,

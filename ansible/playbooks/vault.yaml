@@ -1,6 +1,12 @@
 ---
+# vault-02, in inventories/shared. Install and TLS need only that inventory:
+#   ansible-playbook -i inventories/shared playbooks/vault.yaml -e @secret.yaml --ask-vault-pass
+# Configure reaches each cluster's control plane, which lives in
+# inventories/dev, so it needs both:
+#   ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+#     -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true -e vault_token=<root>
 - name: Install and configure HashiCorp Vault
-  hosts: vault
+  hosts: vault_vm
   become: true
 
   roles:

@@ -19,7 +19,8 @@
 │   ├── support_tools.yaml       # Optional extras
 │   ├── workstation.yaml         # dev workstation VM
 │   ├── nfs_server.yaml          # NFS server VM (run before nfs_setup)
-│   └── vault.yaml               # Vault LXC: install, seed, k8s auth
+│   ├── vault.yaml               # vault-02 VM: install, configure, seed
+│   └── coredns_hosts.yaml       # pins vault.mgryn.cc in cluster CoreDNS
 └── roles/
     ├── argocd/
     ├── base_setup/
@@ -30,7 +31,8 @@
     ├── control_plane/
     ├── node_join/
     ├── support_tools/
-    └── vault/
+    ├── vault/
+    └── coredns_hosts/
 ```
 
 This Ansible implementation automates Kubernetes setup of Ubuntu Cluster in Development Environment.
@@ -191,32 +193,29 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
 
 7. **Install, seed and configure Vault:**
 
-   Terraform creates the LXC container (`proxmox/environments/dev`, module
-   `vault`, vmid 104); this playbook installs Vault from HashiCorp's apt
-   repo and templates its config. Bare, it only installs -- seeding and
-   Kubernetes auth are opt-in behind their own flags because both need a
-   root token that only exists after `vault operator init`, which this
-   playbook does not and cannot run for you:
+   Terraform creates the VM (`proxmox/environments/shared`, module
+   `vault-vm`, `vault-02`); this playbook targets the `vault_vm` group,
+   which lives in `inventories/shared`. Install and TLS need only that
+   inventory:
 
    ```bash
-   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass
+   ansible-playbook -i inventories/shared playbooks/vault.yaml -e @secret.yaml --ask-vault-pass
    ```
 
-   After `vault operator init` and `vault operator unseal` on `vault-01`
-   (see `docs/rebuild.md`), seed the KV store from `vault_kv`:
+   Configure reaches each cluster's control plane, in `inventories/dev`,
+   so it needs both, and it must run once `argocd-config` has synced
+   `argocd/base/` and created the `vault-auth-token` Secret -- configure
+   reads it:
 
    ```bash
-   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
-     -e vault_seed=true -e vault_token=<root token>
+   ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+     -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
+     -e vault_token=<root token>
    ```
 
-   Then, once `argocd-config` has synced `argocd/base/` and created the
-   `vault-auth-token` Secret, configure Vault's Kubernetes auth method:
-
-   ```bash
-   ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
-     -e vault_configure_k8s_auth=true -e vault_token=<root token>
-   ```
+   `vault_seed` replays `vault_kv` from `secret.yaml` into `kv-dev/`.
+   `vault operator init` and every unseal on `vault-02` stay manual --
+   see `docs/rebuild.md`.
 
    **`vault_token` is passed with `-e` on the command line for that one
    run and never stored** -- not in `secret.yaml`, not anywhere else in
@@ -242,3 +241,14 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
    always an empty or stale reviewer JWT, which the preceding task's own
    `assert` catches before this one runs, or a `kubernetes_host` that does
    not match `host_ips['master-01']`.
+
+8. **Pin `vault.mgryn.cc` in the cluster's CoreDNS:**
+
+   Ansible owns this pin, never ArgoCD: a `hosts` block mapping
+   `vault-02`'s IP to `vault.mgryn.cc` in the `coredns` ConfigMap, then a
+   restart of the CoreDNS Deployment. Re-run it after every kubeadm
+   upgrade, which can rewrite the ConfigMap and drop the block.
+
+   ```bash
+   ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
+   ```
