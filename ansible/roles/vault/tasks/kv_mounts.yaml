@@ -1,0 +1,25 @@
+---
+- name: List the secrets engines
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/mounts"
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+  register: vault_mounts
+
+- name: Enable each KV v2 mount
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/mounts/{{ item }}"
+    method: POST
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      type: kv
+      options:
+        version: "2"
+    status_code: [200, 204]
+  loop: "{{ vault_kv_mounts }}"
+  when: (item ~ '/') not in vault_mounts.json.data
+  changed_when: true

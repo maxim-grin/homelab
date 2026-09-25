@@ -1,11 +1,27 @@
 ---
-- name: Install and configure Vault
+- name: Validate vault_k8s_clusters
+  ansible.builtin.import_tasks: validate_clusters.yaml
+
+- name: Install Vault
   ansible.builtin.import_tasks: install.yaml
+
+- name: Mount the data disk
+  ansible.builtin.import_tasks: disk.yaml
+
+- name: Issue the TLS certificate
+  ansible.builtin.import_tasks: tls.yaml
+
+- name: Configure and start the service
+  ansible.builtin.import_tasks: config.yaml
+
+- name: Install the snapshot job
+  ansible.builtin.import_tasks: snapshot_host.yaml
+
+# Needs an initialised, unsealed Vault and -e vault_token=<root token>.
+- name: Configure Vault
+  ansible.builtin.import_tasks: configure.yaml
+  when: vault_configure | bool
 
 - name: Seed the KV store
   ansible.builtin.import_tasks: seed.yaml
-  when: vault_seed | default(false) | bool
-
-- name: Configure Kubernetes authentication
-  ansible.builtin.import_tasks: k8s_auth.yaml
-  when: vault_configure_k8s_auth | default(false) | bool
+  when: vault_seed | bool

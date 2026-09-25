@@ -1,0 +1,25 @@
+---
+- name: List the audit devices
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/audit"
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+  register: vault_audit_devices
+
+# From here on, a Vault that cannot write this file refuses every request.
+- name: Enable the file audit device
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/audit/file"
+    method: PUT
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      type: file
+      options:
+        file_path: "{{ vault_audit_log }}"
+    status_code: [200, 204]
+  when: "'file/' not in vault_audit_devices.json.data"
+  changed_when: true

@@ -1,0 +1,25 @@
+---
+- name: Require a Vault token
+  ansible.builtin.assert:
+    that:
+      - vault_token is defined
+      - vault_token | length > 0
+    fail_msg: >-
+      Pass the Vault root token for this run: -e vault_token=...
+      It is deliberately absent from secret.yaml and from role defaults.
+
+- name: Ask Vault whether it is initialised and unsealed
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/health"
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    status_code: [200, 429, 472, 473, 501, 503]
+  register: vault_health
+
+- name: Require an initialised, unsealed Vault
+  ansible.builtin.assert:
+    that:
+      - vault_health.status == 200
+    fail_msg: >-
+      Vault answered {{ vault_health.status }}: 501 is not initialised, 503
+      is sealed. Initialise and unseal it by hand first (docs/rebuild.md) --
+      this role never sees the unseal key.

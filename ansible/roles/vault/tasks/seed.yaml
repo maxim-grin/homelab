@@ -1,39 +1,17 @@
 ---
-- name: Require a Vault token
-  ansible.builtin.assert:
-    that:
-      - vault_token is defined
-      - vault_token | length > 0
-    fail_msg: >-
-      Pass the Vault root token for this run: -e vault_token=...
-      It is deliberately absent from secret.yaml and from role defaults.
+- name: Check the token and Vault's state
+  ansible.builtin.import_tasks: preflight.yaml
 
-- name: Enable the KV v2 secrets engine
-  ansible.builtin.uri:
-    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/sys/mounts/secret"
-    method: POST
-    headers:
-      X-Vault-Token: "{{ vault_token }}"
-    body_format: json
-    body:
-      type: kv
-      options:
-        version: "2"
-    # Vault answers 204 when it has nothing to say and 200 with a JSON body
-    # when it has a warning to report -- creating the role without an
-    # `audience` is one such warning. Asserting 204 alone turns a successful
-    # write into a failed task, which is how this first surfaced: the role was
-    # created and the play stopped anyway.
-    status_code: [200, 204, 400]
-  register: vault_kv_mount
-  changed_when: vault_kv_mount.status in [200, 204]
-  # 400 is "path is already in use", which is success on a re-run.
+- name: Create the KV mounts
+  ansible.builtin.import_tasks: kv_mounts.yaml
 
+# secret.yaml's keys are unprefixed; the mount decides the environment.
+# Every run writes a new KV version of each path.
 - name: Seed the KV paths
   ansible.builtin.uri:
-    url: >-
-      http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}/v1/secret/data/{{ item.key }}
+    url: "{{ vault_api_url }}/v1/{{ vault_kv_mount }}/data/{{ item.key }}"
     method: POST
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
     headers:
       X-Vault-Token: "{{ vault_token }}"
     body_format: json
