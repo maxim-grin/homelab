@@ -25,6 +25,22 @@
       {{ vault_kv.keys() | difference(vault_kv_mounts) | join(', ') }}.
       Allowed mounts: {{ vault_kv_mounts | join(', ') }}.
 
+# An empty mapping (kv-prod: {}) is fine -- it seeds nothing for that
+# mount. Only a non-mapping value (null from an uncommented stub left with
+# no fixture, a string, a list) is refused, before dict2items in the
+# flatten step below hits it and fails with an opaque template error.
+- name: Require every vault_kv mount's value to be a mapping
+  no_log: true
+  ansible.builtin.assert:
+    that:
+      - item.value is mapping
+    fail_msg: >-
+      vault_kv mount {{ item.key }} must be a mapping of path to fields,
+      even if empty ({}) -- see secret.yaml.example.
+  loop: "{{ vault_kv | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
 # One entry per {mount, path, data}. no_log throughout: data carries secret
 # values, and even a loop label built from item would render them.
 - name: Flatten vault_kv into a list of mount/path/data entries
