@@ -1,0 +1,8 @@
+# Managed by ansible (roles/vault). Cluster {{ cluster.name | default('') }}
+# reads its own mount and nothing else.
+path "{{ cluster.kv_mount }}/data/*" {
+  capabilities = ["read"]
+}
+path "{{ cluster.kv_mount }}/metadata/*" {
+  capabilities = ["list", "read"]
+}
