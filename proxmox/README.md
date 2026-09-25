@@ -19,7 +19,7 @@ proxmox/
 │   ├── shared/
 │   │   ├── .terraform.lock.hcl
 │   │   ├── backend.tf.example
-│   │   ├── main.tf              # nfs-01, serves nfs-dev and nfs-prod
+│   │   ├── main.tf              # nfs-01 and vault-02, serving dev and prod
 │   │   ├── outputs.tf
 │   │   ├── shared.tfvars.example
 │   │   ├── variables.tf
@@ -39,6 +39,11 @@ proxmox/
 │   │   ├── variables.tf
 │   │   └── versions.tf
 │   ├── nfs-server/
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   │   ├── variables.tf
+│   │   └── versions.tf
+│   ├── vault-vm/
 │   │   ├── main.tf
 │   │   ├── outputs.tf
 │   │   ├── variables.tf
@@ -83,7 +88,7 @@ cp proxmox/environments/dev/backend.tf.example proxmox/environments/dev/backend.
 # local backend, state file next to main.tf -- nothing to fill in
 
 cp proxmox/environments/shared/shared.tfvars.example proxmox/environments/shared/shared.tfvars
-# same fields as dev.tfvars, plus nfs-01's IP
+# same fields as dev.tfvars, plus nfs-01's and vault-02's IPs
 
 cp proxmox/environments/shared/backend.tf.example proxmox/environments/shared/backend.tf
 ```
@@ -145,6 +150,7 @@ terraform apply -var-file="prod.tfvars"
 
 - **modules/lxc** – reusable module for lightweight Proxmox containers; backs `vault-01` (vmid 104) in `environments/dev`.
 - **modules/nfs-server** – `ubuntu-vm` plus two data disks (`scsi1` for `nfs-dev`, `scsi2` for `nfs-prod`); backs `nfs-01` (vmid 103) in `environments/shared`.
+- **modules/vault-vm** – `ubuntu-vm` plus one data disk for Vault's raft store; backs `vault-02` (vmid 105) in `environments/shared`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
 - **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles.
 - **modules/ubuntu-k8s** – Ubuntu-based Kubernetes nodes via kubeadm.

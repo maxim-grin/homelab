@@ -13,3 +13,12 @@ all:
         nfs-01:
           ansible_host: "{{ host_ips['nfs-01'] }}"
           proxmox_vm_id: "{{ proxmox_vm_ids['nfs-01'] }}"
+    # The Vault VM that replaces the vault-01 LXC. It is a cloud-init Ubuntu
+    # VM, so it uses the all-level ansible_user -- unlike the LXC, whose
+    # Debian template has only root. Both exist until the cutover; this group
+    # is named vault_vm so the old vault group keeps working meanwhile.
+    vault_vm:
+      hosts:
+        vault-02:
+          ansible_host: "{{ host_ips['vault-02'] }}"
+          proxmox_vm_id: "{{ proxmox_vm_ids['vault-02'] }}"
