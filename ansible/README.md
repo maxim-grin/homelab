@@ -166,7 +166,7 @@ ansible-playbook playbooks/support_tools.yaml -e @secret.yaml --ask-vault-pass
 
 5. **Provision the NFS server, then the cluster clients:**
 
-   Terraform creates the VM (`proxmox/environments/shared`, module `nfs`);
+   Terraform creates the VM (`terraform/environments/shared`, module `nfs`);
    these playbooks format, mount and export its `nfs-dev`, `nfs-prod` and
    `nfs-backups` disks and install `nfs-common` on the nodes. `nfs-01` is in
    `inventories/shared`, not the default dev inventory.
@@ -181,7 +181,7 @@ ansible-playbook playbooks/nfs_setup.yaml  -e @secret.yaml --ask-vault-pass
 
 6. **Provision the workstation VM:**
 
-   Terraform creates the VM (`proxmox/environments/dev`, module
+   Terraform creates the VM (`terraform/environments/dev`, module
    `claude_code`); this playbook installs the toolchain: Claude Code, Node,
    Docker, uv, kubectl, kustomize, terraform, ansible-lint and pre-commit.
    Add `claude-code-01` to the `host_ips` and `proxmox_vm_ids` maps in
@@ -196,7 +196,7 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
 
 7. **Install, seed and configure Vault:**
 
-   Terraform creates the VM (`proxmox/environments/shared`, module
+   Terraform creates the VM (`terraform/environments/shared`, module
    `vault-vm`, `vault-02`); this playbook targets the `vault_vm` group,
    which lives in `inventories/shared`. Install and TLS need only that
    inventory:

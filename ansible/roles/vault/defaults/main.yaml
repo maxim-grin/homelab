@@ -15,7 +15,7 @@
 # `apt-cache madison vault` and record why here.
 vault_version: "2.1.0-1"
 
-# The raft store lives on its own disk (scsi1 in proxmox/modules/vault-vm),
+# The raft store lives on its own disk (scsi1 in terraform/modules/vault-vm),
 # mounted by label. The data directory is a subdirectory of the mount, so
 # ext4's lost+found never sits among raft's files.
 vault_data_device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1

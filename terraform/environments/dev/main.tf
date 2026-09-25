@@ -45,7 +45,7 @@ module "ubunut-k8s-1" {
 
   # Master ahead of the workers, with 60s for the API server to answer before
   # kubelets start trying to reach it. Both after nfs-01 at order=10, which
-  # lives in proxmox/environments/shared.
+  # lives in terraform/environments/shared.
   master_startup = "order=20,up=60"
   worker_startup = "order=30"
 }
@@ -102,7 +102,7 @@ module "claude_code" {
   tags = "ubuntu,claude-code,dev"
 }
 
-# nfs-01 (vmid 103) lives in proxmox/environments/shared.
+# nfs-01 (vmid 103) lives in terraform/environments/shared.
 
 ################################################################################
 # HashiCorp Vault
