@@ -1,15 +1,10 @@
 ---
-vault_data_dir: /opt/vault/data
-vault_config_dir: /etc/vault.d
-vault_listen_address: "0.0.0.0:8200"
-vault_api_port: 8200
 # Pinned deliberately. This role first ran with a bare `vault` package name and
 # apt served 2.1.0-1, where the plan had recorded 1.10.0 verified three days
 # earlier -- a major version crossed unnoticed, against `file` storage that does
-# not downgrade. It happened to work. A rebuild months from now would take
-# whatever is current then and meet the same surprise with real data underneath.
+# not downgrade. It happened to work. Raft does not downgrade either.
 #
-# Bumping is a deliberate act: read `apt-cache madison vault` on vault-01, set
+# Bumping is a deliberate act: read `apt-cache madison vault` on vault-02, set
 # the version here, then `dpkg --set-selections` to unhold before re-running --
 # the role holds the package so an unattended `apt upgrade` cannot move it.
 #
@@ -18,5 +13,77 @@ vault_api_port: 8200
 # `apt-cache madison vault` and record why here.
 vault_version: "2.1.0-1"
 
+# The raft store lives on its own disk (scsi1 in proxmox/modules/vault-vm),
+# mounted by label. The data directory is a subdirectory of the mount, so
+# ext4's lost+found never sits among raft's files.
+vault_data_device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
+vault_data_mount: /var/lib/vault
+vault_data_dir: /var/lib/vault/raft
+
+vault_config_dir: /etc/vault.d
+vault_tls_dir: /etc/vault.d/tls
+vault_listen_address: "0.0.0.0:8200"
+vault_api_port: 8200
+vault_cluster_port: 8201
+# The address this role talks to and the certificate's IP SAN. From facts,
+# not host_ips, so a rehearsal against 127.0.0.1 needs one override.
+vault_address: "{{ ansible_facts['default_ipv4']['address'] }}"
+vault_api_url: "https://{{ vault_address }}:{{ vault_api_port }}"
+
+# TLS. The CA lives on the workstation that runs Ansible and never reaches
+# the Vault host -- only what it signs does. Losing this directory loses no
+# data: delete it, re-run the role, and refresh the vault-ca ConfigMap (the
+# argocd role) from the new ca.crt.
+vault_ca_dir: "~/.homelab-ca"
+vault_ca_common_name: homelab Vault CA
+vault_ca_validity_days: 3650
+vault_cert_validity_days: 825
+# A run inside this many days of expiry signs a fresh server certificate.
+vault_cert_renew_within_days: 30
+vault_tls_dns_names:
+  - "{{ inventory_hostname }}"
+  - vault.mgryn.cc
+vault_tls_group: vault
+# Put ca.crt in the host's trust store, so the vault CLI and the snapshot
+# job on the host verify the listener without being told where the CA is.
+vault_tls_trust_system: true
+
+# If Vault cannot write this file it refuses every request: an unauditable
+# request is refused by design. A full root disk therefore looks like a
+# healthy Vault that answers nothing.
+vault_audit_log: /var/log/vault/audit.log
+
+# False only for a rehearsal against a Vault this role did not start: the
+# handlers then leave systemd alone.
+vault_service_managed: true
+
+# KV v2, one mount per environment. Only vault_kv_mount is seeded.
+vault_kv_mounts:
+  - kv-dev
+  - kv-prod
+vault_kv_mount: kv-dev
+
+# One entry per cluster that reads this Vault. control_plane_host lives in
+# inventories/dev, so a run with vault_configure=true needs
+# -i inventories/shared -i inventories/dev.
+vault_k8s_clusters:
+  - name: dev
+    kv_mount: kv-dev
+    auth_path: kubernetes
+    api_host: "{{ host_ips['master-01'] }}"
+    control_plane_host: master-01
+    policy_name: argocd-read
+    role_name: argocd
+    service_account_names: ["argocd-repo-server"]
+    service_account_namespaces: ["argocd"]
+
+vault_snapshot_src: "{{ host_ips['nfs-01'] }}:/srv/nfs/backups"
+vault_snapshot_dir: /mnt/vault-backups
+vault_snapshot_keep: 14
+vault_snapshot_role: vault-snapshot
+
+# Phases. Install always runs. Configure and seed need an initialised,
+# unsealed Vault and -e vault_token=<root token>.
+vault_configure: false
+vault_configure_k8s_auth: true
 vault_seed: false
-vault_configure_k8s_auth: false

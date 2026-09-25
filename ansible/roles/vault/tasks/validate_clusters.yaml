@@ -1,0 +1,38 @@
+---
+- name: Require every cluster entry to carry every key
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_cluster_keys | difference(item.keys() | list) | length == 0
+    fail_msg: >-
+      vault_k8s_clusters entry {{ item.name | default(ansible_loop.index) }}
+      is missing {{ vault_k8s_cluster_keys | difference(item.keys() | list) | join(', ') }}.
+    quiet: true
+  loop: "{{ vault_k8s_clusters }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name | default(ansible_loop.index) }}"
+
+- name: Refuse two clusters sharing an auth_path
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_clusters | map(attribute='auth_path') | unique | length == vault_k8s_clusters | length
+    fail_msg: >-
+      Two vault_k8s_clusters entries share an auth_path. The second would
+      overwrite the first's kubernetes_host, pointing one cluster's ArgoCD
+      at the other's API server.
+
+- name: Refuse two clusters sharing a kv_mount
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_clusters | map(attribute='kv_mount') | unique | length == vault_k8s_clusters | length
+    fail_msg: >-
+      Two vault_k8s_clusters entries share a kv_mount, so each cluster's
+      policy would grant it the other's secrets.
+
+- name: Require every cluster's kv_mount to be one this role creates
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_clusters | map(attribute='kv_mount') | difference(vault_kv_mounts) | length == 0
+    fail_msg: >-
+      A vault_k8s_clusters kv_mount is not in vault_kv_mounts:
+      {{ vault_k8s_clusters | map(attribute='kv_mount') | difference(vault_kv_mounts) | join(', ') }}.
