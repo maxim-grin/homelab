@@ -7,20 +7,95 @@
 - name: Create the KV mounts
   ansible.builtin.import_tasks: kv_mounts.yaml
 
-# secret.yaml's keys are unprefixed; the mount decides the environment.
-# Every run writes a new KV version of each path.
-- name: Seed the KV paths
+- name: Require vault_kv to be a mapping
+  ansible.builtin.assert:
+    that:
+      - vault_kv is defined
+      - vault_kv is mapping
+    fail_msg: >-
+      vault_kv must be a mapping of mount name to its paths -- see
+      secret.yaml.example.
+
+- name: Require every vault_kv key to be a known mount
+  ansible.builtin.assert:
+    that:
+      - vault_kv.keys() | difference(vault_kv_mounts) | length == 0
+    fail_msg: >-
+      vault_kv names a mount not in vault_kv_mounts:
+      {{ vault_kv.keys() | difference(vault_kv_mounts) | join(', ') }}.
+      Allowed mounts: {{ vault_kv_mounts | join(', ') }}.
+
+# An empty mapping (kv-prod: {}) is fine -- it seeds nothing for that
+# mount. Only a non-mapping value (null from an uncommented stub left with
+# no fixture, a string, a list) is refused, before dict2items in the
+# flatten step below hits it and fails with an opaque template error.
+- name: Require every vault_kv mount's value to be a mapping
+  no_log: true
+  ansible.builtin.assert:
+    that:
+      - item.value is mapping
+    fail_msg: >-
+      vault_kv mount {{ item.key }} must be a mapping of path to fields,
+      even if empty ({}) -- see secret.yaml.example.
+  loop: "{{ vault_kv | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# One entry per {mount, path, data}. no_log throughout: data carries secret
+# values, and even a loop label built from item would render them.
+- name: Flatten vault_kv into a list of mount/path/data entries
+  no_log: true
+  ansible.builtin.set_fact:
+    vault_kv_flat: "{{ vault_kv_flat_json | from_json }}"
+  vars:
+    vault_kv_by_mount: "{{ dict(vault_kv.keys() | list | zip(vault_kv.values() | map('dict2items') | list)) }}"
+    vault_kv_pairs: "{{ vault_kv_by_mount | dict2items(key_name='mount', value_name='items') | subelements('items') }}"
+    vault_kv_flat_json: >-
+      [{% for p in vault_kv_pairs %}
+      {"mount": {{ p[0].mount | to_json }},
+      "path": {{ p[1].key | to_json }},
+      "data": {{ p[1].value | to_json }}}
+      {{ "," if not loop.last else "" }}{%- endfor %}]
+
+- name: Require every vault_kv path's value to be a mapping
+  no_log: true
+  ansible.builtin.assert:
+    that:
+      - item.data is mapping
+    fail_msg: "vault_kv path {{ item.mount }}/{{ item.path }} must be a mapping of field to value."
+  loop: "{{ vault_kv_flat }}"
+  loop_control:
+    label: "{{ item.mount }}/{{ item.path }}"
+
+- name: Read the current value of each path
+  no_log: true
   ansible.builtin.uri:
-    url: "{{ vault_api_url }}/v1/{{ vault_kv_mount }}/data/{{ item.key }}"
+    url: "{{ vault_api_url }}/v1/{{ item.mount }}/data/{{ item.path }}"
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    status_code: [200, 404]
+  loop: "{{ vault_kv_flat }}"
+  loop_control:
+    label: "{{ item.mount }}/{{ item.path }}"
+  register: vault_kv_current
+
+# Never deletes: a path removed from secret.yaml stays in Vault until
+# removed by hand.
+- name: Write each path that is new or has changed
+  no_log: true
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/{{ item.item.mount }}/data/{{ item.item.path }}"
     method: POST
     ca_path: "{{ vault_tls_dir }}/ca.crt"
     headers:
       X-Vault-Token: "{{ vault_token }}"
     body_format: json
     body:
-      data: "{{ item.value }}"
+      data: "{{ item.item.data }}"
     status_code: 200
-  loop: "{{ vault_kv | dict2items }}"
+  loop: "{{ vault_kv_current.results }}"
   loop_control:
-    label: "{{ item.key }}"
-  no_log: true
+    label: "{{ item.item.mount }}/{{ item.item.path }}"
+  when: item.status == 404 or item.json.data.data != item.item.data
+  changed_when: true

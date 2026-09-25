@@ -59,11 +59,11 @@ vault_audit_log: /var/log/vault/audit.log
 # handlers then leave systemd alone.
 vault_service_managed: true
 
-# KV v2, one mount per environment. Only vault_kv_mount is seeded.
+# KV v2, one mount per environment. Seeding writes whichever of these
+# mounts vault_kv names; kv_mounts.yaml creates all of them.
 vault_kv_mounts:
   - kv-dev
   - kv-prod
-vault_kv_mount: kv-dev
 
 # One entry per cluster that reads this Vault. control_plane_host lives in
 # inventories/dev, so a run with vault_configure=true needs
