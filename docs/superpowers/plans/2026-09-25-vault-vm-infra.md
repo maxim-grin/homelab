@@ -50,7 +50,7 @@
 **Interfaces:**
 - Produces: module `vault-vm`, resource `proxmox_vm_qemu.vault_vm`; inputs `vm_name, target_node, vmid, pool, clone_template, full_clone, memory, cpu_cores, start_at_node_boot, startup, disk_size, vault_data_disk_size, disk_storage, cloudinit_storage, network_bridge, network_firewall, ci_user, ci_password, ssh_public_key, ip_config, tags`; outputs `vm_id, vm_name, vm_mac, vm_ip_config`.
 
-- [ ] **Step 1: Copy the module**
+- [x] **Step 1: Copy the module**
 
 ```bash
 mkdir -p proxmox/modules/vault-vm
@@ -60,7 +60,7 @@ cp proxmox/modules/nfs-server/main.tf proxmox/modules/vault-vm/main.tf
 cp proxmox/modules/nfs-server/outputs.tf proxmox/modules/vault-vm/outputs.tf
 ```
 
-- [ ] **Step 2: Adapt `variables.tf`**
+- [x] **Step 2: Adapt `variables.tf`**
 
 Replace the two data-disk variables with one:
 
@@ -76,7 +76,7 @@ variable "vault_data_disk_size" {
 
 Delete `nfs_dev_disk_size` and `nfs_prod_disk_size`. Change `tags`'s default to `"ubuntu,vault"`. Every other variable stays.
 
-- [ ] **Step 3: Adapt `main.tf`**
+- [x] **Step 3: Adapt `main.tf`**
 
 - Rename the resource to `proxmox_vm_qemu.vault_vm`.
 - Replace the file's header comment with:
@@ -101,9 +101,9 @@ Delete `nfs_dev_disk_size` and `nfs_prod_disk_size`. Change `tags`'s default to 
 - Keep `automatic_reboot = false` and its comment, adapted: a change that needs a reboot must never bounce the root of trust unattended.
 - Keep `lifecycle.ignore_changes = [power_state, clone, full_clone]`. `clone`/`full_clone` are not strictly needed on a created VM, but they cost nothing and make a later adoption safe.
 
-- [ ] **Step 4: Adapt `outputs.tf`** — rename every `proxmox_vm_qemu.nfs_server` reference to `proxmox_vm_qemu.vault_vm`; the four outputs keep their names and descriptions, with "NFS server VM" becoming "Vault VM".
+- [x] **Step 4: Adapt `outputs.tf`** — rename every `proxmox_vm_qemu.nfs_server` reference to `proxmox_vm_qemu.vault_vm`; the four outputs keep their names and descriptions, with "NFS server VM" becoming "Vault VM".
 
-- [ ] **Step 5: Check nothing of the NFS module leaked through**
+- [x] **Step 5: Check nothing of the NFS module leaked through**
 
 ```bash
 grep -rn -i "nfs" proxmox/modules/vault-vm/ || echo "clean"
@@ -112,7 +112,7 @@ grep -n "scsi" proxmox/modules/vault-vm/main.tf
 
 Expected: `clean`, and exactly `scsi0`, `scsi1` (plus the `scsi` block opener and `scsihw`). Any `scsi2` or `nfs` is a copy error.
 
-- [ ] **Step 6: Validate**
+- [x] **Step 6: Validate**
 
 ```bash
 cd proxmox/modules/vault-vm && terraform init -backend=false -input=false >/dev/null && terraform validate && terraform fmt -check && tflint --config=/home/ubuntu/homelab/.tflint.hcl; rm -rf .terraform .terraform.lock.hcl
@@ -120,7 +120,7 @@ cd proxmox/modules/vault-vm && terraform init -backend=false -input=false >/dev/
 
 Expected: `Success! The configuration is valid.`, no fmt or tflint output.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add proxmox/modules/vault-vm
@@ -138,7 +138,7 @@ git commit -m "feat: add vault-vm terraform module" -m "A copy of nfs-server wit
 - Consumes: module `../../modules/vault-vm` from Task 1, and the shared root's existing `pm_target_node`, `clone_template_ubuntu`, `ci_user`, `ci_password`, `ssh_public_key`, `gateway`.
 - Produces: `module.vault_vm` in the shared root; new variable `vault_vm_ip`; output `vault_vm_details`.
 
-- [ ] **Step 1: Append the module call to `main.tf`**
+- [x] **Step 1: Append the module call to `main.tf`**
 
 ```hcl
 ################################################################################
@@ -192,7 +192,7 @@ module "vault_vm" {
 }
 ```
 
-- [ ] **Step 2: Append the variable**
+- [x] **Step 2: Append the variable**
 
 ```hcl
 # Vault VM Variables
@@ -211,7 +211,7 @@ and to `shared.tfvars.example`:
 vault_vm_ip = "10.0.0.133/24"
 ```
 
-- [ ] **Step 3: Append the output to `outputs.tf`**
+- [x] **Step 3: Append the output to `outputs.tf`**
 
 ```hcl
 # Vault VM Output
@@ -225,7 +225,7 @@ output "vault_vm_details" {
 }
 ```
 
-- [ ] **Step 4: Confirm no collision with the existing NFS module**
+- [x] **Step 4: Confirm no collision with the existing NFS module**
 
 ```bash
 grep -n -E "vmid|^module|startup" proxmox/environments/shared/main.tf
@@ -233,7 +233,7 @@ grep -n -E "vmid|^module|startup" proxmox/environments/shared/main.tf
 
 Expected: `module "nfs"` with vmid 103 at `order=10,up=30`, and `module "vault_vm"` with vmid 105 at `order=5,up=20`. Two modules, two vmids, no repetition.
 
-- [ ] **Step 5: Validate the root**
+- [x] **Step 5: Validate the root**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -247,7 +247,7 @@ terraform fmt -recursive -check proxmox && echo "fmt ok"
 
 Expected: `Success!`, `OK`, no tflint output, `fmt ok`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add proxmox/environments/shared
@@ -267,7 +267,7 @@ LXC is untouched and keeps serving."
 - Consumes: `host_ips['vault-02']`, `proxmox_vm_ids['vault-02']` — added to `secret.yaml` by the operator, not by an agent.
 - Produces: group `vault_vm` holding host `vault-02`, resolvable with `-i inventories/shared`.
 
-- [ ] **Step 1: Add the group**
+- [x] **Step 1: Add the group**
 
 Under `children:` in `ansible/inventories/shared/hosts.yaml`, after `nfs`:
 
@@ -283,7 +283,7 @@ Under `children:` in `ansible/inventories/shared/hosts.yaml`, after `nfs`:
           proxmox_vm_id: "{{ proxmox_vm_ids['vault-02'] }}"
 ```
 
-- [ ] **Step 2: Verify the inventory parses**
+- [x] **Step 2: Verify the inventory parses**
 
 ```bash
 cd ansible && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-inventory -i inventories/shared --graph 2>&1 | cat
@@ -291,7 +291,7 @@ cd ansible && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-invent
 
 Expected: `@nfs` with `nfs-01` and `@vault_vm` with `vault-02`. `host_ips` is undefined without `secret.yaml`, which is fine — the graph shows structure, not values.
 
-- [ ] **Step 3: Update `proxmox/README.md`**
+- [x] **Step 3: Update `proxmox/README.md`**
 
 Add `modules/vault-vm/` to the tree beside `nfs-server/` (same four files), extend the `environments/shared/` description to name both machines, and add to the module list:
 
@@ -299,7 +299,7 @@ Add `modules/vault-vm/` to the tree beside `nfs-server/` (same four files), exte
 - **modules/vault-vm** – `ubuntu-vm` plus one data disk for Vault's raft store; backs `vault-02` (vmid 105) in `environments/shared`.
 ```
 
-- [ ] **Step 4: Lint and commit**
+- [x] **Step 4: Lint and commit**
 
 ```bash
 cd ansible && ansible-lint . 2>&1 | tail -2; cd ..
@@ -314,7 +314,7 @@ Expected: ansible-lint `Passed`, all hooks Passed.
 
 ### Task 4: Review and open PR 1
 
-- [ ] **Step 1: Full verification**
+- [x] **Step 1: Full verification**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -328,11 +328,11 @@ git status --short
 
 Expected: three `OK`, no `FAIL`, `fmt ok`, ansible-lint `Passed`, all hooks Passed, clean tree.
 
-- [ ] **Step 2: Code review** — invoke `superpowers:requesting-code-review` against the branch diff from `main`. Fix findings on the branch.
+- [x] **Step 2: Code review** — invoke `superpowers:requesting-code-review` against the branch diff from `main`. Fix findings on the branch.
 
-- [ ] **Step 3: Pre-merge checks** — invoke `superpowers:finishing-a-development-branch`; choose "push and create a Pull Request". Never merge.
+- [x] **Step 3: Pre-merge checks** — invoke `superpowers:finishing-a-development-branch`; choose "push and create a Pull Request". Never merge.
 
-- [ ] **Step 4: Write the PR body** to `$SCRATCH/pr-vault-vm.md`:
+- [x] **Step 4: Write the PR body** to `$SCRATCH/pr-vault-vm.md`:
 
 ```markdown
 First of five PRs replacing the `vault-01` LXC with a purpose-built VM.
@@ -367,7 +367,7 @@ Plan: `docs/superpowers/plans/2026-09-25-vault-vm-infra.md`
 - `pre-commit run --all-files`
 ```
 
-- [ ] **Step 5: Push and open**
+- [x] **Step 5: Push and open**
 
 ```bash
 git push -u origin vault-vm
