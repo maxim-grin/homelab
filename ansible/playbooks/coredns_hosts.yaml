@@ -1,0 +1,18 @@
+---
+# Pins vault.mgryn.cc (and anything else in coredns_hosts_entries) in the
+# cluster's DNS. A kubeadm upgrade can rewrite the coredns ConfigMap: re-run
+# this after every cluster upgrade, and check with
+#   kubectl run -it --rm dnscheck --image=busybox:1.36 --restart=Never -- nslookup vault.mgryn.cc
+- name: Pin names in CoreDNS
+  hosts: k8s_control_plane
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Install the Python Kubernetes library
+      ansible.builtin.apt:
+        name: python3-kubernetes
+        state: present
+
+  roles:
+    - role: coredns_hosts

@@ -1,0 +1,9 @@
+---
+# Names the cluster must resolve without the WAN. Ansible owns this pin,
+# not ArgoCD: Argo depends on Vault, so letting Argo own the record that
+# finds Vault would be a loop that fails exactly when it is needed.
+coredns_hosts_entries:
+  - ip: "{{ host_ips['vault-02'] }}"
+    names: [vault.mgryn.cc]
+
+coredns_hosts_kubeconfig: /etc/kubernetes/admin.conf
