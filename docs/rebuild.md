@@ -315,14 +315,18 @@ suggests is still cheap — set
 only grow into the VG's 16 GiB, so it buys one small extension rather
 than safety.
 
-Two later changes moved those numbers, both deliberate overcommit:
+Three later changes moved those numbers, all deliberate overcommit:
 `nfs-01` gained two 50 GiB data disks on 2026-09-23 (one per share, see
-`proxmox/environments/shared`), and the three k8s nodes went from the
+`proxmox/environments/shared`), the three k8s nodes went from the
 module's 10 GiB default to 30 GiB the same day — on 10 GiB disks
-`/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods.
-Measured after both, `pvesm status` reported `local-lvm` 30.2% used with
-98 GiB available. Declared sizes now far exceed the pool, so watch actual
-use rather than the declared total, and act at about 80%.
+`/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods —
+and `nfs-01` gained a third, 10 GiB `scsi3` disk for a `backups` share
+exporting Vault's raft snapshots (14 kept, daily) to `vault-02`.
+Measured after the first two, `pvesm status` reported `local-lvm` 30.2%
+used with 98 GiB available. The pool itself is still 141 GiB; declared
+sizes now far exceed it and keep drifting further above it with each
+addition, so watch actual use rather than the declared total, and act at
+about 80%.
 
 **Disk sizes only go up.** `disk_size` in a module can be raised; it cannot
 be lowered. Proxmox has no shrink operation — `qm resize` grows only — and
