@@ -43,6 +43,7 @@ duplicate root of trust.
 | Container or VM | VM, `vault-02`, vmid 105, `10.0.0.133`, 2 cores, 2 GiB |
 | Migration style | Build alongside, cut over, decommission the LXC same day |
 | Address | New address, never reused; `10.0.0.132` retires with the LXC |
+| Name | `vault.mgryn.cc`, used by every consumer; pinned in CoreDNS |
 | Storage | Integrated Raft on a dedicated 10G disk |
 | TLS | Private CA managed by Ansible, CA key on the workstation |
 | Isolation | Separate `kv-dev/` and `kv-prod/` KV v2 mounts |
@@ -235,6 +236,32 @@ Seeding writes `vault_kv` into `vault_kv_mount` (default `kv-dev`), so
 `secret.yaml` keeps its unprefixed keys and needs no edit to add an
 environment.
 
+### The name, and who resolves it
+
+Consumers reach Vault as `https://vault.mgryn.cc:8200`, not by address. A
+future move is then a DNS edit rather than an Ansible run and a pod rollout.
+
+Two records, deliberately:
+
+- **Cloudflare, DNS-only (grey cloud)**, `vault.mgryn.cc` → `10.0.0.133`,
+  added by hand like `jobs.mgryn.cc`. It serves the workstation and anything
+  else on the LAN. A private address in public DNS reveals a little about the
+  internal layout; that is accepted.
+- **A CoreDNS pin inside the cluster**, so AVP never depends on the WAN or on
+  Cloudflare to find the root of trust. A new `coredns_hosts` Ansible role
+  patches the `coredns` ConfigMap in `kube-system` with a `hosts` block
+  mapping `10.0.0.133 vault.mgryn.cc`, then restarts the Deployment.
+
+Ansible rather than ArgoCD owns that pin: Argo depends on Vault, so letting
+Argo own the record that finds Vault is a loop that fails exactly when it is
+needed. The caveat to record: a kubeadm upgrade can rewrite the `coredns`
+ConfigMap, so the role is re-run after cluster upgrades, and the verification
+step below is how you notice.
+
+Terraform and Ansible keep using addresses. `secret.yaml` remains the record
+of every host address and vmid, and Terraform has to assign the IP before
+anything can resolve it.
+
 ### Snapshots
 
 - An AppRole whose policy grants only `sys/storage/raft/snapshot`, with
@@ -257,8 +284,9 @@ or the root token; both stay in the password manager, as today.
 
 Two steps, one sitting:
 
-1. **Ansible.** `argocd_vault_address` becomes `https://10.0.0.133:8200` and
-   `argocd_avp_config` gains `VAULT_CACERT`. The CA certificate ships as a
+1. **Ansible.** `argocd_vault_address` becomes `vault.mgryn.cc`, so
+   `VAULT_ADDR` is `https://vault.mgryn.cc:8200`, and `argocd_avp_config`
+   gains `VAULT_CACERT`. The CoreDNS pin from PR 3 is what resolves it. The CA certificate ships as a
    new `vault-ca` ConfigMap created by the `argocd` role from
    `{{ vault_ca_dir }}/ca.crt`, mounted into the avp sidecar, with a third
    `checksum/vault-ca` pod annotation. The existing two annotations exist
@@ -303,7 +331,9 @@ variable, its `vault_details` output and the `vault` group in
 ## Documentation
 
 - `CLAUDE.md` — `environments/shared/` holds `nfs-01` and `vault-02`; Vault
-  is HTTPS with a private CA; KV is split into `kv-dev/` and `kv-prod/` with
+  is HTTPS with a private CA, reached as `vault.mgryn.cc` (a Cloudflare
+  DNS-only record for the LAN, pinned in CoreDNS for the cluster, re-applied
+  after a kubeadm upgrade); KV is split into `kv-dev/` and `kv-prod/` with
   per-mount policies; the placeholder form is `<path:kv-<env>/data/...>`;
   snapshots and where they land; and the audit-log-full behaviour.
 - `docs/rebuild.md` — the `shared` apply creates `nfs-01` and `vault-02`;
@@ -322,13 +352,16 @@ Per PR, beyond `terraform fmt`/`validate`/`tflint`, `ansible-lint`,
 - **PR 2**: `showmount -e` lists `/srv/nfs/backups` for `10.0.0.133` only;
   the k8s shares are unchanged; `nfs-01` reboots with all three mounted.
 - **PR 3**: `vault status` shows `raft` and unsealed; `openssl s_client
-  -connect 10.0.0.133:8200 -CAfile ~/.homelab-ca/ca.crt` verifies the chain;
+  -connect vault.mgryn.cc:8200 -CAfile ~/.homelab-ca/ca.crt` verifies the
+  chain against the name, and the same against `10.0.0.133`; from a pod,
+  `nslookup vault.mgryn.cc` answers `10.0.0.133` with the WAN unplugged;
   a read appears in the audit log; `vault kv get kv-dev/jobboard/db` matches
   the old Vault's values; the timer fires and a snapshot lands on the share;
   `vault-02` reboots cleanly **with `nfs-01` stopped**, proving `nofail`
   does not stall the boot.
 - **PR 4**: the three apps `Synced`, their Secrets holding real values; a
-  `kubectl exec` in the avp sidecar verifies it trusts the CA; the restore
+  `kubectl exec` in the avp sidecar resolves `vault.mgryn.cc` and trusts the
+  CA; the restore
   drill succeeds.
 - **PR 5**: `pct status 104` gone; both Terraform roots plan clean; nothing
   in the repo references the LXC.
