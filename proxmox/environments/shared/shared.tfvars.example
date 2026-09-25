@@ -24,3 +24,8 @@ gateway = "10.0.0.1"
 
 # NFS server VM. Must include CIDR.
 nfs_vm_ip = "10.0.0.131/24"
+
+# Vault VM. Must include CIDR. Confirm it is outside the router's DHCP pool
+# before applying -- every VM here takes a static address and the pool has
+# not been checked against them.
+vault_vm_ip = "10.0.0.133/24"

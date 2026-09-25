@@ -53,3 +53,9 @@ variable "nfs_vm_ip" {
   description = "NFS server VM IP with CIDR (e.g. '10.0.0.131/24')"
   type        = string
 }
+
+# Vault VM Variables
+variable "vault_vm_ip" {
+  description = "Vault VM IP with CIDR (e.g. '10.0.0.133/24')"
+  type        = string
+}

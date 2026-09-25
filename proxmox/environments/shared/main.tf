@@ -57,3 +57,53 @@ module "nfs" {
   # Tags
   tags = "ubuntu,nfs,shared"
 }
+
+################################################################################
+# HashiCorp Vault
+################################################################################
+module "vault_vm" {
+  source = "../../modules/vault-vm"
+
+  # Basic VM Configuration
+  vm_name     = "vault-02"
+  vmid        = 105
+  target_node = var.pm_target_node
+  pool        = "VM"
+
+  clone_template = var.clone_template_ubuntu
+  full_clone     = true
+
+  # Resource Allocation
+  # Raft plus a handful of KV paths. The LXC it replaces ran in 1 GiB; the
+  # extra gigabyte is headroom for the audit log and snapshot runs.
+  memory    = 2048
+  cpu_cores = 2
+
+  # OS disk, then the Raft store on its own disk.
+  disk_size            = "20G"
+  vault_data_disk_size = "10G"
+  disk_storage         = "local-lvm"
+
+  # First up, ahead of nfs-01 at order=10 and the cluster at 20/30. Vault is
+  # the root of trust: when it is sealed or absent, argocd-vault-plugin
+  # renders nothing and every Application carrying a <path:...> placeholder
+  # fails to sync.
+  start_at_node_boot = true
+  startup            = "order=5,up=20"
+
+  # Network Configuration
+  network_firewall = true
+  ip_config        = format("ip=%s,gw=%s", var.vault_vm_ip, var.gateway)
+
+  # Cloud-init Settings
+  ci_user        = var.ci_user
+  ci_password    = var.ci_password
+  ssh_public_key = var.ssh_public_key
+
+  # OS configuration lives in the ansible/ vault role, run against
+  # ansible/inventories/shared. This VM is empty until that runs; the
+  # vault-01 LXC keeps serving until then.
+
+  # Tags
+  tags = "ubuntu,vault,shared"
+}
