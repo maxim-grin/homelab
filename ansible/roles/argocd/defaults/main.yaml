@@ -12,7 +12,12 @@ argocd_nodeport_enabled: false
 argocd_nodeport_http_port: 32080
 argocd_nodeport_https_port: 32443
 argocd_context_kubeconfig: /etc/kubernetes/admin.conf
-argocd_vault_address: "{{ host_ips['vault-01'] }}"
+# By name: a future move is a DNS edit, not an Ansible run and a rollout.
+# Resolved in the cluster by the CoreDNS pin (playbooks/coredns_hosts.yaml).
+argocd_vault_address: vault.mgryn.cc
+# The vault role's vault_ca_dir, on the workstation that runs Ansible.
+argocd_vault_ca_dir: "~/.homelab-ca"
+argocd_vault_ca_cert: "{{ lookup('ansible.builtin.file', argocd_vault_ca_dir ~ '/ca.crt') }}"
 
 # Bcrypt hash of the admin password, supplied from ansible/secret.yaml. There
 # is deliberately no default: an unset value would make the chart fall back to
@@ -134,7 +139,9 @@ argocd_avp_config:
   AVP_TYPE: vault
   AVP_AUTH_TYPE: k8s
   AVP_K8S_ROLE: argocd
-  VAULT_ADDR: "http://{{ argocd_vault_address }}:8200"
+  VAULT_ADDR: "https://{{ argocd_vault_address }}:8200"
+  # Points at the vault-ca ConfigMap mounted into the avp sidecar below.
+  VAULT_CACERT: /etc/vault-ca/ca.crt
 
 argocd_helm_values:
   configs:
@@ -184,10 +191,12 @@ argocd_helm_values:
     # container start, so a Secret-only change is invisible to a running
     # pod. Hashing argocd_avp_config (which embeds argocd_vault_address)
     # into a second annotation forces the same rollout the ConfigMap
-    # checksum forces.
+    # checksum forces. checksum/vault-ca does the same for the CA -- a new
+    # CA in the ConfigMap alone would leave the sidecar trusting the old one.
     podAnnotations:
       checksum/cmp-plugin: "{{ argocd_avp_plugin_config | hash('sha1') }}"
       checksum/avp-config: "{{ argocd_avp_config | to_json | hash('sha1') }}"
+      checksum/vault-ca: "{{ argocd_vault_ca_cert | hash('sha1') }}"
     initContainers:
       # Runs as root -- no securityContext of its own. That only works
       # because the chart's global.securityContext defaults to {}. If
@@ -241,9 +250,15 @@ argocd_helm_values:
           - mountPath: /usr/local/bin/argocd-vault-plugin
             subPath: argocd-vault-plugin
             name: custom-tools
+          - mountPath: /etc/vault-ca
+            name: vault-ca
+            readOnly: true
     volumes:
       - configMap:
           name: cmp-plugin
         name: cmp-plugin
       - emptyDir: {}
         name: custom-tools
+      - configMap:
+          name: vault-ca
+        name: vault-ca

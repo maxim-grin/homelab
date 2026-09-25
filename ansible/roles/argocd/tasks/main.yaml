@@ -74,6 +74,21 @@
         # so the pod template changes whenever these values do.
         "{{ argocd_avp_config }}"
 
+- name: Create the Vault CA ConfigMap
+  # Before the Helm deploy, for the reason the two tasks above are: the
+  # sidecar mounts it, and a missing ConfigMap holds repo-server in Init.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: vault-ca
+        namespace: "{{ argocd_namespace }}"
+      data:
+        ca.crt: "{{ argocd_vault_ca_cert }}"
+
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
   kubernetes.core.helm:
