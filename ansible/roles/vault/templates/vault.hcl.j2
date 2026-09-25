@@ -1,15 +1,21 @@
+# Managed by ansible (roles/vault). A change here restarts Vault, and a
+# restarted Vault comes back sealed: unseal it by hand after the run.
 ui = true
 
-storage "file" {
-  path = "{{ vault_data_dir }}"
+storage "raft" {
+  path    = "{{ vault_data_dir }}"
+  node_id = "{{ inventory_hostname }}"
 }
 
 listener "tcp" {
-  address     = "{{ vault_listen_address }}"
-  tls_disable = 1  # Homelab: plain HTTP throughout, as with harbor and jobs
+  address       = "{{ vault_listen_address }}"
+  tls_cert_file = "{{ vault_tls_dir }}/server.crt"
+  tls_key_file  = "{{ vault_tls_dir }}/server.key"
 }
 
-api_addr     = "http://{{ ansible_facts['default_ipv4']['address'] }}:{{ vault_api_port }}"
-cluster_addr = "https://{{ ansible_facts['default_ipv4']['address'] }}:8201"
+api_addr     = "{{ vault_api_url }}"
+cluster_addr = "https://{{ vault_address }}:{{ vault_cluster_port }}"
 
-disable_mlock = true  # LXC/VM compatibility
+# HashiCorp's advice for integrated storage: raft's BoltDB file is
+# memory-mapped, and locking it into RAM defeats the point.
+disable_mlock = true
