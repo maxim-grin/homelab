@@ -135,10 +135,11 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
 - **The `nfs-dev` share's path is `/srv/nfs/k8s`, not `/srv/nfs/dev`.**
   Every dev PV has `nfs.path: /srv/nfs/k8s/...` baked in, the field is
   immutable, and `nfs-dev` deletes a volume's data when its PVC is deleted.
-  Each share is its own disk on `nfs-01` (`scsi1` dev, `scsi2` prod),
-  mounted by label; the `nfs_server` role refuses to mount over a
-  non-empty directory, and `nfs-server` will not start until both disks
-  are mounted. `nfs-prod` has no export line until prod has nodes — an
+  Each share is its own disk on `nfs-01` (`scsi1` dev, `scsi2` prod,
+  `scsi3` backups), mounted by label; the `nfs_server` role refuses to
+  mount over a non-empty directory, and `nfs-server` will not start until
+  all three disks are mounted. `nfs-prod` has no export line until prod
+  has nodes — an
   export with no client list is exported to everyone.
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
   is bare metal with no LoadBalancer and no MetalLB. There is no DNS server

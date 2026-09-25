@@ -75,8 +75,13 @@ variable "nfs_prod_disk_size" {
   type        = string
 }
 
+variable "nfs_backups_disk_size" {
+  description = "Size of the backups data disk (scsi3)"
+  type        = string
+}
+
 variable "disk_storage" {
-  description = "Storage location for all three disks"
+  description = "Storage location for all four disks"
   type        = string
   default     = "local-lvm"
 }

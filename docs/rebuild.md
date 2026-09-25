@@ -315,14 +315,19 @@ suggests is still cheap — set
 only grow into the VG's 16 GiB, so it buys one small extension rather
 than safety.
 
-Two later changes moved those numbers, both deliberate overcommit:
+Three later changes moved those numbers, all deliberate overcommit:
 `nfs-01` gained two 50 GiB data disks on 2026-09-23 (one per share, see
-`proxmox/environments/shared`), and the three k8s nodes went from the
+`proxmox/environments/shared`), the three k8s nodes went from the
 module's 10 GiB default to 30 GiB the same day — on 10 GiB disks
-`/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods.
-Measured after both, `pvesm status` reported `local-lvm` 30.2% used with
-98 GiB available. Declared sizes now far exceed the pool, so watch actual
-use rather than the declared total, and act at about 80%.
+`/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods —
+and `nfs-01` gained a third, 10 GiB `scsi3` disk for a `backups` share
+exported to `vault-02` for Vault's raft snapshots — a daily timer keeping
+14 is coming with the Vault role rebuild, nothing writes to it yet.
+Measured after the first two, `pvesm status` reported `local-lvm` 30.2%
+used with 98 GiB available. The pool itself is still 141 GiB; declared
+sizes now far exceed it and keep drifting further above it with each
+addition, so watch actual use rather than the declared total, and act at
+about 80%.
 
 **Disk sizes only go up.** `disk_size` in a module can be raised; it cannot
 be lowered. Proxmox has no shrink operation — `qm resize` grows only — and
@@ -383,13 +388,13 @@ Each step depends on the one above it.
    `clone_template_ubuntu` says.
 4. **`terraform apply`, `shared` first, then `dev`** —
    `proxmox/environments/shared` with `-var-file=shared.tfvars` creates
-   `nfs-01` (vmid 103) with its OS disk and the `nfs-dev` and `nfs-prod`
-   data disks; `proxmox/environments/dev` with `-var-file=dev.tfvars`
+   `nfs-01` (vmid 103) with its OS disk and the `nfs-dev`, `nfs-prod` and
+   `nfs-backups` data disks; `proxmox/environments/dev` with `-var-file=dev.tfvars`
    creates the other six VMs plus the `vault-01` LXC container (module
    `proxmox/modules/lxc`, pool `LXC`).
 5. **`ansible-playbook -i inventories/shared playbooks/nfs_server.yaml`**
    then `nfs_setup.yaml` (default dev inventory) — the first formats and
-   mounts both data disks and exports `nfs-dev` to the dev nodes;
+   mounts all three data disks and exports `nfs-dev` to the dev nodes;
    storage first, because everything else claims PVCs from it.
 6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.

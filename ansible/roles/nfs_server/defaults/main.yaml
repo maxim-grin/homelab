@@ -14,11 +14,21 @@ nfs_server_shares:
   - name: dev
     device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
     path: /srv/nfs/k8s
+    mode: "0777"
     clients: "{{ nfs_server_dev_clients }}"
   - name: prod
     device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi2
     path: /srv/nfs/prod
+    mode: "0777"
     clients: "{{ nfs_server_prod_clients }}"
+  - name: backups
+    device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi3
+    path: /srv/nfs/backups
+    # 0700 where the k8s shares are 0777: a Vault raft snapshot is every
+    # secret in one file. Only root on vault-02 writes or reads it, and the
+    # export below admits no other host.
+    mode: "0700"
+    clients: "{{ nfs_server_backup_clients }}"
 
 # Exact node addresses, not the subnet: a dev pod cannot mount prod data even
 # by mistake. Names are keys of host_ips in secret.yaml.
@@ -31,6 +41,11 @@ nfs_server_dev_clients: "{{ nfs_server_dev_nodes | map('extract', host_ips) | li
 # Empty until a prod cluster exists. An empty list means no export line at
 # all -- see templates/exports.j2.
 nfs_server_prod_clients: []
+
+# The Vault VM alone. Not the cluster subnet, not the k8s nodes: a snapshot
+# of Vault is every secret it holds, and the only machine that needs to read
+# one is the machine that wrote it.
+nfs_server_backup_clients: "{{ ['vault-02'] | map('extract', host_ips) | list }}"
 
 # no_root_squash is required, not lazy: nfs-subdir-external-provisioner
 # creates a directory per PersistentVolume and chowns it. With root squashed

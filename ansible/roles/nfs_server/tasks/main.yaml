@@ -56,14 +56,16 @@
   loop_control:
     label: "{{ item.path }}"
 
-- name: Open each share's root to the provisioner
+- name: Set each share's root permissions
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
     # 0777 with no_root_squash: the provisioner creates a subdirectory per
     # PersistentVolume as root and the workloads that mount them run as
-    # arbitrary uids. Tightening this breaks PVC provisioning.
-    mode: "0777"
+    # arbitrary uids. Tightening this breaks PVC provisioning. The backups
+    # share is 0700 for the opposite reason: only root on vault-02 ever
+    # touches it, and no provisioner needs write access.
+    mode: "{{ item.mode }}"
   loop: "{{ nfs_server_shares }}"
   loop_control:
     label: "{{ item.path }}"

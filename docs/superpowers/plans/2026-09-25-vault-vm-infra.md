@@ -386,7 +386,7 @@ gh pr close 34 --comment "Superseded by the vault-vm design: a new VM needs no i
 
 Not for agents. In order; any unexpected output, stop and report.
 
-- [ ] **Step 1: Pre-flight**
+- [x] **Step 1: Pre-flight**
 
 ```bash
 qm list; pct list                       # 105 unused
@@ -395,11 +395,11 @@ arping -c3 -I vmbr0 10.0.0.133          # no answer
 
 Check the router's DHCP pool excludes `10.0.0.133`. If it does not, shrink the pool — that protects the eight static addresses already in use, not just this one.
 
-- [ ] **Step 2: Secrets and tfvars**
+- [x] **Step 2: Secrets and tfvars**
 
 Add to `secret.yaml` (`ansible-vault edit`): `host_ips['vault-02'] = 10.0.0.133`, `proxmox_vm_ids['vault-02'] = 105`. Add `vault_vm_ip = "10.0.0.133/24"` to `shared.tfvars`.
 
-- [ ] **Step 3: Apply**
+- [x] **Step 3: Apply**
 
 ```bash
 cd proxmox/environments/shared
@@ -409,7 +409,7 @@ terraform apply -var-file=shared.tfvars
 
 `module.nfs` appearing in that plan means something else drifted — stop and paste it.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 qm config 105 | grep -E '^(scsi|memory|cores|startup|onboot)'
@@ -433,7 +433,7 @@ Start PR 2 only after PR 1 is merged: `git checkout main && git pull && git chec
 **Interfaces:**
 - Produces: a third data disk on vmid 103, appearing in the guest as `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi3`, consumed by Task 7.
 
-- [ ] **Step 1: Add the variable**
+- [x] **Step 1: Add the variable**
 
 ```hcl
 variable "nfs_backups_disk_size" {
@@ -442,7 +442,7 @@ variable "nfs_backups_disk_size" {
 }
 ```
 
-- [ ] **Step 2: Add the disk**
+- [x] **Step 2: Add the disk**
 
 After the `scsi2` block in `proxmox/modules/nfs-server/main.tf`, with the same ten attributes as its siblings and `size = var.nfs_backups_disk_size`. Above it:
 
@@ -452,7 +452,7 @@ After the `scsi2` block in `proxmox/modules/nfs-server/main.tf`, with the same t
       # be exported to one host with different permissions.
 ```
 
-- [ ] **Step 3: Pass the size in the shared root**
+- [x] **Step 3: Pass the size in the shared root**
 
 In `module "nfs"`, after `nfs_prod_disk_size`:
 
@@ -460,7 +460,7 @@ In `module "nfs"`, after `nfs_prod_disk_size`:
   nfs_backups_disk_size = "10G"
 ```
 
-- [ ] **Step 4: Validate**
+- [x] **Step 4: Validate**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -474,7 +474,7 @@ grep -c "scsi[0-9] {" proxmox/modules/nfs-server/main.tf
 
 Expected: `Success!`, `OK`, `fmt ok`, and 4 scsi blocks.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add proxmox/modules/nfs-server proxmox/environments/shared
@@ -494,7 +494,7 @@ git commit -m "feat: add a backups disk to nfs-01" -m "scsi3, 10G, for Vault's r
 - Consumes: `host_ips['vault-02']`; the `scsi3` device from Task 6.
 - Produces: a third `nfs_server_shares` entry with `mode: "0700"`; a per-share `mode` defaulting to `0777`; `nfs_server_backup_clients`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `$SCRATCH/nfs-backups-test.yaml`:
 
@@ -542,7 +542,7 @@ Create `$SCRATCH/nfs-backups-test.yaml`:
           - "(nfs_server_shares | rejectattr('name', 'equalto', 'backups') | map(attribute='mode', default='0777') | unique | list) == ['0777']"
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-playbook -i localhost, $SCRATCH/nfs-backups-test.yaml 2>&1 | cat
@@ -550,7 +550,7 @@ Create `$SCRATCH/nfs-backups-test.yaml`:
 
 Expected: FAIL on the first assertion — there is no backups share yet.
 
-- [ ] **Step 3: Add the share and its clients to the defaults**
+- [x] **Step 3: Add the share and its clients to the defaults**
 
 Append the third entry to `nfs_server_shares`:
 
@@ -576,15 +576,15 @@ nfs_server_backup_clients: "{{ ['vault-02'] | map('extract', host_ips) | list }}
 
 Add `mode: "0777"` explicitly to the `dev` and `prod` entries, so every share states its own mode rather than two of them relying on a default.
 
-- [ ] **Step 4: Make the directory task use the share's mode**
+- [x] **Step 4: Make the directory task use the share's mode**
 
 In `ansible/roles/nfs_server/tasks/main.yaml`, the `Open each share's root to the provisioner` task: rename it to `Set each share's root permissions`, and change `mode: "0777"` to `mode: "{{ item.mode }}"`. Keep the existing comment about 0777 and the provisioner, and add that the backups share is 0700 for the opposite reason.
 
-- [ ] **Step 5: Run the test again**
+- [x] **Step 5: Run the test again**
 
 Same command as Step 2. Expected: all four assertion tasks pass, `failed=0`.
 
-- [ ] **Step 6: Confirm the drop-in and the guard pick the share up automatically**
+- [x] **Step 6: Confirm the drop-in and the guard pick the share up automatically**
 
 ```bash
 grep -n "RequiresMountsFor" ansible/roles/nfs_server/templates/requires-mounts.conf.j2
@@ -593,7 +593,7 @@ grep -n "nfs_server_shares" ansible/roles/nfs_server/tasks/main.yaml | head
 
 Expected: the drop-in maps over `nfs_server_shares | map(attribute='path')`, and the find/assert/filesystem/mount tasks all loop over `nfs_server_shares` — so the third share needs no further wiring. If any of them enumerates shares by name instead, stop and report.
 
-- [ ] **Step 7: Lint and syntax-check**
+- [x] **Step 7: Lint and syntax-check**
 
 ```bash
 cd ansible && ansible-lint . && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-playbook -i inventories/shared playbooks/nfs_server.yaml --syntax-check 2>&1 | cat
@@ -601,7 +601,7 @@ cd ansible && ansible-lint . && /home/ubuntu/.local/share/uv/tools/ansible-lint/
 
 Expected: `Passed: 0 failure(s), 0 warning(s)`; `playbook: playbooks/nfs_server.yaml`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add ansible/roles/nfs_server
@@ -616,11 +616,11 @@ vault-02 alone. Shares now carry their own mode."
 **Files:**
 - Modify: `docs/rebuild.md` (the disk-capacity section; the NFS playbook step if it enumerates shares)
 
-- [ ] **Step 1: Update the capacity paragraph**
+- [x] **Step 1: Update the capacity paragraph**
 
 The section already records that `nfs-01` gained two 50 GiB disks and the nodes went to 30 GiB. Add the backups disk: 10 GiB on `scsi3` for Vault's raft snapshots, 14 kept, and that the pool is thin so the declared total keeps drifting further above the physical 141 GiB — watch actual use, act at about 80%.
 
-- [ ] **Step 2: Check whether anything else enumerates the shares**
+- [x] **Step 2: Check whether anything else enumerates the shares**
 
 ```bash
 grep -rn "srv/nfs" docs/ README.md CLAUDE.md ansible/README.md | grep -v superpowers
@@ -628,7 +628,7 @@ grep -rn "srv/nfs" docs/ README.md CLAUDE.md ansible/README.md | grep -v superpo
 
 Expected: any place that lists the shares now needs `/srv/nfs/backups` beside `/srv/nfs/k8s` and `/srv/nfs/prod`. Update those; leave prose about the dev share's path alone.
 
-- [ ] **Step 3: pre-commit and commit**
+- [x] **Step 3: pre-commit and commit**
 
 ```bash
 pre-commit run --all-files
@@ -642,15 +642,15 @@ Commit only the files you actually changed.
 
 ### Task 9: Review and open PR 2
 
-- [ ] **Step 1: Full verification** — as Task 4 Step 1, plus `scripts/check-manifests.sh`.
+- [x] **Step 1: Full verification** — as Task 4 Step 1, plus `scripts/check-manifests.sh`.
 
-- [ ] **Step 2: Code review** — `superpowers:requesting-code-review`, fix findings.
+- [x] **Step 2: Code review** — `superpowers:requesting-code-review`, fix findings.
 
-- [ ] **Step 3: Pre-merge checks** — `superpowers:finishing-a-development-branch`, push and open a PR, never merge.
+- [x] **Step 3: Pre-merge checks** — `superpowers:finishing-a-development-branch`, push and open a PR, never merge.
 
-- [ ] **Step 4: PR body** to `$SCRATCH/pr-nfs-backups.md`, covering: what it adds (a 10G `scsi3` disk on `nfs-01`, a `/srv/nfs/backups` share at mode 0700 exported to `10.0.0.133` only), that the k8s shares are unchanged, and the operator steps from Task 10 including the `qm set` workaround and why (the provider refuses to hot-attach and we will not reboot `nfs-01`).
+- [x] **Step 4: PR body** to `$SCRATCH/pr-nfs-backups.md`, covering: what it adds (a 10G `scsi3` disk on `nfs-01`, a `/srv/nfs/backups` share at mode 0700 exported to `10.0.0.133` only), that the k8s shares are unchanged, and the operator steps from Task 10 including the `qm set` workaround and why (the provider refuses to hot-attach and we will not reboot `nfs-01`).
 
-- [ ] **Step 5: Push and open**
+- [x] **Step 5: Push and open**
 
 ```bash
 git push -u origin nfs-backups-share
