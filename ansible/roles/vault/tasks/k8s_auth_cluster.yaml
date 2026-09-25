@@ -1,0 +1,118 @@
+---
+- name: "Read the CA certificate for {{ cluster.name }}"
+  ansible.builtin.slurp:
+    src: /etc/kubernetes/pki/ca.crt
+  delegate_to: "{{ cluster.control_plane_host }}"
+  become: true
+  register: vault_k8s_ca
+
+# vault_k8s_jwt.stdout is the base64 of a non-expiring credential that
+# holds system:auth-delegator (cluster-wide TokenReview power), so this
+# task is no_log: the default callback dumps a registered result at -v,
+# and JSON/log callbacks capture it unconditionally regardless of verbosity.
+# failed_when: false keeps a kubectl failure from aborting inside a
+# censored task with no visible reason. The assert right after carries
+# the diagnostics instead, checking only rc and length so it is safe to
+# print: an empty stdout with rc 0 happens when the Secret exists but the
+# token controller has not populated it yet, and would otherwise configure
+# Vault with a blank reviewer JWT that fails much later as a silent
+# fallback to self-review, surfacing as permission denied inside the
+# repo-server sidecar.
+- name: "Read the token reviewer JWT for {{ cluster.name }}"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd
+      get secret vault-auth-token -o jsonpath={.data.token}
+  delegate_to: "{{ cluster.control_plane_host }}"
+  become: true
+  register: vault_k8s_jwt
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Require the token reviewer JWT to have been read
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_jwt.rc == 0
+      - vault_k8s_jwt.stdout | length > 0
+    fail_msg: >-
+      Could not read the token reviewer JWT. The preceding task is
+      no_log because its output is a non-expiring cluster credential, so
+      run this by hand on the control plane to see the real error:
+      kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd get
+      secret vault-auth-token -o jsonpath={.data.token}
+      An empty value with rc 0 means the Secret exists but the token
+      controller has not populated it yet.
+
+- name: List the auth methods
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/auth"
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+  register: vault_auth_methods
+
+- name: "Enable the kubernetes auth method at {{ cluster.auth_path }}"
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/auth/{{ cluster.auth_path }}"
+    method: POST
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      type: kubernetes
+    status_code: [200, 204]
+  when: (cluster.auth_path ~ '/') not in vault_auth_methods.json.data
+  changed_when: true
+
+- name: "Point the auth method at the API server for {{ cluster.name }}"
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/auth/{{ cluster.auth_path }}/config"
+    method: POST
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      kubernetes_host: "https://{{ cluster.api_host }}:6443"
+      kubernetes_ca_cert: "{{ vault_k8s_ca.content | b64decode }}"
+      token_reviewer_jwt: "{{ vault_k8s_jwt.stdout | b64decode }}"
+      # Vault is not running in the cluster, so there is no local
+      # ServiceAccount token for it to fall back on. Without this it tries
+      # one anyway and fails with a message that does not say so.
+      disable_local_ca_jwt: true
+    status_code: [200, 204]
+  no_log: true
+
+- name: "Write the policy for {{ cluster.name }}"
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/policies/acl/{{ cluster.policy_name }}"
+    method: PUT
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      policy: "{{ lookup('ansible.builtin.template', 'k8s-policy.hcl.j2') }}"
+    status_code: [200, 204]
+
+# Vault answers 204 when it has nothing to say and 200 with a JSON body
+# when it has a warning to report -- creating the role without an
+# `audience` is one such warning. Asserting 204 alone turns a successful
+# write into a failed task, which is how this first surfaced: the role was
+# created and the play stopped anyway.
+- name: "Bind the role to the ServiceAccounts for {{ cluster.name }}"
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/auth/{{ cluster.auth_path }}/role/{{ cluster.role_name }}"
+    method: POST
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      bound_service_account_names: "{{ cluster.service_account_names }}"
+      bound_service_account_namespaces: "{{ cluster.service_account_namespaces }}"
+      policies: ["{{ cluster.policy_name }}"]
+      ttl: 1h
+    status_code: [200, 204]

@@ -1,0 +1,11 @@
+# Managed by ansible (roles/vault).
+[Unit]
+Description=Daily Vault raft snapshot
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,8 @@
+    # BEGIN ansible coredns_hosts
+    hosts {
+{% for entry in coredns_hosts_entries %}
+       {{ entry.ip }} {{ entry.names | join(' ') }}
+{% endfor %}
+       fallthrough
+    }
+    # END ansible coredns_hosts

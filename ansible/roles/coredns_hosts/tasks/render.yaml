@@ -1,0 +1,12 @@
+---
+# Drop any block an earlier run wrote, then insert the current one before
+# the forward plugin. mandatory_count makes a Corefile with no forward line
+# fail here instead of silently gaining nothing.
+- name: Render the Corefile with the hosts block
+  ansible.builtin.set_fact:
+    coredns_hosts_corefile_new: >-
+      {{ coredns_hosts_corefile_current
+         | regex_replace('(?ms)^[ \t]*# BEGIN ansible coredns_hosts\n.*?^[ \t]*# END ansible coredns_hosts\n', '')
+         | regex_replace('(?m)^(?=[ \t]*forward )',
+                         lookup('ansible.builtin.template', 'hosts-block.j2') | replace('\\', '\\\\'),
+                         count=1, mandatory_count=1) }}

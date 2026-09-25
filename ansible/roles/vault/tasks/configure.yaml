@@ -1,0 +1,16 @@
+---
+- name: Check the token and Vault's state
+  ansible.builtin.import_tasks: preflight.yaml
+
+- name: Create the KV mounts
+  ansible.builtin.import_tasks: kv_mounts.yaml
+
+- name: Enable the audit log
+  ansible.builtin.import_tasks: audit.yaml
+
+- name: Configure each cluster's Kubernetes auth
+  ansible.builtin.import_tasks: k8s_auth.yaml
+  when: vault_configure_k8s_auth | bool
+
+- name: Set up the snapshot AppRole
+  ansible.builtin.import_tasks: snapshot_approle.yaml

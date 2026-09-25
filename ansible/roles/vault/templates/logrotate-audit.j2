@@ -1,0 +1,12 @@
+# Managed by ansible (roles/vault). copytruncate, because Vault keeps the
+# audit file open; a rotation that moved it away would leave Vault writing
+# to the renamed file.
+{{ vault_audit_log }} {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

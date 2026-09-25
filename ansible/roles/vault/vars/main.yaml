@@ -1,0 +1,13 @@
+---
+# Every vault_k8s_clusters entry must carry all of these. Not a default:
+# nothing about it is tunable.
+vault_k8s_cluster_keys:
+  - name
+  - kv_mount
+  - auth_path
+  - api_host
+  - control_plane_host
+  - policy_name
+  - role_name
+  - service_account_names
+  - service_account_namespaces

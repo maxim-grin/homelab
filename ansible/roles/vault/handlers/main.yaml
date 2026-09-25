@@ -1,5 +1,20 @@
 ---
+# A restart seals Vault. Any run that fires this needs an unseal afterwards.
 - name: Restart vault
   ansible.builtin.systemd_service:
     name: vault
     state: restarted
+    daemon_reload: true
+  when: vault_service_managed | bool
+
+# SIGHUP (the packaged unit's ExecReload) makes Vault re-read its listener
+# certificate without restarting, so a renewed certificate does not seal it.
+- name: Reload vault
+  ansible.builtin.systemd_service:
+    name: vault
+    state: reloaded
+  when: vault_service_managed | bool
+
+- name: Update the CA trust store
+  ansible.builtin.command: update-ca-certificates
+  changed_when: true

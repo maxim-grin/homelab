@@ -1,0 +1,36 @@
+---
+# Never mount the data disk over a directory that already holds files on the
+# root disk -- the mount would hide them. Same guard as roles/nfs_server.
+- name: Look for files at the data mount point
+  ansible.builtin.find:
+    paths: "{{ vault_data_mount }}"
+    file_type: any
+    hidden: true
+  register: vault_data_mount_contents
+
+- name: Refuse to mount the data disk over files on the root disk
+  ansible.builtin.assert:
+    that:
+      - >-
+        vault_data_mount_contents.matched == 0 or
+        (ansible_facts['mounts'] | selectattr('mount', 'equalto', vault_data_mount) | list | length > 0)
+    fail_msg: >-
+      {{ vault_data_mount }} holds files but is not a mount point. Move them
+      aside before mounting the data disk over them.
+
+- name: Create the data disk's filesystem
+  community.general.filesystem:
+    dev: "{{ vault_data_device }}"
+    fstype: ext4
+    opts: -L vault-data
+
+# By label, so fstab survives the disk changing slot. No nofail: Vault
+# without its data disk would initialise a fresh, empty raft store on the
+# root disk. The drop-in in config.yaml holds the service for the mount too.
+- name: Mount the data disk
+  ansible.posix.mount:
+    path: "{{ vault_data_mount }}"
+    src: LABEL=vault-data
+    fstype: ext4
+    opts: defaults
+    state: mounted

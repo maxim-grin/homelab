@@ -1,0 +1,103 @@
+---
+- name: List the auth methods
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/auth"
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+  register: vault_auth_methods
+
+- name: Enable the approle auth method
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/auth/approle"
+    method: POST
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      type: approle
+    status_code: [200, 204]
+  when: "'approle/' not in vault_auth_methods.json.data"
+  changed_when: true
+
+- name: Write the snapshot policy
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/sys/policies/acl/{{ vault_snapshot_role }}"
+    method: PUT
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      policy: |
+        path "sys/storage/raft/snapshot" {
+          capabilities = ["read"]
+        }
+    status_code: [200, 204]
+  changed_when: false
+
+# Not the root token, and not a token that expires quietly: the secret_id
+# never expires and each login gets a 10-minute token, revoked when the job
+# ends.
+- name: Write the snapshot role
+  ansible.builtin.uri:
+    url: "{{ vault_api_url }}/v1/auth/approle/role/{{ vault_snapshot_role }}"
+    method: POST
+    ca_path: "{{ vault_tls_dir }}/ca.crt"
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      token_policies: ["{{ vault_snapshot_role }}"]
+      token_ttl: 10m
+      token_max_ttl: 10m
+      secret_id_ttl: 0
+      secret_id_num_uses: 0
+    status_code: [200, 204]
+  changed_when: false
+
+- name: Look for existing snapshot credentials
+  ansible.builtin.stat:
+    path: "{{ vault_config_dir }}/snapshot.env"
+  register: vault_snapshot_env
+
+# Only when the file is absent, so re-runs do not pile up secret_ids.
+- name: Issue the snapshot credentials
+  when: not vault_snapshot_env.stat.exists
+  block:
+    - name: Read the role_id
+      ansible.builtin.uri:
+        url: "{{ vault_api_url }}/v1/auth/approle/role/{{ vault_snapshot_role }}/role-id"
+        ca_path: "{{ vault_tls_dir }}/ca.crt"
+        headers:
+          X-Vault-Token: "{{ vault_token }}"
+      register: vault_snapshot_role_id_response
+
+    - name: Issue a secret_id
+      ansible.builtin.uri:
+        url: "{{ vault_api_url }}/v1/auth/approle/role/{{ vault_snapshot_role }}/secret-id"
+        method: POST
+        ca_path: "{{ vault_tls_dir }}/ca.crt"
+        headers:
+          X-Vault-Token: "{{ vault_token }}"
+      register: vault_snapshot_secret_id_response
+      no_log: true
+
+    - name: Write the snapshot credentials
+      ansible.builtin.template:
+        src: snapshot.env.j2
+        dest: "{{ vault_config_dir }}/snapshot.env"
+        mode: "0600"
+      vars:
+        vault_snapshot_role_id: "{{ vault_snapshot_role_id_response.json.data.role_id }}"
+        vault_snapshot_secret_id: "{{ vault_snapshot_secret_id_response.json.data.secret_id }}"
+      no_log: true
+
+- name: Enable the snapshot timer
+  ansible.builtin.systemd_service:
+    name: vault-snapshot.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: vault_service_managed | bool

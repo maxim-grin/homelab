@@ -1,0 +1,38 @@
+---
+- name: Read the CoreDNS ConfigMap
+  kubernetes.core.k8s_info:
+    kind: ConfigMap
+    name: coredns
+    namespace: kube-system
+    kubeconfig: "{{ coredns_hosts_kubeconfig }}"
+  register: coredns_hosts_configmap
+
+- name: Render the new Corefile
+  ansible.builtin.include_tasks: render.yaml
+  vars:
+    coredns_hosts_corefile_current: "{{ coredns_hosts_configmap.resources[0].data.Corefile }}"
+
+- name: Write the Corefile back
+  kubernetes.core.k8s:
+    kubeconfig: "{{ coredns_hosts_kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: "{{ coredns_hosts_corefile_new }}"
+  register: coredns_hosts_written
+
+# The reload plugin would pick the change up within a couple of minutes;
+# a restart makes it take effect now, while the person who ran this is
+# watching.
+- name: Restart CoreDNS  # noqa: no-handler
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ coredns_hosts_kubeconfig }} -n kube-system
+      rollout restart deployment coredns
+  when: coredns_hosts_written.changed
+  changed_when: true
