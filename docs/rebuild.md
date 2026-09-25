@@ -587,11 +587,14 @@ Each step depends on the one above it.
     resolve produces broken clone URLs and login redirects rather than a
     connection error.
 
-    `vault.mgryn.cc` is different: point it straight at `vault-01`'s own
-    IP (`vault_lxc_ip` in `dev.tfvars`), not at a node. Vault is not behind
-    ingress-nginx, so it stays reachable at `http://vault.mgryn.cc:8200`
-    even when the cluster itself is down — which is exactly when an
-    operator needs to check whether it is sealed.
+    `vault.mgryn.cc`, like `jobs.mgryn.cc`, needs no `/etc/hosts` entry
+    either: it is a DNS-only Cloudflare record pointing at `vault-02`
+    (`10.0.0.133`), not a node -- remove any old entry pointing it at
+    `vault-01`'s IP (`10.0.0.132`). Vault is not behind ingress-nginx, so
+    it stays reachable at `https://vault.mgryn.cc:8200` (verify with
+    `--cacert ~/.homelab-ca/ca.crt`) even when the cluster itself is down
+    — which is exactly when an operator needs to check whether it is
+    sealed.
 
 Expect steps 11 and 12 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
