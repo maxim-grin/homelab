@@ -22,9 +22,12 @@ fi
 VAULT_TOKEN="$(printf '%s' "$VAULT_SECRET_ID" |
   vault write -field=token auth/approle/login role_id="$VAULT_ROLE_ID" secret_id=-)"
 export VAULT_TOKEN
-trap 'vault token revoke -self >/dev/null 2>&1 || true' EXIT
 
 name="vault-$(date -u +%Y%m%dT%H%M%SZ).snap"
+# Also clean up a partial file left by a failed `raft snapshot save` -- the
+# prune below only ever matches finished `.snap` names, so a `.partial`
+# left on the share would otherwise sit there forever.
+trap 'rm -f -- "$VAULT_SNAPSHOT_DIR/$name.partial"; vault token revoke -self >/dev/null 2>&1 || true' EXIT
 vault operator raft snapshot save "$VAULT_SNAPSHOT_DIR/$name.partial"
 mv "$VAULT_SNAPSHOT_DIR/$name.partial" "$VAULT_SNAPSHOT_DIR/$name"
 echo "vault-snapshot: saved $name"
