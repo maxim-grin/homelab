@@ -75,7 +75,7 @@
 **Interfaces:**
 - Produces every variable later tasks consume: `vault_version, vault_data_device, vault_data_mount, vault_data_dir, vault_config_dir, vault_tls_dir, vault_listen_address, vault_api_port, vault_cluster_port, vault_address, vault_api_url, vault_ca_dir, vault_ca_common_name, vault_ca_validity_days, vault_cert_validity_days, vault_cert_renew_within_days, vault_tls_dns_names, vault_tls_group, vault_tls_trust_system, vault_audit_log, vault_service_managed, vault_kv_mounts, vault_kv_mount, vault_k8s_clusters, vault_snapshot_src, vault_snapshot_dir, vault_snapshot_keep, vault_snapshot_role, vault_configure, vault_configure_k8s_auth, vault_seed`; role var `vault_k8s_cluster_keys`; tasks file `validate_clusters.yaml`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `$SCRATCH/vault-tests/validate-clusters-test.yaml`:
 
@@ -139,7 +139,7 @@ and `$SCRATCH/vault-tests/validate-clusters-case.yaml`:
     that: case_failed == case.expect_fail
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 cd $SCRATCH/vault-tests && RUN validate-clusters-test.yaml
@@ -147,7 +147,7 @@ cd $SCRATCH/vault-tests && RUN validate-clusters-test.yaml
 
 Expected: FAIL — `validate_clusters.yaml` does not exist.
 
-- [ ] **Step 3: Rewrite `defaults/main.yaml`**
+- [x] **Step 3: Rewrite `defaults/main.yaml`**
 
 Keep the existing `vault_version` comment block verbatim except: `apt-cache madison vault` "on vault-01" becomes "on vault-02", and add one sentence after "It happened to work.": "Raft does not downgrade either." Then:
 
@@ -232,7 +232,7 @@ vault_configure_k8s_auth: true
 vault_seed: false
 ```
 
-- [ ] **Step 4: Create `vars/main.yaml`**
+- [x] **Step 4: Create `vars/main.yaml`**
 
 ```yaml
 ---
@@ -250,7 +250,7 @@ vault_k8s_cluster_keys:
   - service_account_namespaces
 ```
 
-- [ ] **Step 5: Create `tasks/validate_clusters.yaml`**
+- [x] **Step 5: Create `tasks/validate_clusters.yaml`**
 
 ```yaml
 ---
@@ -293,9 +293,9 @@ vault_k8s_cluster_keys:
       {{ vault_k8s_clusters | map(attribute='kv_mount') | difference(vault_kv_mounts) | join(', ') }}.
 ```
 
-- [ ] **Step 6: Run the test** — same command as Step 2. Expected: every "Expect" assertion passes, `failed=0` in the recap (rescued failures are counted under `rescued`, not `failed`).
+- [x] **Step 6: Run the test** — same command as Step 2. Expected: every "Expect" assertion passes, `failed=0` in the recap (rescued failures are counted under `rescued`, not `failed`).
 
-- [ ] **Step 7: Lint and commit**
+- [x] **Step 7: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/vault 2>&1 | tail -1 | cat
@@ -320,7 +320,7 @@ Expected: ansible-lint `Passed`. `main.yaml` is not rewired yet; the role still 
 - Consumes: Task 1 defaults.
 - Produces: tasks files `install.yaml`, `disk.yaml`, `config.yaml`; handlers `Restart vault`, `Reload vault`, `Update the CA trust store`; templates `vault.hcl.j2`, `logrotate-audit.j2`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `$SCRATCH/vault-tests/config-render-test.yaml`:
 
@@ -362,7 +362,7 @@ Expected: ansible-lint `Passed`. `main.yaml` is not rewired yet; the role still 
         fail_msg: "{{ rotate }}"
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 cd $SCRATCH/vault-tests && RUN config-render-test.yaml
@@ -370,7 +370,7 @@ cd $SCRATCH/vault-tests && RUN config-render-test.yaml
 
 Expected: FAIL — the template still says `storage "file"`, and `logrotate-audit.j2` does not exist.
 
-- [ ] **Step 3: Rewrite `templates/vault.hcl.j2`**
+- [x] **Step 3: Rewrite `templates/vault.hcl.j2`**
 
 ```hcl
 # Managed by ansible (roles/vault). A change here restarts Vault, and a
@@ -396,7 +396,7 @@ cluster_addr = "https://{{ vault_address }}:{{ vault_cluster_port }}"
 disable_mlock = true
 ```
 
-- [ ] **Step 4: Create `templates/logrotate-audit.j2`**
+- [x] **Step 4: Create `templates/logrotate-audit.j2`**
 
 ```
 # Managed by ansible (roles/vault). copytruncate, because Vault keeps the
@@ -413,9 +413,9 @@ disable_mlock = true
 }
 ```
 
-- [ ] **Step 5: Run the test again** — expected: all three assertions pass, `failed=0`.
+- [x] **Step 5: Run the test again** — expected: all three assertions pass, `failed=0`.
 
-- [ ] **Step 6: Trim `tasks/install.yaml`**
+- [x] **Step 6: Trim `tasks/install.yaml`**
 
 Keep, unchanged: the HashiCorp key download and dearmor, the `deb822_repository` task, `Install Vault` and `Hold Vault at the pinned version`. Delete: the two tasks that find and remove old one-line `.list` files (they existed for `vault-01`'s repository migration; `vault-02` never had one), `Create the Vault directories`, `Render the Vault configuration`, the drop-in directory, `Drop the capability directives the container cannot grant`, and `Enable and start Vault` (these move to `config.yaml`). Replace the prerequisites task with:
 
@@ -437,7 +437,7 @@ Keep, unchanged: the HashiCorp key download and dearmor, the `deb822_repository`
 
 and delete the separate `Install python3-debian for deb822_repository` task.
 
-- [ ] **Step 7: Create `tasks/disk.yaml`**
+- [x] **Step 7: Create `tasks/disk.yaml`**
 
 ```yaml
 ---
@@ -478,7 +478,7 @@ and delete the separate `Install python3-debian for deb822_repository` task.
     state: mounted
 ```
 
-- [ ] **Step 8: Create `tasks/config.yaml`**
+- [x] **Step 8: Create `tasks/config.yaml`**
 
 ```yaml
 ---
@@ -538,7 +538,7 @@ and delete the separate `Install python3-debian for deb822_repository` task.
     daemon_reload: true
 ```
 
-- [ ] **Step 9: Rewrite `handlers/main.yaml`**
+- [x] **Step 9: Rewrite `handlers/main.yaml`**
 
 ```yaml
 ---
@@ -563,7 +563,7 @@ and delete the separate `Install python3-debian for deb822_repository` task.
   changed_when: true
 ```
 
-- [ ] **Step 10: Lint and commit**
+- [x] **Step 10: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/vault 2>&1 | tail -1 | cat
@@ -586,7 +586,7 @@ a VM can grant IPC_LOCK, and mlock stays off because raft memory-maps."
 - Consumes: Task 1 defaults; handlers `Reload vault`, `Update the CA trust store` (Task 2).
 - Produces: on the host, `{{ vault_tls_dir }}/server.key` (0640 root:`vault_tls_group`), `server.crt`, `ca.crt`; on the workstation `{{ vault_ca_dir }}/ca.key` (0600) and `ca.crt`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `$SCRATCH/vault-tests/tls-test.yaml` runs the role's TLS tasks against `localhost` with every path in `$SCRATCH`:
 
@@ -650,9 +650,9 @@ RUN tls-test.yaml -e vault_cert_renew_within_days=900         # run 3: inside th
 sha1sum -c tls/run1.sha                                       # must print FAILED
 ```
 
-- [ ] **Step 2: Run it to verify it fails** — expected: FAIL, `tls.yaml` does not exist.
+- [x] **Step 2: Run it to verify it fails** — expected: FAIL, `tls.yaml` does not exist.
 
-- [ ] **Step 3: Add the collection to `ansible/requirements.yml`**
+- [x] **Step 3: Add the collection to `ansible/requirements.yml`**
 
 ```yaml
   - name: community.crypto
@@ -661,7 +661,7 @@ sha1sum -c tls/run1.sha                                       # must print FAILE
 
 and extend the file's header comment: `roles/vault` needs `community.crypto` for its CA and server certificate.
 
-- [ ] **Step 4: Create `tasks/tls.yaml`**
+- [x] **Step 4: Create `tasks/tls.yaml`**
 
 ```yaml
 ---
@@ -797,9 +797,9 @@ and extend the file's header comment: `roles/vault` needs `community.crypto` for
   notify: Update the CA trust store
 ```
 
-- [ ] **Step 5: Run the three-run test** — expected: run 1 passes all assertions; run 2 passes and `sha1sum -c` prints `OK`; run 3 passes and `sha1sum -c` prints `FAILED` (a new certificate). No `failed=` other than 0 in any recap. If `openssl verify` rejects `-verify_hostname`, the local openssl is older than 1.1.0 — report it rather than dropping the flag. If `x509_certificate_pipe` rejects `force` or `content`, report the module's error: the renewal logic hinges on them.
+- [x] **Step 5: Run the three-run test** — expected: run 1 passes all assertions; run 2 passes and `sha1sum -c` prints `OK`; run 3 passes and `sha1sum -c` prints `FAILED` (a new certificate). No `failed=` other than 0 in any recap. If `openssl verify` rejects `-verify_hostname`, the local openssl is older than 1.1.0 — report it rather than dropping the flag. If `x509_certificate_pipe` rejects `force` or `content`, report the module's error: the renewal logic hinges on them.
 
-- [ ] **Step 6: Lint and commit**
+- [x] **Step 6: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/vault 2>&1 | tail -1 | cat
@@ -821,7 +821,7 @@ run within 30 days of expiry signs a fresh one and reloads Vault."
 - Consumes: Task 1 defaults.
 - Produces: `/usr/local/sbin/vault-snapshot`, reading `VAULT_SNAPSHOT_DIR`, `VAULT_SNAPSHOT_KEEP`, `VAULT_ROLE_ID`, `VAULT_SECRET_ID` (plus `VAULT_ADDR`, `VAULT_CACERT` for the CLI); units `vault-snapshot.service` (oneshot, `EnvironmentFile=/etc/vault.d/snapshot.env`) and `vault-snapshot.timer` (not enabled here — Task 5 enables it once credentials exist); template `snapshot.env.j2` taking `vault_snapshot_role_id`, `vault_snapshot_secret_id`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `$SCRATCH/vault-tests/snapshot-test.sh` drives the script with stand-ins for `vault`, `mountpoint` and `mount` on `PATH`:
 
@@ -882,7 +882,7 @@ bash -n "$SCRIPT" && echo "ok   syntax" || { echo "FAIL syntax"; fails=$((fails+
 echo "failures: $fails"; exit $fails
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 bash $SCRATCH/vault-tests/snapshot-test.sh
@@ -890,7 +890,7 @@ bash $SCRATCH/vault-tests/snapshot-test.sh
 
 Expected: FAIL lines, non-zero exit — the script does not exist.
 
-- [ ] **Step 3: Create `files/vault-snapshot.sh`**
+- [x] **Step 3: Create `files/vault-snapshot.sh`**
 
 ```bash
 #!/usr/bin/env bash
@@ -933,9 +933,9 @@ find "$VAULT_SNAPSHOT_DIR" -maxdepth 1 -name 'vault-*.snap' -printf '%f\n' |
   done
 ```
 
-- [ ] **Step 4: Run the test again** — expected: every line `ok`, `failures: 0`, exit 0.
+- [x] **Step 4: Run the test again** — expected: every line `ok`, `failures: 0`, exit 0.
 
-- [ ] **Step 5: Create the units**
+- [x] **Step 5: Create the units**
 
 `files/vault-snapshot.service`:
 
@@ -968,7 +968,7 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-- [ ] **Step 6: Create `templates/snapshot.env.j2`**
+- [x] **Step 6: Create `templates/snapshot.env.j2`**
 
 ```
 # Managed by ansible (roles/vault). The AppRole below can read
@@ -982,7 +982,7 @@ VAULT_SNAPSHOT_DIR={{ vault_snapshot_dir }}
 VAULT_SNAPSHOT_KEEP={{ vault_snapshot_keep }}
 ```
 
-- [ ] **Step 7: Create `tasks/snapshot_host.yaml`**
+- [x] **Step 7: Create `tasks/snapshot_host.yaml`**
 
 ```yaml
 ---
@@ -1018,7 +1018,7 @@ VAULT_SNAPSHOT_KEEP={{ vault_snapshot_keep }}
     - vault-snapshot.timer
 ```
 
-- [ ] **Step 8: Lint and commit**
+- [x] **Step 8: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/vault 2>&1 | tail -1 | cat
@@ -1040,7 +1040,7 @@ logs in with an AppRole over stdin, saves a raft snapshot and keeps 14."
 - Consumes: everything from Tasks 1-4. `k8s_auth.yaml` is rewritten in Task 6; here `configure.yaml` imports it under `when: vault_configure_k8s_auth | bool`, and the rehearsal sets that false.
 - Produces: `tasks/main.yaml` in its final form; `configure.yaml`; the `vault-snapshot` AppRole and policy; `{{ vault_config_dir }}/snapshot.env`.
 
-- [ ] **Step 1: Write the rehearsal (the failing test)**
+- [x] **Step 1: Write the rehearsal (the failing test)**
 
 `$SCRATCH/vault-rehearsal/vars.yaml` — every path in scratch:
 
@@ -1191,9 +1191,9 @@ grep -E '^vault-02' run2.log
 bash down.sh
 ```
 
-- [ ] **Step 2: Run it to verify it fails** — expected: `up.yaml` passes (Tasks 2-3 exist); `configure.yaml` fails — `configure.yaml` does not exist in the role.
+- [x] **Step 2: Run it to verify it fails** — expected: `up.yaml` passes (Tasks 2-3 exist); `configure.yaml` fails — `configure.yaml` does not exist in the role.
 
-- [ ] **Step 3: Create `tasks/preflight.yaml`**
+- [x] **Step 3: Create `tasks/preflight.yaml`**
 
 ```yaml
 ---
@@ -1223,7 +1223,7 @@ bash down.sh
       this role never sees the unseal key.
 ```
 
-- [ ] **Step 4: Create `tasks/kv_mounts.yaml`**
+- [x] **Step 4: Create `tasks/kv_mounts.yaml`**
 
 ```yaml
 ---
@@ -1253,7 +1253,7 @@ bash down.sh
   changed_when: true
 ```
 
-- [ ] **Step 5: Create `tasks/audit.yaml`**
+- [x] **Step 5: Create `tasks/audit.yaml`**
 
 ```yaml
 ---
@@ -1283,7 +1283,7 @@ bash down.sh
   changed_when: true
 ```
 
-- [ ] **Step 6: Create `tasks/snapshot_approle.yaml`**
+- [x] **Step 6: Create `tasks/snapshot_approle.yaml`**
 
 ```yaml
 ---
@@ -1393,7 +1393,7 @@ bash down.sh
 
 (`owner: root` on the credentials file is implied by the play's `become`; the rehearsal runs unprivileged and must be able to write it.)
 
-- [ ] **Step 7: Create `tasks/configure.yaml`**
+- [x] **Step 7: Create `tasks/configure.yaml`**
 
 ```yaml
 ---
@@ -1414,7 +1414,7 @@ bash down.sh
   ansible.builtin.import_tasks: snapshot_approle.yaml
 ```
 
-- [ ] **Step 8: Rewrite `tasks/seed.yaml`**
+- [x] **Step 8: Rewrite `tasks/seed.yaml`**
 
 ```yaml
 ---
@@ -1443,7 +1443,7 @@ bash down.sh
   no_log: true
 ```
 
-- [ ] **Step 9: Rewrite `tasks/main.yaml`**
+- [x] **Step 9: Rewrite `tasks/main.yaml`**
 
 ```yaml
 ---
@@ -1475,9 +1475,9 @@ bash down.sh
   when: vault_seed | bool
 ```
 
-- [ ] **Step 10: Run the rehearsal** — the full run from Step 1. Expected: `up.yaml` and `configure.yaml` recaps with `failed=0`; `check.sh` prints only `ok` lines and `failures: 0`; the second `configure.yaml` run's recap shows `changed=0`. Keep `run1.log`, `run2.log` and the `check.sh` output for the report. If Vault fails to start, read `run/server.log` before changing anything.
+- [x] **Step 10: Run the rehearsal** — the full run from Step 1. Expected: `up.yaml` and `configure.yaml` recaps with `failed=0`; `check.sh` prints only `ok` lines and `failures: 0`; the second `configure.yaml` run's recap shows `changed=0`. Keep `run1.log`, `run2.log` and the `check.sh` output for the report. If Vault fails to start, read `run/server.log` before changing anything.
 
-- [ ] **Step 11: Lint and commit**
+- [x] **Step 11: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/vault 2>&1 | tail -1 | cat
@@ -1500,7 +1500,7 @@ that Vault is initialised and unsealed."
 - Consumes: `vault_k8s_clusters` entries (Task 1 keys), `vault_api_url`, `vault_tls_dir`, `vault_token`.
 - Produces: `k8s_auth.yaml` imported by `configure.yaml` (Task 5); template `k8s-policy.hcl.j2` taking `cluster`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```yaml
 - name: Each cluster's policy names its own mount and nothing wider
@@ -1531,7 +1531,7 @@ that Vault is initialised and unsealed."
 
 Save as `$SCRATCH/vault-tests/k8s-policy-test.yaml`.
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 cd $SCRATCH/vault-tests && RUN k8s-policy-test.yaml
@@ -1539,7 +1539,7 @@ cd $SCRATCH/vault-tests && RUN k8s-policy-test.yaml
 
 Expected: FAIL — the template does not exist.
 
-- [ ] **Step 3: Create `templates/k8s-policy.hcl.j2`**
+- [x] **Step 3: Create `templates/k8s-policy.hcl.j2`**
 
 ```hcl
 # Managed by ansible (roles/vault). Cluster {{ cluster.name | default('') }}
@@ -1552,9 +1552,9 @@ path "{{ cluster.kv_mount }}/metadata/*" {
 }
 ```
 
-- [ ] **Step 4: Run the test again** — expected: `failed=0`.
+- [x] **Step 4: Run the test again** — expected: `failed=0`.
 
-- [ ] **Step 5: Rewrite `tasks/k8s_auth.yaml`**
+- [x] **Step 5: Rewrite `tasks/k8s_auth.yaml`**
 
 ```yaml
 ---
@@ -1566,7 +1566,7 @@ path "{{ cluster.kv_mount }}/metadata/*" {
     label: "{{ cluster.name }}"
 ```
 
-- [ ] **Step 6: Create `tasks/k8s_auth_cluster.yaml`**
+- [x] **Step 6: Create `tasks/k8s_auth_cluster.yaml`**
 
 Carry over, verbatim, the two comment blocks of the old `k8s_auth.yaml`: the one above `Read the token reviewer JWT` (why the task is `no_log` and `failed_when: false`) and the assert's `fail_msg`, and the one in the config call about `disable_local_ca_jwt`. The tasks:
 
@@ -1665,11 +1665,11 @@ Carry over, verbatim, the two comment blocks of the old `k8s_auth.yaml`: the one
     status_code: [200, 204]
 ```
 
-- [ ] **Step 7: Rehearse the rest of the configure phase with k8s auth off**
+- [x] **Step 7: Rehearse the rest of the configure phase with k8s auth off**
 
 Re-run Task 5's full rehearsal (Step 1's run block). Expected: unchanged — `failures: 0`, second run `changed=0`. This proves the import wiring still parses; the delegated reads can only run against the real cluster (Task 10).
 
-- [ ] **Step 8: Lint, syntax-check with both inventories, commit**
+- [x] **Step 8: Lint, syntax-check with both inventories, commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/vault 2>&1 | tail -1 | cat
@@ -1692,7 +1692,7 @@ token reviewer reads are delegated to each cluster's control plane."
 - Consumes: `host_ips['vault-02']` (operator adds it to `secret.yaml` in PR 1 — done).
 - Produces: role `coredns_hosts` with `coredns_hosts_entries` (list of `{ip, names}`), `coredns_hosts_kubeconfig`; fact `coredns_hosts_corefile_new`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `$SCRATCH/vault-tests/corefile-test.yaml` feeds kubeadm 1.33's default Corefile through the transformation the role uses:
 
@@ -1775,7 +1775,7 @@ token reviewer reads are delegated to each cluster's control plane."
             that: ansible_failed_task.name != 'It should not get here'
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 cd $SCRATCH/vault-tests && RUN corefile-test.yaml
@@ -1783,7 +1783,7 @@ cd $SCRATCH/vault-tests && RUN corefile-test.yaml
 
 Expected: FAIL — the role does not exist.
 
-- [ ] **Step 3: Create `defaults/main.yaml`**
+- [x] **Step 3: Create `defaults/main.yaml`**
 
 ```yaml
 ---
@@ -1797,7 +1797,7 @@ coredns_hosts_entries:
 coredns_hosts_kubeconfig: /etc/kubernetes/admin.conf
 ```
 
-- [ ] **Step 4: Create `templates/hosts-block.j2`**
+- [x] **Step 4: Create `templates/hosts-block.j2`**
 
 ```
     # BEGIN ansible coredns_hosts
@@ -1810,7 +1810,7 @@ coredns_hosts_kubeconfig: /etc/kubernetes/admin.conf
     # END ansible coredns_hosts
 ```
 
-- [ ] **Step 5: Create `tasks/render.yaml`** (the pure transformation the test drives) and `tasks/main.yaml`
+- [x] **Step 5: Create `tasks/render.yaml`** (the pure transformation the test drives) and `tasks/main.yaml`
 
 `tasks/render.yaml`:
 
@@ -1872,9 +1872,9 @@ coredns_hosts_kubeconfig: /etc/kubernetes/admin.conf
   changed_when: true
 ```
 
-- [ ] **Step 6: Run the test again** — expected: every assertion passes, `failed=0`.
+- [x] **Step 6: Run the test again** — expected: every assertion passes, `failed=0`.
 
-- [ ] **Step 7: Create `ansible/playbooks/coredns_hosts.yaml`**
+- [x] **Step 7: Create `ansible/playbooks/coredns_hosts.yaml`**
 
 ```yaml
 ---
@@ -1897,7 +1897,7 @@ coredns_hosts_kubeconfig: /etc/kubernetes/admin.conf
     - role: coredns_hosts
 ```
 
-- [ ] **Step 8: Lint, syntax-check, commit**
+- [x] **Step 8: Lint, syntax-check, commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/coredns_hosts playbooks/coredns_hosts.yaml 2>&1 | tail -1 | cat
@@ -1914,7 +1914,7 @@ argocd-vault-plugin finds Vault without the WAN or Cloudflare."
 **Files:**
 - Modify: `ansible/playbooks/vault.yaml`, `ansible/secret.yaml.example`, `CLAUDE.md`, `docs/rebuild.md`, `ansible/README.md`
 
-- [ ] **Step 1: Point the playbook at the VM**
+- [x] **Step 1: Point the playbook at the VM**
 
 `ansible/playbooks/vault.yaml`:
 
@@ -1934,11 +1934,11 @@ argocd-vault-plugin finds Vault without the WAN or Cloudflare."
     - role: vault
 ```
 
-- [ ] **Step 2: Add `vault-02` to `ansible/secret.yaml.example`**
+- [x] **Step 2: Add `vault-02` to `ansible/secret.yaml.example`**
 
 `vault-02: 10.0.0.133` under `host_ips` and `vault-02: 105` under `proxmox_vm_ids`, each directly after `vault-01`. Change the `vault_kv` comment's `seed.yaml` usage line to the two-inventory command above, and add one line: "Seeded into `kv-dev/` (`vault_kv_mount`); the keys here stay unprefixed."
 
-- [ ] **Step 3: Syntax-check with both inventories**
+- [x] **Step 3: Syntax-check with both inventories**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && /home/ubuntu/.local/share/uv/tools/ansible-lint/bin/ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml --syntax-check 2>&1 | cat
@@ -1946,7 +1946,7 @@ cd /home/ubuntu/homelab/ansible && /home/ubuntu/.local/share/uv/tools/ansible-li
 
 Expected: `playbook: playbooks/vault.yaml`.
 
-- [ ] **Step 4: `CLAUDE.md`**
+- [x] **Step 4: `CLAUDE.md`**
 
 In "Load-bearing and non-obvious", add one bullet after the "A sealed Vault looks healthy" bullet:
 
@@ -1969,7 +1969,7 @@ In "Load-bearing and non-obvious", add one bullet after the "A sealed Vault look
 
 Do not change the placeholder rule or the "sealed Vault" bullet's `vault-01` wording — PR 4 and PR 5 do. In the Layout tree, add `vault-vm` to the `modules/` list (`ubuntu-vm, ubuntu-k8s, lxc, nfs-server, vault-vm, talos-*`), missed by PR 1.
 
-- [ ] **Step 5: `docs/rebuild.md`**
+- [x] **Step 5: `docs/rebuild.md`**
 
 - The workstation-files table ("4. Files that live only on the workstation"): add a row `~/.homelab-ca/` — "The CA that signs Vault's TLS certificate" — "Regenerable: delete, re-run the vault role, refresh the `vault-ca` ConfigMap. No data is lost."
 - "What is destroyed and not backed up": the Vault row gains a sentence — once `vault-02` is in service, raft snapshots land daily in `/srv/nfs/backups` on `nfs-01`, 14 kept, same SSD.
@@ -1978,11 +1978,11 @@ Do not change the placeholder rule or the "sealed Vault" bullet's `vault-01` wor
 
 Keep each edit inside the section it belongs to; do not rewrite the `vault-01` steps (PR 5 removes them).
 
-- [ ] **Step 6: `ansible/README.md`**
+- [x] **Step 6: `ansible/README.md`**
 
 Wherever it lists playbooks or roles: add `coredns_hosts` (pins `vault.mgryn.cc` in the cluster's CoreDNS; re-run after kubeadm upgrades) and change the `vault` playbook's description to target `vault_vm` in `inventories/shared`, with the two invocations from Step 1.
 
-- [ ] **Step 7: Lint and commit**
+- [x] **Step 7: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab && pre-commit run --all-files >/dev/null 2>&1; echo "pre-commit rc=$?"
@@ -1997,7 +1997,7 @@ Expected: `rc=0`, ansible-lint `Passed`.
 
 ### Task 9: Review and open PR 3
 
-- [ ] **Step 1: Full verification**
+- [x] **Step 1: Full verification**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -2012,13 +2012,13 @@ bash $SCRATCH/vault-tests/snapshot-test.sh | tail -1
 
 Then the TLS three-run test (Task 3 Step 1) and the rehearsal (Task 5 Step 1). Expected: all `failed=0`, `failures: 0`, rehearsal second run `changed=0`, `rc=0` twice, clean tree.
 
-- [ ] **Step 2: Code review** — `superpowers:requesting-code-review` against `main`, fix findings.
+- [x] **Step 2: Code review** — `superpowers:requesting-code-review` against `main`, fix findings.
 
-- [ ] **Step 3: Pre-merge checks** — `superpowers:finishing-a-development-branch`; push and open a PR. Never merge. Before pushing, the supervisor ticks Tasks 1-9 here and the unticked Task 10 boxes in `docs/superpowers/plans/2026-09-25-vault-vm-infra.md` (verified 2026-09-25), in one `docs:` commit.
+- [x] **Step 3: Pre-merge checks** — `superpowers:finishing-a-development-branch`; push and open a PR. Never merge. Before pushing, the supervisor ticks Tasks 1-9 here and the unticked Task 10 boxes in `docs/superpowers/plans/2026-09-25-vault-vm-infra.md` (verified 2026-09-25), in one `docs:` commit.
 
-- [ ] **Step 4: PR body** to `$SCRATCH/pr-vault-role.md`: what the role now does (raft on the data disk, TLS from `~/.homelab-ca`, audit, `kv-dev`/`kv-prod`, per-cluster auth, snapshot AppRole and timer), the CoreDNS role, that **`vault-01` keeps serving and nothing points at `vault-02` yet**, the local evidence (the tests and the rehearsal against a real Vault 2.1.0), and Task 10 verbatim as operator steps.
+- [x] **Step 4: PR body** to `$SCRATCH/pr-vault-role.md`: what the role now does (raft on the data disk, TLS from `~/.homelab-ca`, audit, `kv-dev`/`kv-prod`, per-cluster auth, snapshot AppRole and timer), the CoreDNS role, that **`vault-01` keeps serving and nothing points at `vault-02` yet**, the local evidence (the tests and the rehearsal against a real Vault 2.1.0), and Task 10 verbatim as operator steps.
 
-- [ ] **Step 5: Push and open**
+- [x] **Step 5: Push and open**
 
 ```bash
 git push -u origin vault-role-rebuild

@@ -663,7 +663,7 @@ gh pr create --base main --head nfs-backups-share --title "feat: add a backups s
 
 Not for agents.
 
-- [ ] **Step 1: Attach the disk by hand**
+- [x] **Step 1: Attach the disk by hand**
 
 The provider refused to hot-attach `scsi1`/`scsi2` and demanded a reboot; `nfs-01` serves every PVC, so it is attached on the host instead and Terraform reconciles:
 
@@ -672,7 +672,7 @@ qm set 103 -scsi3 local-lvm:10,cache=none,discard=on,iothread=1,ssd=1
 qm config 103 | grep '^scsi3'
 ```
 
-- [ ] **Step 2: Reconcile**
+- [x] **Step 2: Reconcile**
 
 ```bash
 cd proxmox/environments/shared
@@ -681,7 +681,7 @@ terraform plan -var-file=shared.tfvars
 
 Expected: no disk changes and no reboot demand — at most bookkeeping. If it wants to change `scsi3`, the `qm set` flags did not match the module; paste the plan. Then apply.
 
-- [ ] **Step 3: Run the role**
+- [x] **Step 3: Run the role**
 
 ```bash
 cd ansible
@@ -690,7 +690,7 @@ ansible-playbook -i inventories/shared playbooks/nfs_server.yaml -e @secret.yaml
 
 Expected: the guard passes (`/srv/nfs/backups` does not exist yet), the filesystem is created and labelled `nfs-backups`, the mount is `changed`, and the published exports list `/srv/nfs/k8s` for the three nodes and `/srv/nfs/backups` for `10.0.0.133` — and still nothing for prod.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 # on nfs-01
@@ -705,7 +705,7 @@ findmnt /srv/nfs/backups && showmount -e localhost
 kubectl get pvc -A               # from the workstation: all still Bound
 ```
 
-- [ ] **Step 5: Prove the export really is restricted**
+- [x] **Step 5: Prove the export really is restricted**
 
 From a cluster node (which must be refused) and from `vault-02` (which must succeed):
 
@@ -716,4 +716,4 @@ ssh ubuntu@10.0.0.133 'sudo mkdir -p /mnt/t && sudo mount -t nfs 10.0.0.131:/srv
 
 Expected: the worker's mount is refused (`access denied`), the Vault VM's succeeds and can write. **This is the check that matters** — a snapshot share readable by the cluster would hand every secret to anything that could schedule a pod.
 
-- [ ] **Step 6: Report back** so the plan for PRs 3-5 can be written against what actually exists.
+- [x] **Step 6: Report back** so the plan for PRs 3-5 can be written against what actually exists.
