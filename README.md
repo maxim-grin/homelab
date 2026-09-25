@@ -15,16 +15,16 @@ _not_ contain, which is the part that will bite.
 | Layer      | What                                                           | Where it is defined                                       |
 | ---------- | -------------------------------------------------------------- | --------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                         | not in git — see `docs/rebuild.md`                        |
-| VMs        | ubuntu, ubuntu-2, k8s master + 2 workers, workstation          | `proxmox/environments/dev`                                |
-| VM         | `nfs-01`, serving both dev and prod                            | `proxmox/environments/shared`                              |
-| VM         | `vault-02`, will replace the `vault-01` LXC (not yet in service) | `proxmox/environments/shared`                              |
+| VMs        | ubuntu, ubuntu-2, k8s master + 2 workers, workstation          | `terraform/environments/dev`                                |
+| VM         | `nfs-01`, serving both dev and prod                            | `terraform/environments/shared`                              |
+| VM         | `vault-02`, will replace the `vault-01` LXC (not yet in service) | `terraform/environments/shared`                              |
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
 | GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`              | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
 | Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
-| Secrets    | Vault (`vault.mgryn.cc:8200`), LXC `vault-01`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `proxmox/environments/dev` |
+| Secrets    | Vault (`vault.mgryn.cc:8200`), LXC `vault-01`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/dev` |
 
 Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
 a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the
@@ -92,7 +92,7 @@ ansible/          Roles and playbooks. Inventory per environment, secrets in
 argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays per app
                   environments/dev/applications/  Application CRs, synced by root-dev
-proxmox/          modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, talos-*
+terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, talos-*
                   environments/dev/  the machines that exist
 talos/            Unused. Templates for a Talos cluster that was never built.
 scripts/          check-manifests.sh (the CI manifests check, runnable locally) and ad-hoc helpers.
@@ -125,7 +125,7 @@ secret; it only reads. Four jobs, in parallel:
 | --- | --- |
 | `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes) |
 | `commits` | the conventional-commit hook over every non-merge commit in the PR (PRs only) |
-| `terraform` | `terraform init -backend=false`, `validate` and `tflint` in `proxmox/environments/dev` |
+| `terraform` | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev` |
 | `manifests` | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
@@ -177,7 +177,7 @@ blocked.
 
 ```bash
 # provision or change VMs
-cd proxmox/environments/dev
+cd terraform/environments/dev
 terraform apply -var-file=dev.tfvars
 
 # configure them
@@ -197,4 +197,4 @@ Prometheus: `http://prometheus.mgryn.cc` (no authentication -- Prometheus ships 
 Vault UI: `http://vault.mgryn.cc:8200` -- straight to `vault-01`, not through
 ingress-nginx, so it is reachable even when the cluster is down
 
-See `ansible/README.md` and `proxmox/README.md` for the detail of each half.
+See `ansible/README.md` and `terraform/README.md` for the detail of each half.

@@ -2,7 +2,7 @@
 # Default values for the NFS server role
 
 # One entry per share, each on its own virtual disk (scsi1, scsi2 in
-# proxmox/modules/nfs-server), so one environment filling its share cannot
+# terraform/modules/nfs-server), so one environment filling its share cannot
 # stop the other writing. Disks are found by their Proxmox slot, which does
 # not change between boots the way /dev/sdX can.
 #

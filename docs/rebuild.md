@@ -69,13 +69,13 @@ pveum aclmod /pool/Ubuntu-K8s -user terraform@pve -role TerraformProv
 pveum aclmod /pool/LXC        -user terraform@pve -role TerraformProv
 ```
 
-`LXC` now backs a real machine — `vault-01`, module `proxmox/modules/lxc` —
+`LXC` now backs a real machine — `vault-01`, module `terraform/modules/lxc` —
 not just the commented-out n8n module. Skip its pool or ACL and
 `terraform apply` fails placing `vault-01`, with a permission error that
 never mentions pools.
 
 **LXC templates**, now a hard blocker for dev too: `vault-01` (module
-`proxmox/modules/lxc`) clones one, not just the commented-out n8n module or
+`terraform/modules/lxc`) clones one, not just the commented-out n8n module or
 the never-applied prod environment:
 
 ```bash
@@ -93,7 +93,7 @@ available` currently offers rather than hunting for an old build.
 ### 2. The cloud-init VM template — a hard blocker
 
 `dev.tfvars` sets `clone_template_ubuntu = "ubuntu-cid-tp"`, and every VM in
-`proxmox/environments/dev/main.tf` is `full_clone = true` from it. Nothing in
+`terraform/environments/dev/main.tf` is `full_clone = true` from it. Nothing in
 this repository creates it. On a fresh host `terraform apply` fails
 immediately with a template-not-found error.
 
@@ -119,7 +119,7 @@ qm template 5000
 rebuild does not re-derive them.
 
 **Cloud-init bus — benign, no change needed.** The template attaches its
-drive at `ide2`, while `proxmox/modules/ubuntu-vm/main.tf:64` declares
+drive at `ide2`, while `terraform/modules/ubuntu-vm/main.tf:64` declares
 `ide3`. On a Terraform-created VM the result is a single drive on the bus
 the module declares:
 
@@ -210,7 +210,7 @@ Newer Proxmox can replace the `importdisk` + `set --scsi0` pair with a
 single `qm set <vmid> --scsi0 local-lvm:0,import-from=<path>`; the two-step
 form above is what was actually used and is known to work.
 
-The `talos-tp` template hard-coded at `proxmox/environments/prod/main.tf:15`
+The `talos-tp` template hard-coded at `terraform/environments/prod/main.tf:15`
 is likewise absent and undocumented. Nothing applies it, so it can be
 ignored unless that changes.
 
@@ -237,11 +237,11 @@ laptop, and they are what the rebuild needs.
 
 | File                                         | Contains                                                             | If lost                                                                                                                  |
 | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `proxmox/environments/dev/dev.tfvars`        | Proxmox API token, cloud-init password, SSH key paths, every VM's IP | Recreate from the committed `dev.tfvars.example`, then fill in the secrets                                               |
-| `proxmox/environments/shared/shared.tfvars`  | Proxmox API token, cloud-init password, `nfs-01`'s IP                | Recreate from `shared.tfvars.example`; every value is also in `dev.tfvars`                                               |
+| `terraform/environments/dev/dev.tfvars`        | Proxmox API token, cloud-init password, SSH key paths, every VM's IP | Recreate from the committed `dev.tfvars.example`, then fill in the secrets                                               |
+| `terraform/environments/shared/shared.tfvars`  | Proxmox API token, cloud-init password, `nfs-01`'s IP                | Recreate from `shared.tfvars.example`; every value is also in `dev.tfvars`                                               |
 | `~/.ssh/homelab_dev`                         | The key every VM trusts                                              | No SSH to any VM. Cloud-init injects the _public_ half at create time, so a new key means recreating every VM            |
-| `proxmox/environments/dev/terraform.tfstate` | Local backend, 67 KB                                                 | See below                                                                                                                |
-| `proxmox/environments/shared/terraform.tfstate` | Local backend for `nfs-01`                                        | See below                                                                                                                |
+| `terraform/environments/dev/terraform.tfstate` | Local backend, 67 KB                                                 | See below                                                                                                                |
+| `terraform/environments/shared/terraform.tfstate` | Local backend for `nfs-01`                                        | See below                                                                                                                |
 | The ansible-vault password                   | Unlocks `ansible/secret.yaml`                                        | `secret.yaml` is unrecoverable. It holds `host_ips`, `proxmox_vm_ids`, `nfs_server_ip`, `user_name`, `vault_kv` and the SSH key path |
 | The Vault unseal key                         | Unseals `vault-01` after every reboot                                | No unseal, ever. Vault stays sealed, AVP renders nothing, every app reading a `<path:...>` degrades                     |
 | The Vault root token                         | Auth for `vault kv`, seeding, and configuring auth methods           | Nothing already stored in Vault is lost, but re-seeding or reconfiguring k8s auth needs a new root token from a fresh `vault operator init` |
@@ -259,7 +259,7 @@ After the SSD is replaced, discard it rather than fighting it:
 
 ```bash
 for env in shared dev; do
-  cd proxmox/environments/$env
+  cd terraform/environments/$env
   rm terraform.tfstate terraform.tfstate.backup
   terraform init
   terraform apply -var-file=$env.tfvars    # creates everything fresh
@@ -318,7 +318,7 @@ than safety.
 
 Three later changes moved those numbers, all deliberate overcommit:
 `nfs-01` gained two 50 GiB data disks on 2026-09-23 (one per share, see
-`proxmox/environments/shared`), the three k8s nodes went from the
+`terraform/environments/shared`), the three k8s nodes went from the
 module's 10 GiB default to 30 GiB the same day — on 10 GiB disks
 `/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods —
 and `nfs-01` gained a third, 10 GiB `scsi3` disk for a `backups` share
@@ -388,11 +388,11 @@ Each step depends on the one above it.
 3. **Build the cloud-init template** — section 2. It must be named whatever
    `clone_template_ubuntu` says.
 4. **`terraform apply`, `shared` first, then `dev`** —
-   `proxmox/environments/shared` with `-var-file=shared.tfvars` creates
+   `terraform/environments/shared` with `-var-file=shared.tfvars` creates
    `nfs-01` (vmid 103) with its OS disk and the `nfs-dev`, `nfs-prod` and
-   `nfs-backups` data disks; `proxmox/environments/dev` with `-var-file=dev.tfvars`
+   `nfs-backups` data disks; `terraform/environments/dev` with `-var-file=dev.tfvars`
    creates the other six VMs plus the `vault-01` LXC container (module
-   `proxmox/modules/lxc`, pool `LXC`).
+   `terraform/modules/lxc`, pool `LXC`).
 5. **`ansible-playbook -i inventories/shared playbooks/nfs_server.yaml`**
    then `nfs_setup.yaml` (default dev inventory) — the first formats and
    mounts all three data disks and exports `nfs-dev` to the dev nodes;

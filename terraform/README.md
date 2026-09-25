@@ -5,7 +5,7 @@
 The infrastructure is devided into development and production environment. The repository follows a standard Terraform module layout:
 
 ```txt
-proxmox/
+terraform/
 ├── README.md
 ├── environments/
 │   ├── dev/
@@ -80,17 +80,17 @@ was created on: losing it means re-issuing a Proxmox API token and
 retyping the cloud-init password from scratch, not decrypting anything.
 
 ```bash
-cp proxmox/environments/dev/dev.tfvars.example proxmox/environments/dev/dev.tfvars
+cp terraform/environments/dev/dev.tfvars.example terraform/environments/dev/dev.tfvars
 # then fill in pm_api_token_id, pm_api_token_secret, the SSH key paths and
 # the cloud-init password by hand
 
-cp proxmox/environments/dev/backend.tf.example proxmox/environments/dev/backend.tf
+cp terraform/environments/dev/backend.tf.example terraform/environments/dev/backend.tf
 # local backend, state file next to main.tf -- nothing to fill in
 
-cp proxmox/environments/shared/shared.tfvars.example proxmox/environments/shared/shared.tfvars
+cp terraform/environments/shared/shared.tfvars.example terraform/environments/shared/shared.tfvars
 # same fields as dev.tfvars, plus nfs-01's and vault-02's IPs
 
-cp proxmox/environments/shared/backend.tf.example proxmox/environments/shared/backend.tf
+cp terraform/environments/shared/backend.tf.example terraform/environments/shared/backend.tf
 ```
 
 `backend.tf` is gitignored alongside `*.tfvars`, for the same reason: it is
@@ -104,7 +104,7 @@ there is no bucket or credential involved in either file.
 ## Initialising an Environment
 
 ```bash
-cd proxmox/environments/dev   # swap dev for prod when needed
+cd terraform/environments/dev   # swap dev for prod when needed
 terraform init
 ```
 
@@ -119,7 +119,7 @@ state, and `terraform init` just needs that file and the providers cached
 ### Development (Dev)
 
 ```bash
-cd proxmox/environments/dev
+cd terraform/environments/dev
 terraform plan  -var-file="dev.tfvars"
 terraform apply -var-file="dev.tfvars"
 ```
@@ -127,7 +127,7 @@ terraform apply -var-file="dev.tfvars"
 ### Shared
 
 ```bash
-cd proxmox/environments/shared
+cd terraform/environments/shared
 terraform plan  -var-file="shared.tfvars"
 terraform apply -var-file="shared.tfvars"
 ```
@@ -135,7 +135,7 @@ terraform apply -var-file="shared.tfvars"
 ### Production (Prod)
 
 ```bash
-cd proxmox/environments/prod
+cd terraform/environments/prod
 terraform plan  -var-file="prod.tfvars"
 terraform apply -var-file="prod.tfvars"
 ```

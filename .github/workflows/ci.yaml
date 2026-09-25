@@ -115,13 +115,13 @@ jobs:
       - name: terraform init and validate
         run: |
           for env in dev shared; do
-            terraform -chdir=proxmox/environments/$env init -backend=false -input=false
-            terraform -chdir=proxmox/environments/$env validate
+            terraform -chdir=terraform/environments/$env init -backend=false -input=false
+            terraform -chdir=terraform/environments/$env validate
           done
       - name: tflint
         run: |
           for env in dev shared; do
-            tflint --chdir=proxmox/environments/$env --config="${GITHUB_WORKSPACE}/.tflint.hcl"
+            tflint --chdir=terraform/environments/$env --config="${GITHUB_WORKSPACE}/.tflint.hcl"
           done
 
   manifests:

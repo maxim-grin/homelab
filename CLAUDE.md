@@ -25,10 +25,10 @@ with `kubernetes.core`, kubeadm, ArgoCD app-of-apps, kustomize for plain
 manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`), no test suite.
 
-Only the `dev` environment exists, plus `proxmox/environments/shared` for
+Only the `dev` environment exists, plus `terraform/environments/shared` for
 `nfs-01`, which serves both environments, and `vault-02`, the Vault VM that
 will replace the `vault-01` LXC (not yet in service).
-`proxmox/environments/prod` and `talos/` are scaffolding that has never been
+`terraform/environments/prod` and `talos/` are scaffolding that has never been
 applied — do not extend them without saying so.
 
 ## Layout
@@ -39,7 +39,7 @@ ansible/          roles/ + playbooks/, inventory per environment,
 argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays, or Helm values
                   environments/dev/applications/  Application CRs, synced by root-dev
-proxmox/          modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
+terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                               nfs-server, vault-vm, talos-*
                   environments/dev/     the dev machines
                   environments/shared/  nfs-01, serving dev and prod;
@@ -195,7 +195,7 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
 Real values live in exactly three places, all outside git's reach:
 `ansible/secret.yaml` (ansible-vault, committed encrypted — its `vault_kv`
 block is the seed for the third place below),
-`proxmox/environments/dev/*.tfvars` (gitignored), and Vault's own KV store
+`terraform/environments/dev/*.tfvars` (gitignored), and Vault's own KV store
 on `vault-01`. Every other file gets a committed `.example` alongside it.
 
 ArgoCD reads manifests from a **public** repository, so anything it must

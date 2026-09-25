@@ -1,7 +1,7 @@
 # Vault on a VM — Design
 
 Replace the `vault-01` LXC with a purpose-built VM in
-`proxmox/environments/shared`: Raft storage on its own disk, TLS from a
+`terraform/environments/shared`: Raft storage on its own disk, TLS from a
 private CA, audit logging, separate `kv-dev/` and `kv-prod/` mounts with
 per-cluster Kubernetes auth, and scheduled Raft snapshots to a dedicated NFS
 share. The new machine is built alongside the old one and only takes over
@@ -10,7 +10,7 @@ nothing.
 
 ## Problem
 
-`vault-01` (vmid 104, an unprivileged LXC in `proxmox/environments/dev`) is
+`vault-01` (vmid 104, an unprivileged LXC in `terraform/environments/dev`) is
 the root of trust for every Application carrying a `<path:...>` placeholder,
 and it has five weaknesses:
 
@@ -31,7 +31,7 @@ policy grants `secret/data/*` — every secret in the store. A second cluster
 sharing this Vault could read the first's secrets.
 
 **It lives in the dev environment.** Prod would depend on a machine dev's
-`terraform apply` owns, and `proxmox/environments/prod` declares a second,
+`terraform apply` owns, and `terraform/environments/prod` declares a second,
 never-applied Vault (vmid 333) that would otherwise be stood up as a
 duplicate root of trust.
 
@@ -74,7 +74,7 @@ surface without isolating anything that matters.
 
 ## PR 1 — the VM exists
 
-### `proxmox/modules/vault-vm/`
+### `terraform/modules/vault-vm/`
 
 A new module, following the `nfs-server` precedent: copied from `ubuntu-vm`,
 every hard-coded setting identical (q35, `x86-64-v2-AES`,
@@ -87,7 +87,7 @@ disk.
   the root of trust unattended
 - `lifecycle.ignore_changes = [power_state, clone, full_clone]`
 
-### `proxmox/environments/shared/`
+### `terraform/environments/shared/`
 
 `module "vault_vm"`: vmid **105**, name `vault-02`, pool `VM`, 2 cores,
 2048 MB, `disk_size = "20G"`, `vault_data_disk_size = "10G"`,
@@ -325,7 +325,7 @@ temporarily widened policy — more moving parts than the problem deserves.
 
 ## PR 5 — decommission, same day
 
-`module "vault"` (vmid 104) is deleted from `proxmox/environments/dev` and
+`module "vault"` (vmid 104) is deleted from `terraform/environments/dev` and
 destroyed — not released. Its contents exist in the new Vault and, for
 everything that came from `vault_kv`, in `secret.yaml`. The `vault_vm` group
 is renamed `vault`, the LXC's inventory entry goes, and every doc reference
@@ -348,7 +348,7 @@ variable, its `vault_details` output and the `vault` group in
   `~/.homelab-ca/` joins the workstation-files table as unrecoverable but
   regenerable; the vault playbook's invocations and their inventories; the
   snapshot and restore procedure.
-- `ansible/README.md`, `proxmox/README.md`, `README.md`.
+- `ansible/README.md`, `terraform/README.md`, `README.md`.
 
 ## Verification
 

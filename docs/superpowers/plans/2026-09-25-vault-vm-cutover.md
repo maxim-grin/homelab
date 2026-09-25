@@ -57,7 +57,7 @@
 | `CLAUDE.md`, `docs/rebuild.md`, `ansible/README.md` | 3, 4, 5 | modify | Documentation |
 | `ansible/roles/argocd/{defaults,tasks}/main.yaml` | 4 | modify | AVP over HTTPS by name, CA ConfigMap |
 | `argocd/apps/jobboard/{base,dev}/*`, `argocd/apps/cert-manager-issuers/dev/cloudflare-secret.yaml` | 4 | modify/move | Placeholders on `kv-dev/` |
-| `proxmox/environments/{dev,prod}/*`, `ansible/inventories/{dev,prod,shared}/hosts.yaml` | 5 | modify | The LXC and prod's duplicate removed |
+| `terraform/environments/{dev,prod}/*`, `ansible/inventories/{dev,prod,shared}/hosts.yaml` | 5 | modify | The LXC and prod's duplicate removed |
 
 **PR boundaries:** Tasks 1-9 are PR 3, Task 10 its operator run. Tasks 11-13 are PR 4, Task 14 its operator run. Tasks 15-17 are PR 5, Task 18 its operator run.
 
@@ -156,7 +156,7 @@ Keep the existing `vault_version` comment block verbatim except: `apt-cache madi
 # <the vault_version comment block, as above>
 vault_version: "2.1.0-1"
 
-# The raft store lives on its own disk (scsi1 in proxmox/modules/vault-vm),
+# The raft store lives on its own disk (scsi1 in terraform/modules/vault-vm),
 # mounted by label. The data directory is a subdirectory of the mount, so
 # ext4's lost+found never sits among raft's files.
 vault_data_device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
@@ -2312,18 +2312,18 @@ qm stop 199 && qm destroy 199 --purge
 ### Task 15: Terraform
 
 **Files:**
-- Modify: `proxmox/environments/dev/{main,variables}.tf`, `proxmox/environments/dev/dev.tfvars.example`, `proxmox/environments/prod/{main,variables,outputs}.tf`, `proxmox/environments/prod/prod.tfvars.example`
+- Modify: `terraform/environments/dev/{main,variables}.tf`, `terraform/environments/dev/dev.tfvars.example`, `terraform/environments/prod/{main,variables,outputs}.tf`, `terraform/environments/prod/prod.tfvars.example`
 
-- [ ] **Step 1: Remove** `module "vault"` and its banner comment from dev `main.tf`; `variable "vault_lxc_ip"` and its comment from dev `variables.tf`; the Vault lines (comment and `vault_lxc_ip`) from `dev.tfvars.example`, and the example's comment that the LXC template is "required now that the vault container uses it" if no other container in dev uses `modules/lxc` (`grep -n 'modules/lxc' proxmox/environments/dev/main.tf` decides). From prod: `module "vault_lxc"`, `variable "vault_ip"`, `output "vault_details"`, `vault_ip` in `prod.tfvars.example`, and "Vault" from that file's line-5 list.
+- [ ] **Step 1: Remove** `module "vault"` and its banner comment from dev `main.tf`; `variable "vault_lxc_ip"` and its comment from dev `variables.tf`; the Vault lines (comment and `vault_lxc_ip`) from `dev.tfvars.example`, and the example's comment that the LXC template is "required now that the vault container uses it" if no other container in dev uses `modules/lxc` (`grep -n 'modules/lxc' terraform/environments/dev/main.tf` decides). From prod: `module "vault_lxc"`, `variable "vault_ip"`, `output "vault_details"`, `vault_ip` in `prod.tfvars.example`, and "Vault" from that file's line-5 list.
 
 - [ ] **Step 2: Validate**
 
 ```bash
 cd /home/ubuntu/homelab
-grep -rn -i "vault" proxmox/environments/dev proxmox/environments/prod | grep -v -i "argocd-vault-plugin"   # nothing
-S=$(mktemp -d); git archive HEAD proxmox | tar -x -C $S; cp -r proxmox/environments $S/proxmox/
-(cd $S/proxmox/environments/dev && terraform init -backend=false -input=false >/dev/null && terraform validate && tflint --config=/home/ubuntu/homelab/.tflint.hcl && echo OK dev); rm -rf $S
-terraform fmt -recursive -check proxmox && echo "fmt ok"
+grep -rn -i "vault" terraform/environments/dev terraform/environments/prod | grep -v -i "argocd-vault-plugin"   # nothing
+S=$(mktemp -d); git archive HEAD terraform | tar -x -C $S; cp -r terraform/environments $S/terraform/
+(cd $S/terraform/environments/dev && terraform init -backend=false -input=false >/dev/null && terraform validate && tflint --config=/home/ubuntu/homelab/.tflint.hcl && echo OK dev); rm -rf $S
+terraform fmt -recursive -check terraform && echo "fmt ok"
 ```
 
 Prod cannot `init` at all (its provider pins conflict — a known, separate problem); check it with `terraform fmt -check` and by reading the diff.
@@ -2335,11 +2335,11 @@ Prod cannot `init` at all (its provider pins conflict — a known, separate prob
 ### Task 16: Inventories, roles and documentation
 
 **Files:**
-- Modify: `ansible/inventories/dev/hosts.yaml`, `ansible/inventories/prod/hosts.yaml`, `ansible/inventories/shared/hosts.yaml`, `ansible/playbooks/vault.yaml`, `ansible/roles/vault/defaults/main.yaml` (comment), `ansible/secret.yaml.example`, `CLAUDE.md`, `docs/rebuild.md`, `README.md`, `ansible/README.md`, `proxmox/README.md`
+- Modify: `ansible/inventories/dev/hosts.yaml`, `ansible/inventories/prod/hosts.yaml`, `ansible/inventories/shared/hosts.yaml`, `ansible/playbooks/vault.yaml`, `ansible/roles/vault/defaults/main.yaml` (comment), `ansible/secret.yaml.example`, `CLAUDE.md`, `docs/rebuild.md`, `README.md`, `ansible/README.md`, `terraform/README.md`
 
 - [ ] **Step 1: Inventories** — delete the `vault` group from `inventories/dev` and `inventories/prod`; in `inventories/shared` rename `vault_vm` to `vault` and rewrite its comment (it is the Vault VM both clusters use; the LXC it replaced is gone). `playbooks/vault.yaml`: `hosts: vault`, comment updated.
 - [ ] **Step 2: `secret.yaml.example`** — delete `vault-01` from `host_ips` and `proxmox_vm_ids`.
-- [ ] **Step 3: Docs** — `CLAUDE.md`: delete the "Debian LXC template must exist" bullet; the sealed-Vault bullet says `vault-02`; the `environments/shared` lines describe `vault-02` as the Vault. `docs/rebuild.md`: remove the LXC template blocker and `pveam` step if nothing else needs them, the `vault-01` install/unseal/k8s-auth steps (the `vault-02` step from Task 8 replaces them), and `vault-01` from every table; the Vault data row describes raft on `vault-02` with snapshots. `README.md`, `ansible/README.md`, `proxmox/README.md`: `vault-01` and the LXC go.
+- [ ] **Step 3: Docs** — `CLAUDE.md`: delete the "Debian LXC template must exist" bullet; the sealed-Vault bullet says `vault-02`; the `environments/shared` lines describe `vault-02` as the Vault. `docs/rebuild.md`: remove the LXC template blocker and `pveam` step if nothing else needs them, the `vault-01` install/unseal/k8s-auth steps (the `vault-02` step from Task 8 replaces them), and `vault-01` from every table; the Vault data row describes raft on `vault-02` with snapshots. `README.md`, `ansible/README.md`, `terraform/README.md`: `vault-01` and the LXC go.
 - [ ] **Step 4: Check**
 
 ```bash
@@ -2371,6 +2371,6 @@ gh pr create --base main --head vault-lxc-decommission --title "feat: decommissi
 
 Not for agents. After merging PR 5.
 
-- [ ] **Step 1:** `cd proxmox/environments/dev && terraform plan -var-file=dev.tfvars` — **0 to add, 0 to change, 1 to destroy**, and the one is `module.vault`. Anything else: stop and paste it. Then `terraform apply -var-file=dev.tfvars`.
+- [ ] **Step 1:** `cd terraform/environments/dev && terraform plan -var-file=dev.tfvars` — **0 to add, 0 to change, 1 to destroy**, and the one is `module.vault`. Anything else: stop and paste it. Then `terraform apply -var-file=dev.tfvars`.
 - [ ] **Step 2:** Remove `vault_lxc_ip` from `dev.tfvars`; remove `vault-01` from `host_ips` and `proxmox_vm_ids` in `secret.yaml` (`ansible-vault edit`). Delete the old Vault's unseal key and root token from the password manager only after Step 3.
 - [ ] **Step 3: Verify** — `pct status 104` → no such container; `terraform plan` clean in `dev` and `shared`; `kubectl -n argocd get applications` all `Synced`; `ansible-inventory -i inventories/shared --graph` shows `@vault` with `vault-02`.

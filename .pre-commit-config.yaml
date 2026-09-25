@@ -77,5 +77,5 @@ repos:
         name: terraform fmt
         language: system
         entry: terraform fmt -recursive -check -diff
-        files: ^proxmox/.*\.tf$
+        files: ^terraform/.*\.tf$
         pass_filenames: false
