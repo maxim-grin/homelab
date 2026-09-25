@@ -88,7 +88,7 @@ cp proxmox/environments/dev/backend.tf.example proxmox/environments/dev/backend.
 # local backend, state file next to main.tf -- nothing to fill in
 
 cp proxmox/environments/shared/shared.tfvars.example proxmox/environments/shared/shared.tfvars
-# same fields as dev.tfvars, plus nfs-01's IP
+# same fields as dev.tfvars, plus nfs-01's and vault-02's IPs
 
 cp proxmox/environments/shared/backend.tf.example proxmox/environments/shared/backend.tf
 ```
