@@ -197,7 +197,7 @@ Real values live in exactly three places, all outside git's reach:
 `ansible/secret.yaml` (ansible-vault, committed encrypted — its `vault_kv`
 block is the seed for the third place below),
 `terraform/environments/dev/*.tfvars` (gitignored), and Vault's own KV store
-on `vault-01`. Every other file gets a committed `.example` alongside it.
+on `vault-02`. Every other file gets a committed `.example` alongside it.
 
 ArgoCD reads manifests from a **public** repository, so anything it must
 apply has to be committed — an RFC1918 address in a Deployment is acceptable,

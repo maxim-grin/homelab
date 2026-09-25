@@ -514,8 +514,8 @@ Each step depends on the one above it.
     ```
 
     then add a DNS-only Cloudflare record, `vault.mgryn.cc` → `10.0.0.133`.
-    `vault-02` is the Vault AVP reads, so this configures the Vault
-    jobboard and ArgoCD read from today.
+    `vault-02` is the Vault that AVP reads, so this configures the Vault
+    that jobboard and ArgoCD read from today.
 14. **Configure Vault's Kubernetes auth** — only after `argocd-config` shows
     `Synced` (`kubectl -n argocd get application argocd-config`), because
     this step reads the `vault-auth-token` Secret that sync just created.
