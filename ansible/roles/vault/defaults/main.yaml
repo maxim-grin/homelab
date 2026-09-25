@@ -2,7 +2,9 @@
 # Pinned deliberately. This role first ran with a bare `vault` package name and
 # apt served 2.1.0-1, where the plan had recorded 1.10.0 verified three days
 # earlier -- a major version crossed unnoticed, against `file` storage that does
-# not downgrade. It happened to work. Raft does not downgrade either.
+# not downgrade. It happened to work. Raft does not downgrade either. A rebuild
+# months from now would take whatever is current then and meet the same surprise
+# with real data underneath.
 #
 # Bumping is a deliberate act: read `apt-cache madison vault` on vault-02, set
 # the version here, then `dpkg --set-selections` to unhold before re-running --
