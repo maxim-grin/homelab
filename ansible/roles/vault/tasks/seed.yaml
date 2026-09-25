@@ -1,4 +1,6 @@
 ---
+# Deliberate even when configure.yaml already ran these in the same play:
+# seed can also run on its own, and both imports are idempotent.
 - name: Check the token and Vault's state
   ansible.builtin.import_tasks: preflight.yaml
 
