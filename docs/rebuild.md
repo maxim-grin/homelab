@@ -429,10 +429,10 @@ Each step depends on the one above it.
      -e vault_seed=true -e vault_token=<root token>
    ```
 
-   `vault_seed` replays the `vault_kv` block from `secret.yaml` into
-   `secret/jobboard/db` and `secret/jobboard/ghcr`. The root token is
-   passed with `-e` for this one invocation only; it is never written to
-   disk.
+   `vault_seed` replays the `vault_kv` block from `secret.yaml` into each
+   mount it names, writing a path only when its value differs from what
+   is already there. The root token is passed with `-e` for this one
+   invocation only; it is never written to disk.
 9. **Build `vault-02`** — the VM that replaces the `vault-01` LXC (not yet
    in service; see PR 4). Install the collections it needs, then install
    Vault on the VM:

@@ -240,9 +240,9 @@ The auth run delegates the CA and token-reviewer reads to
 `cluster.control_plane_host`, which lives in the dev inventory, so it runs
 with `-i inventories/shared -i inventories/dev`.
 
-Seeding writes `vault_kv` into `vault_kv_mount` (default `kv-dev`), so
-`secret.yaml` keeps its unprefixed keys and needs no edit to add an
-environment.
+Seeding writes each mount named at the top of `vault_kv` (keyed by mount,
+paths inside unchanged), writing a path only when its value differs;
+adding an environment is a new top-level key.
 
 ### The name, and who resolves it
 
