@@ -162,8 +162,8 @@ ansible-playbook playbooks/support_tools.yaml -e @secret.yaml --ask-vault-pass
 5. **Provision the NFS server, then the cluster clients:**
 
    Terraform creates the VM (`proxmox/environments/shared`, module `nfs`);
-   these playbooks format, mount and export its `nfs-dev` and `nfs-prod`
-   disks and install `nfs-common` on the nodes. `nfs-01` is in
+   these playbooks format, mount and export its `nfs-dev`, `nfs-prod` and
+   `nfs-backups` disks and install `nfs-common` on the nodes. `nfs-01` is in
    `inventories/shared`, not the default dev inventory.
    Add `nfs-01` to `host_ips` / `proxmox_vm_ids` and set `nfs_server_ip`
    in `secret.yaml` first. Order matters -- the client role's `showmount`

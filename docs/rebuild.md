@@ -321,7 +321,8 @@ Three later changes moved those numbers, all deliberate overcommit:
 module's 10 GiB default to 30 GiB the same day — on 10 GiB disks
 `/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods —
 and `nfs-01` gained a third, 10 GiB `scsi3` disk for a `backups` share
-exporting Vault's raft snapshots (14 kept, daily) to `vault-02`.
+exported to `vault-02` for Vault's raft snapshots — a daily timer keeping
+14 is coming with the Vault role rebuild, nothing writes to it yet.
 Measured after the first two, `pvesm status` reported `local-lvm` 30.2%
 used with 98 GiB available. The pool itself is still 141 GiB; declared
 sizes now far exceed it and keep drifting further above it with each
@@ -387,13 +388,13 @@ Each step depends on the one above it.
    `clone_template_ubuntu` says.
 4. **`terraform apply`, `shared` first, then `dev`** —
    `proxmox/environments/shared` with `-var-file=shared.tfvars` creates
-   `nfs-01` (vmid 103) with its OS disk and the `nfs-dev` and `nfs-prod`
-   data disks; `proxmox/environments/dev` with `-var-file=dev.tfvars`
+   `nfs-01` (vmid 103) with its OS disk and the `nfs-dev`, `nfs-prod` and
+   `nfs-backups` data disks; `proxmox/environments/dev` with `-var-file=dev.tfvars`
    creates the other six VMs plus the `vault-01` LXC container (module
    `proxmox/modules/lxc`, pool `LXC`).
 5. **`ansible-playbook -i inventories/shared playbooks/nfs_server.yaml`**
    then `nfs_setup.yaml` (default dev inventory) — the first formats and
-   mounts both data disks and exports `nfs-dev` to the dev nodes;
+   mounts all three data disks and exports `nfs-dev` to the dev nodes;
    storage first, because everything else claims PVCs from it.
 6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.
