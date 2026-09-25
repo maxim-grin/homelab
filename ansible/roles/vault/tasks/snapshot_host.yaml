@@ -1,0 +1,31 @@
+---
+# vault-02 starts at order=5, before nfs-01 at order=10. A hard mount would
+# stall this boot waiting for a server that is not up yet; nofail lets the
+# boot finish, and the snapshot job mounts the share itself and refuses to
+# run when it cannot.
+- name: Mount the backups share
+  ansible.posix.mount:
+    path: "{{ vault_snapshot_dir }}"
+    src: "{{ vault_snapshot_src }}"
+    fstype: nfs
+    opts: nofail,_netdev
+    state: mounted
+
+- name: Install the snapshot script
+  ansible.builtin.copy:
+    src: vault-snapshot.sh
+    dest: /usr/local/sbin/vault-snapshot
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the snapshot service and timer
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - vault-snapshot.service
+    - vault-snapshot.timer
