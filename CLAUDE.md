@@ -26,8 +26,8 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`), no test suite.
 
 Only the `dev` environment exists, plus `terraform/environments/shared` for
-`nfs-01`, which serves both environments, and `vault-02`, the Vault VM that
-will replace the `vault-01` LXC (not yet in service).
+`nfs-01`, which serves both environments, and `vault-02`, the Vault VM
+replacing the `vault-01` LXC.
 `terraform/environments/prod` and `talos/` are scaffolding that has never been
 applied — do not extend them without saying so.
 
@@ -43,7 +43,7 @@ terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                               nfs-server, vault-vm, talos-*
                   environments/dev/     the dev machines
                   environments/shared/  nfs-01, serving dev and prod;
-                                        vault-02, not yet in service
+                                        vault-02, replacing the vault-01 LXC
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
 ```
 
@@ -150,7 +150,7 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME
   DNS-01 with a Cloudflare API token from Vault
-  (`secret/cert-manager/cloudflare`) and renews on its own. Debug a failed
+  (`kv-dev/cert-manager/cloudflare`) and renews on its own. Debug a failed
   issuance by pointing the Ingress annotation at `letsencrypt-staging` --
   production limits 5 failed validations per hostname per hour.
 - **`secret.yaml` is committed encrypted; its password is not.** That file is
@@ -164,12 +164,13 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   ignore rule said `talos/secrets.yaml` and the file was at
   `talos/_out/secrets.yaml`. Check `git check-ignore -v <path>` rather than
   assuming a rule matches.
-- **A sealed Vault looks healthy.** After any `vault-01` reboot, Vault comes
+- **A sealed Vault looks healthy.** After any `vault-02` reboot, Vault comes
   back sealed. AVP then renders nothing, and every Application whose
   manifests carry a `<path:...>` placeholder goes `Unknown` on sync status —
   Argo health stays `Healthy`, because the last-applied resources are still
   there. The `ComparisonError` condition does name Vault, in AVP's stderr;
-  it is the health field that lies. `vault status` on `vault-01` is the
+  it is the health field that lies. `vault status` on `vault-02`
+  (`VAULT_ADDR=https://10.0.0.133:8200`, or run on the host) is the
   first check when an app that was fine yesterday won't sync today.
 - **`vault-02` is HTTPS from a private CA, reached as `vault.mgryn.cc`.**
   The CA's key is in `~/.homelab-ca/` on the workstation that runs
@@ -185,7 +186,7 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   refuses every request**: a full root disk looks like a healthy Vault
   answering nothing. A restart seals it; a certificate renewal only
   reloads it.
-- **`<path:secret/data/...#FIELD>` is the only form a secret value takes in
+- **`<path:kv-<env>/data/...#FIELD>` is the only form a secret value takes in
   a committed manifest.** The placeholder is committed; AVP resolves it
   against Vault at sync time. The value behind it is never committed,
   anywhere, under any name.
@@ -201,7 +202,7 @@ on `vault-01`. Every other file gets a committed `.example` alongside it.
 ArgoCD reads manifests from a **public** repository, so anything it must
 apply has to be committed — an RFC1918 address in a Deployment is acceptable,
 a credential never is. That is what argocd-vault-plugin (AVP) is for:
-committed manifests carry `<path:secret/data/...#FIELD>` placeholders, and
+committed manifests carry `<path:kv-<env>/data/...#FIELD>` placeholders, and
 AVP resolves them against Vault at sync time, so the values themselves never
 touch git. It was configured once before, mounted a ConfigMap nothing
 created, and wedged `argocd-repo-server` in `Init` for six hours — the

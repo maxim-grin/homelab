@@ -17,18 +17,18 @@ _not_ contain, which is the part that will bite.
 | Hypervisor | Proxmox VE, node `pve`                                         | not in git — see `docs/rebuild.md`                        |
 | VMs        | ubuntu, ubuntu-2, k8s master + 2 workers, workstation          | `terraform/environments/dev`                                |
 | VM         | `nfs-01`, serving both dev and prod                            | `terraform/environments/shared`                              |
-| VM         | `vault-02`, will replace the `vault-01` LXC (not yet in service) | `terraform/environments/shared`                              |
+| VM         | `vault-02`, replacing the `vault-01` LXC                        | `terraform/environments/shared`                              |
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
 | GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`              | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
 | Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
-| Secrets    | Vault (`vault.mgryn.cc:8200`), LXC `vault-01`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/dev` |
+| Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/dev` |
 
 Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
 a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the
-exception and points straight at `vault-01`. There is no Pi-hole, no Traefik
+exception and points straight at `vault-02`. There is no Pi-hole, no Traefik
 and no Cloudflare Tunnel.
 
 `jobs.mgryn.cc` is the one name in public DNS: a DNS-only (grey cloud)
@@ -42,7 +42,7 @@ name served over HTTPS — see TLS, below.
 `jobs.mgryn.cc` is served over HTTPS with a Let's Encrypt certificate.
 cert-manager obtains it with an ACME DNS-01 challenge, writing a TXT record
 through the Cloudflare API with a token held in Vault at
-`secret/cert-manager/cloudflare`. Renewal is automatic, 30 days before
+`kv-dev/cert-manager/cloudflare`. Renewal is automatic, 30 days before
 expiry.
 
 DNS-01 rather than HTTP-01 because nothing here is reachable from the public
@@ -194,7 +194,7 @@ jobboard: `https://jobs.mgryn.cc` -- the only name with TLS; HTTP 308s to it
 ArgoCD UI: `http://argocd.mgryn.cc`
 Gitea: `http://gitea.mgryn.cc` · Grafana: `http://grafana.mgryn.cc`
 Prometheus: `http://prometheus.mgryn.cc` (no authentication -- Prometheus ships none)
-Vault UI: `http://vault.mgryn.cc:8200` -- straight to `vault-01`, not through
+Vault UI: `https://vault.mgryn.cc:8200` -- straight to `vault-02`, not through
 ingress-nginx, so it is reachable even when the cluster is down
 
 See `ansible/README.md` and `terraform/README.md` for the detail of each half.
