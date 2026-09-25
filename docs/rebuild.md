@@ -400,6 +400,10 @@ Each step depends on the one above it.
 6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
 7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.
 8. **Install and unseal Vault** — `ansible-playbook playbooks/vault.yaml`.
+   `playbooks/vault.yaml` on `main` now targets `vault-02` only, so this
+   step as written matches zero hosts; to rebuild `vault-01` before it is
+   decommissioned, run it from the role as it was before the Vault VM
+   rebuild: `git worktree add ../homelab-vault01 77aa741`.
    Then, by hand on `vault-01` (Ansible never sees the unseal key or root
    token, and should not):
 
@@ -456,18 +460,9 @@ Each step depends on the one above it.
    vault operator unseal
    ```
 
-   The remaining three commands must wait until **after** step 12 below
-   syncs `argocd-config` and creates the `vault-auth-token` Secret — the
-   configure phase reads it:
-
-   ```bash
-   ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
-     -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-     -e vault_token=<root token>
-   ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
-   ```
-
-   then add a DNS-only Cloudflare record, `vault.mgryn.cc` → `10.0.0.133`.
+   Configuring and seeding `vault-02` needs the `vault-auth-token` Secret
+   that `argocd-config` creates — see the "Configure and seed `vault-02`"
+   step below, after `argocd-config` has synced.
 10. **`ansible-playbook playbooks/argocd-dev.yaml`** — ArgoCD via Helm. The
    UI login is `admin`, with the password whose bcrypt hash is
    `argocd_admin_password_hash` in `secret.yaml`. The play asserts that hash
@@ -506,12 +501,30 @@ Each step depends on the one above it.
 
     Separately, expect jobboard's sync status to sit at `Unknown` with a
     `ComparisonError` naming a permission denied or a sealed Vault for
-    however long the next step takes — Vault's Kubernetes auth is not
-    configured until step 13. That is expected, not a wiring fault; it
-    clears once step 13 runs.
-13. **Configure Vault's Kubernetes auth** — only after `argocd-config` shows
+    however long it takes to reach step 14 below — Vault's Kubernetes auth
+    is not configured until then. That is expected, not a wiring fault; it
+    clears once step 14 runs.
+13. **Configure and seed `vault-02`** — now that `argocd-config` has synced
+    and created the `vault-auth-token` Secret, finish step 9 above:
+
+    ```bash
+    ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+      -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
+      -e vault_token=<root token>
+    ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
+    ```
+
+    then add a DNS-only Cloudflare record, `vault.mgryn.cc` → `10.0.0.133`.
+    `vault-02` is not yet in service (PR 4 cuts over), so this configures
+    it for later without touching anything jobboard or ArgoCD reads today.
+14. **Configure Vault's Kubernetes auth** — only after `argocd-config` shows
     `Synced` (`kubectl -n argocd get application argocd-config`), because
-    this step reads the `vault-auth-token` Secret that sync just created:
+    this step reads the `vault-auth-token` Secret that sync just created.
+    `playbooks/vault.yaml` on `main` now targets `vault-02` only and has no
+    `vault_configure_k8s_auth` flag, so this step as written is skipped; to
+    configure `vault-01` before it is decommissioned, run it from the role
+    as it was before the Vault VM rebuild:
+    `git worktree add ../homelab-vault01 77aa741`.
 
     ```bash
     ansible-playbook playbooks/vault.yaml -e @secret.yaml --ask-vault-pass \
@@ -525,8 +538,8 @@ Each step depends on the one above it.
     config is `no_log: true` (the body carries the root token, the reviewer
     JWT and the cluster CA together); see `ansible/README.md` for how to
     diagnose a failure here.
-14. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
-15. **`ansible-playbook playbooks/cluster_secrets.yaml`** — creates the
+15. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
+16. **`ansible-playbook playbooks/cluster_secrets.yaml`** — creates the
     `grafana-admin` and `harbor-secrets` Secrets from `secret.yaml`. **Run
     this before ArgoCD syncs those two apps**, not after. Both seed their
     credentials only when they first create their databases, so an app that
@@ -559,7 +572,7 @@ Each step depends on the one above it.
       silently starting on the default password. On an instance whose PVC
       already holds a Grafana database, reset it explicitly:
       `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
-16. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
+17. **Point `/etc/hosts`** at a node IP for `harbor.mgryn.cc`,
     `argocd.mgryn.cc`, `gitea.mgryn.cc`, `grafana.mgryn.cc` and
     `prometheus.mgryn.cc`. One line per name, all pointing at the same node
     -- ingress-nginx is a DaemonSet on host ports 80/443, so any node

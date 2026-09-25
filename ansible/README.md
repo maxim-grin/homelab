@@ -221,7 +221,13 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
    run and never stored** -- not in `secret.yaml`, not anywhere else in
    this repository.
 
-   **Troubleshooting the k8s-auth step.** The task that posts
+   **Troubleshooting the k8s-auth step.** These instructions target
+   `vault-01` and its retired `vault_configure_k8s_auth` flag; `main`'s
+   `playbooks/vault.yaml` now targets `vault-02` only, where k8s auth runs
+   under `-e vault_configure=true` with both inventories (see item 7
+   above). To run this against `vault-01`, use the role from before the
+   Vault VM rebuild: `git worktree add ../homelab-vault01 77aa741`. The task
+   that posts
    `auth/kubernetes/config` is `no_log: true` -- its request body carries
    the root token, the token-reviewer JWT and the cluster CA all at once,
    and there is no way to hide one without hiding all three. A failure
