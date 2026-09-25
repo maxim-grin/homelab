@@ -49,8 +49,9 @@ variable "start_at_node_boot" {
 }
 
 # Proxmox startup order. Guests start low-order first; "up" is the delay in
-# seconds before the next one begins. Every PVC in every cluster binds
-# through this host, so it starts ahead of them.
+# seconds before the next one begins. Vault is the root of trust
+# argocd-vault-plugin reads at sync time, so it starts ahead of the
+# clusters.
 variable "startup" {
   description = "Startup order and delay (e.g., 'order=10,up=30')"
   type        = string
@@ -72,7 +73,7 @@ variable "vault_data_disk_size" {
 }
 
 variable "disk_storage" {
-  description = "Storage location for all three disks"
+  description = "Storage location for both disks"
   type        = string
   default     = "local-lvm"
 }
