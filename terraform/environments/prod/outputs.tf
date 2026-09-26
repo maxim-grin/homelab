@@ -15,14 +15,6 @@ output "pi_hole_details" {
 }
 
 
-output "vault_details" {
-  value = {
-    id   = module.vault_lxc.container_id
-    name = module.vault_lxc.container_name
-    ip   = module.vault_lxc.container_ip
-  }
-}
-
 # Talos K8s Cluster Output
 output "master_nodes" {
   description = "Details for all Talos control-plane nodes."
