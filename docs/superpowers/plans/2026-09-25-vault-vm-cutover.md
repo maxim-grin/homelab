@@ -2271,9 +2271,9 @@ gh pr create --base main --head vault-cutover --title "feat: cut argocd over to 
 
 Not for agents. One sitting.
 
-- [ ] **Step 1: Ansible** — on the Mac, from the `vault-cutover` branch (the merge comes second): `ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass`. Then `kubectl -n argocd rollout status deploy/argocd-repo-server`.
-- [ ] **Step 2: Merge PR 4** at once. Watch `kubectl -n argocd get applications` until `jobboard`, `cert-manager-issuers` and the rest are `Synced`.
-- [ ] **Step 3: Verify** — the `curl` this step used to run fails: the
+- [x] **Step 1: Ansible** — on the Mac, from the `vault-cutover` branch (the merge comes second): `ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass`. Then `kubectl -n argocd rollout status deploy/argocd-repo-server`.
+- [x] **Step 2: Merge PR 4** at once. Watch `kubectl -n argocd get applications` until `jobboard`, `cert-manager-issuers` and the rest are `Synced`.
+- [x] **Step 3: Verify** — the `curl` this step used to run fails: the
   argocd image has no `curl`. Verify instead with what actually proved the
   cutover:
 
@@ -2346,9 +2346,9 @@ VAULT_TOKEN=<PRODUCTION root> vault kv get -format=json kv-dev/jobboard/db | jq 
 **Files:**
 - Modify: `terraform/environments/dev/{main,variables}.tf`, `terraform/environments/dev/dev.tfvars.example`, `terraform/environments/prod/{main,variables,outputs}.tf`, `terraform/environments/prod/prod.tfvars.example`
 
-- [ ] **Step 1: Remove** `module "vault"` and its banner comment from dev `main.tf`; `variable "vault_lxc_ip"` and its comment from dev `variables.tf`; the Vault lines (comment and `vault_lxc_ip`) from `dev.tfvars.example`, and the example's comment that the LXC template is "required now that the vault container uses it" if no other container in dev uses `modules/lxc` (`grep -n 'modules/lxc' terraform/environments/dev/main.tf` decides). From prod: `module "vault_lxc"`, `variable "vault_ip"`, `output "vault_details"`, `vault_ip` in `prod.tfvars.example`, and "Vault" from that file's line-5 list.
+- [x] **Step 1: Remove** `module "vault"` and its banner comment from dev `main.tf`; `variable "vault_lxc_ip"` and its comment from dev `variables.tf`; the Vault lines (comment and `vault_lxc_ip`) from `dev.tfvars.example`, and the example's comment that the LXC template is "required now that the vault container uses it" if no other container in dev uses `modules/lxc` (`grep -n 'modules/lxc' terraform/environments/dev/main.tf` decides). From prod: `module "vault_lxc"`, `variable "vault_ip"`, `output "vault_details"`, `vault_ip` in `prod.tfvars.example`, and "Vault" from that file's line-5 list.
 
-- [ ] **Step 2: Validate**
+- [x] **Step 2: Validate**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -2360,7 +2360,7 @@ terraform fmt -recursive -check terraform && echo "fmt ok"
 
 Prod cannot `init` at all (its provider pins conflict — a known, separate problem); check it with `terraform fmt -check` and by reading the diff.
 
-- [ ] **Step 3: Commit** — `git commit -m "feat: remove the vault-01 lxc from terraform" -m "The dev container (vmid 104) and prod's never-applied duplicate (vmid 333) go. vault-02 in environments/shared serves both clusters."`
+- [x] **Step 3: Commit** — `git commit -m "feat: remove the vault-01 lxc from terraform" -m "The dev container (vmid 104) and prod's never-applied duplicate (vmid 333) go. vault-02 in environments/shared serves both clusters."`
 
 ---
 
@@ -2369,10 +2369,10 @@ Prod cannot `init` at all (its provider pins conflict — a known, separate prob
 **Files:**
 - Modify: `ansible/inventories/dev/hosts.yaml`, `ansible/inventories/prod/hosts.yaml`, `ansible/inventories/shared/hosts.yaml`, `ansible/playbooks/vault.yaml`, `ansible/roles/vault/defaults/main.yaml` (comment), `ansible/secret.yaml.example`, `CLAUDE.md`, `docs/rebuild.md`, `README.md`, `ansible/README.md`, `terraform/README.md`
 
-- [ ] **Step 1: Inventories** — delete the `vault` group from `inventories/dev` and `inventories/prod`; in `inventories/shared` rename `vault_vm` to `vault` and rewrite its comment (it is the Vault VM both clusters use; the LXC it replaced is gone). `playbooks/vault.yaml`: `hosts: vault`, comment updated.
-- [ ] **Step 2: `secret.yaml.example`** — delete `vault-01` from `host_ips` and `proxmox_vm_ids`.
-- [ ] **Step 3: Docs** — `CLAUDE.md`: delete the "Debian LXC template must exist" bullet; the sealed-Vault bullet says `vault-02`; the `environments/shared` lines describe `vault-02` as the Vault. `docs/rebuild.md`: remove the LXC template blocker and `pveam` step if nothing else needs them, the `vault-01` install/unseal/k8s-auth steps (the `vault-02` step from Task 8 replaces them), and `vault-01` from every table; the Vault data row describes raft on `vault-02` with snapshots. `README.md`, `ansible/README.md`, `terraform/README.md`: `vault-01` and the LXC go.
-- [ ] **Step 4: Check**
+- [x] **Step 1: Inventories** — delete the `vault` group from `inventories/dev` and `inventories/prod`; in `inventories/shared` rename `vault_vm` to `vault` and rewrite its comment (it is the Vault VM both clusters use; the LXC it replaced is gone). `playbooks/vault.yaml`: `hosts: vault`, comment updated.
+- [x] **Step 2: `secret.yaml.example`** — delete `vault-01` from `host_ips` and `proxmox_vm_ids`.
+- [x] **Step 3: Docs** — `CLAUDE.md`: delete the "Debian LXC template must exist" bullet; the sealed-Vault bullet says `vault-02`; the `environments/shared` lines describe `vault-02` as the Vault. `docs/rebuild.md`: remove the LXC template blocker and `pveam` step if nothing else needs them, the `vault-01` install/unseal/k8s-auth steps (the `vault-02` step from Task 8 replaces them), and `vault-01` from every table; the Vault data row describes raft on `vault-02` with snapshots. `README.md`, `ansible/README.md`, `terraform/README.md`: `vault-01` and the LXC go.
+- [x] **Step 4: Check**
 
 ```bash
 grep -rn "vault-01\|vault_lxc\|vault_vm\b\|10\.0\.0\.132\|vault-lxc" --exclude-dir=.git --exclude-dir=.superpowers . | grep -v "docs/superpowers"   # nothing
@@ -2382,15 +2382,15 @@ B=/home/ubuntu/.local/share/uv/tools/ansible-lint/bin
 pre-commit run --all-files >/dev/null 2>&1; echo rc=$?
 ```
 
-- [ ] **Step 5: Commit** — `git commit -m "docs: remove every trace of the vault-01 lxc"` (split into `refactor:` for the inventories and `docs:` for prose if the diff reads better that way).
+- [x] **Step 5: Commit** — `git commit -m "docs: remove every trace of the vault-01 lxc"` (split into `refactor:` for the inventories and `docs:` for prose if the diff reads better that way).
 
 ---
 
 ### Task 17: Review and PR 5
 
-- [ ] **Step 1:** Task 15 Step 2 and Task 16 Step 4 again on the final tree.
-- [ ] **Step 2:** `superpowers:requesting-code-review`, `superpowers:finishing-a-development-branch`.
-- [ ] **Step 3:** PR body to `$SCRATCH/pr-vault-decommission.md` — what goes, that the destroy is **irreversible** and happens in Task 18, and Task 18 verbatim. The supervisor ticks Task 14 and Tasks 15-17 before pushing; Task 18's boxes are ticked in whatever PR comes next.
+- [x] **Step 1:** Task 15 Step 2 and Task 16 Step 4 again on the final tree.
+- [x] **Step 2:** `superpowers:requesting-code-review`, `superpowers:finishing-a-development-branch`.
+- [x] **Step 3:** PR body to `$SCRATCH/pr-vault-decommission.md` — what goes, that the destroy is **irreversible** and happens in Task 18, and Task 18 verbatim. The supervisor ticks Task 14 and Tasks 15-17 before pushing; Task 18's boxes are ticked in whatever PR comes next.
 
 ```bash
 git push -u origin vault-lxc-decommission
