@@ -25,8 +25,11 @@ module "ubunut-k8s-1" {
   ssh_public_key       = var.ssh_public_key
 
 
-  master_memory = 8192
-  worker_memory = 4096
+  # 4G/3G since Harbor and Gitea left (2026-09-26): frees 6G of host RAM
+  # for the prod cluster. See docs/superpowers/specs/2026-09-26-homelab-
+  # roadmap-design.md. A memory change needs a guest reboot to apply.
+  master_memory = 4096
+  worker_memory = 3072
 
   # 30G, not the module's 10G default. On 10G disks /var/lib/containerd
   # alone reached 3.8G and kubelet crossed its ephemeral-storage threshold
