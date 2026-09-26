@@ -2292,23 +2292,48 @@ kubectl -n jobboard get secret <db secret> -o jsonpath='{.data.POSTGRES_PASSWORD
   health endpoint answered.
 
 - [ ] **Step 4: Restore drill** — the spec's proof that a snapshot is a backup.
+  Template 5000 has no NIC (Terraform adds NICs to every VM it builds; a
+  bare clone has none), so the drill VM needs one added by hand before it
+  gets an address.
 
 ```bash
-# on the Proxmox host: a throwaway clone of the template
-qm clone 5000 199 --name vault-drill --full && qm set 199 --ipconfig0 ip=dhcp && qm start 199
-# on vault-02: copy the newest snapshot to the drill VM
-ls -t /mnt/vault-backups/vault-*.snap | head -1
-# on vault-drill: install Vault 2.1.0-1 from the HashiCorp apt repo, then a scratch config
-#   storage "raft" { path = "/tmp/raft"  node_id = "drill" }
+# on vault-02 first: reference hash to compare the restore against
+# root@vault-02, VAULT_ADDR=https://10.0.0.133:8200, production root token
+vault kv get -format=json kv-dev/jobboard/db | jq -S .data.data | sha256sum
+
+# on the Proxmox host, as root (use /usr/sbin/qm -- a shell entered with
+# `su` without `-` lacks /usr/sbin on PATH)
+qm clone 5000 199 --name vault-drill --full
+qm set 199 --net0 virtio,bridge=vmbr0 --ipconfig0 ip=dhcp --ciuser ubuntu --sshkeys ~/.ssh/authorized_keys --agent 1
+qm start 199
+# poll until the guest agent answers
+until qm agent 199 ping; do sleep 2; done
+# the host has no jq -- read the address by hand and take the 10.0.0.x line
+qm guest cmd 199 network-get-interfaces | grep '"ip-address"'
+
+# from the Mac, with the owner's key
+K=~/.ssh/homelab_dev
+ssh -i $K ubuntu@<drill-ip> true
+SNAP=$(ssh -i $K ubuntu@10.0.0.133 'ls -t /mnt/vault-backups/vault-*.snap | head -1')
+# if SNAP is empty: ssh -i $K ubuntu@10.0.0.133 'sudo mount /mnt/vault-backups' first
+ssh -i $K ubuntu@10.0.0.133 "sudo cat $SNAP" | ssh -i $K ubuntu@<drill-ip> 'cat > /tmp/drill.snap'
+
+# on vault-drill: HashiCorp apt repo (gpg --dearmor keyring + deb line with
+# $(lsb_release -cs)), then
+apt-get install -y vault=2.1.0-1 jq
+# /tmp/drill.hcl: storage "raft" { path = "/tmp/raft"  node_id = "drill" }
 #   listener "tcp" { address = "127.0.0.1:8200"  tls_disable = 1 }
 #   disable_mlock = true
+#   api_addr = "http://127.0.0.1:8200"  cluster_addr = "http://127.0.0.1:8201"
+vault server -config=/tmp/drill.hcl > /tmp/vault.log 2>&1 &
 export VAULT_ADDR=http://127.0.0.1:8200
 vault operator init -key-shares=1 -key-threshold=1 && vault operator unseal <drill key>
-VAULT_TOKEN=<drill root> vault operator raft snapshot restore -force /tmp/<snapshot>.snap
+VAULT_TOKEN=<drill root> vault operator raft snapshot restore -force /tmp/drill.snap
 vault operator unseal <PRODUCTION unseal key>
-VAULT_TOKEN=<PRODUCTION root> vault kv get -format=json kv-dev/jobboard/db | jq -S .data.data | sha256sum   # same hash as Task 10
-# on the Proxmox host
-qm stop 199 && qm destroy 199 --purge
+VAULT_TOKEN=<PRODUCTION root> vault kv get -format=json kv-dev/jobboard/db | jq -S .data.data | sha256sum   # must equal the vault-02 hash above
+
+# on the Proxmox host -- the drill VM holds every secret
+/usr/sbin/qm stop 199 && /usr/sbin/qm destroy 199 --purge
 ```
 
 - [ ] **Step 5: Report back**, then PR 5 the same day.
@@ -2382,5 +2407,5 @@ gh pr create --base main --head vault-lxc-decommission --title "feat: decommissi
 Not for agents. After merging PR 5.
 
 - [ ] **Step 1:** `cd terraform/environments/dev && terraform plan -var-file=dev.tfvars` — **0 to add, 0 to change, 1 to destroy**, and the one is `module.vault`. Anything else: stop and paste it. Then `terraform apply -var-file=dev.tfvars`.
-- [ ] **Step 2:** Remove `vault_lxc_ip` from `dev.tfvars`; remove `vault-01` from `host_ips` and `proxmox_vm_ids` in `secret.yaml` (`ansible-vault edit`). Delete the old Vault's unseal key and root token from the password manager only after Step 3.
+- [ ] **Step 2:** Remove `vault_lxc_ip`, `debian_os_template` and `lxc_pass` from `dev.tfvars` (Terraform only warns about undeclared variables in a var-file, so the plan/apply in Step 1 still runs before this cleanup); remove `vault-01` from `host_ips` and `proxmox_vm_ids` in `secret.yaml` (`ansible-vault edit`). Delete the old Vault's unseal key and root token from the password manager only after Step 3.
 - [ ] **Step 3: Verify** — `pct status 104` → no such container; `terraform plan` clean in `dev` and `shared`; `kubectl -n argocd get applications` all `Synced`; `ansible-inventory -i inventories/shared --graph` shows `@vault` with `vault-02`.
