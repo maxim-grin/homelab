@@ -2291,7 +2291,7 @@ kubectl -n jobboard get secret <db secret> -o jsonpath='{.data.POSTGRES_PASSWORD
   actual proof AVP authenticated and read the secret, not just that a
   health endpoint answered.
 
-- [ ] **Step 4: Restore drill** — the spec's proof that a snapshot is a backup.
+- [x] **Step 4: Restore drill** — the spec's proof that a snapshot is a backup.
   Template 5000 has no NIC (Terraform adds NICs to every VM it builds; a
   bare clone has none), so the drill VM needs one added by hand before it
   gets an address.
@@ -2305,6 +2305,7 @@ vault kv get -format=json kv-dev/jobboard/db | jq -S .data.data | sha256sum
 # `su` without `-` lacks /usr/sbin on PATH)
 qm clone 5000 199 --name vault-drill --full
 qm set 199 --net0 virtio,bridge=vmbr0 --ipconfig0 ip=dhcp --ciuser ubuntu --sshkeys ~/.ssh/authorized_keys --agent 1
+qm resize 199 scsi0 +10G   # the clone keeps the cloud image's few GB; the vault package needs ~0.7G more
 qm start 199
 # poll until the guest agent answers
 until qm agent 199 ping; do sleep 2; done
@@ -2320,9 +2321,9 @@ ssh -i $K ubuntu@10.0.0.133 "sudo cat $SNAP" | ssh -i $K ubuntu@<drill-ip> 'cat 
 
 # on vault-drill: HashiCorp apt repo (gpg --dearmor keyring + deb line with
 # $(lsb_release -cs)), then
-apt-get install -y vault=2.1.0-1 jq
-mkdir -p /tmp/raft && printf 'storage "raft" {\n  path = "/tmp/raft"\n  node_id = "drill"\n}\nlistener "tcp" {\n  address = "127.0.0.1:8200"\n  tls_disable = 1\n}\ndisable_mlock = true\napi_addr = "http://127.0.0.1:8200"\ncluster_addr = "http://127.0.0.1:8201"\n' > /tmp/drill.hcl
-vault server -config=/tmp/drill.hcl > /tmp/vault.log 2>&1 &
+sudo apt-get install -y vault=2.1.0-1 jq   # before starting the server below
+mkdir -p ~/drill/raft && printf 'storage "raft" {\n  path = "%s/drill/raft"\n  node_id = "drill"\n}\nlistener "tcp" {\n  address = "127.0.0.1:8200"\n  tls_disable = 1\n}\ndisable_mlock = true\napi_addr = "http://127.0.0.1:8200"\ncluster_addr = "http://127.0.0.1:8201"\n' "$HOME" > ~/drill/drill.hcl   # in $HOME: a root-owned leftover in /tmp cannot be overwritten (fs.protected_regular)
+vault server -config=$HOME/drill/drill.hcl > ~/drill/vault.log 2>&1 &
 export VAULT_ADDR=http://127.0.0.1:8200
 vault operator init -key-shares=1 -key-threshold=1 && vault operator unseal <drill key>
 VAULT_TOKEN=<drill root> vault operator raft snapshot restore -force /tmp/drill.snap
@@ -2333,7 +2334,7 @@ VAULT_TOKEN=<PRODUCTION root> vault kv get -format=json kv-dev/jobboard/db | jq 
 /usr/sbin/qm stop 199 && /usr/sbin/qm destroy 199 --purge
 ```
 
-- [ ] **Step 5: Report back**, then PR 5 the same day.
+- [x] **Step 5: Report back**, then PR 5 the same day.
 
 ---
 
