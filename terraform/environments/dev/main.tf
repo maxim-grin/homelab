@@ -26,8 +26,11 @@ module "ubunut-k8s-1" {
 
 
   # 4G/3G since Harbor and Gitea left (2026-09-26): frees 6G of host RAM
-  # for the prod cluster. See docs/superpowers/specs/2026-09-26-homelab-
-  # roadmap-design.md. A memory change needs a guest reboot to apply.
+  # for the prod cluster, per
+  # docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md.
+  # A memory change reboots the VM (automatic_reboot defaults to true), and
+  # a plain apply reboots every node at once. Apply one node at a time,
+  # drained first: -target='module.ubunut-k8s-1.module.nodes["worker-01"]'.
   master_memory = 4096
   worker_memory = 3072
 
