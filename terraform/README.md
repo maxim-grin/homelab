@@ -148,7 +148,7 @@ terraform apply -var-file="prod.tfvars"
 
 ## Module Overview
 
-- **modules/lxc** – reusable module for lightweight Proxmox containers; backs `vault-01` (vmid 104) in `environments/dev`.
+- **modules/lxc** – reusable module for lightweight Proxmox containers; backs prod's never-applied containers (`tk_nas`, `pi_hole`, `traefik`, `homepage` in `environments/prod`) and nothing in dev.
 - **modules/nfs-server** – `ubuntu-vm` plus three data disks (`scsi1` for `nfs-dev`, `scsi2` for `nfs-prod`, `scsi3` for `nfs-backups`); backs `nfs-01` (vmid 103) in `environments/shared`.
 - **modules/vault-vm** – `ubuntu-vm` plus one data disk for Vault's raft store; backs `vault-02` (vmid 105) in `environments/shared`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
