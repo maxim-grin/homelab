@@ -5,8 +5,6 @@ namespace: jobboard
 
 resources:
   - namespace.yaml
-  - secret.yaml
-  - ghcr-secret.yaml
   - postgres-statefulset.yaml
   - postgres-service.yaml
   - app-deployment.yaml

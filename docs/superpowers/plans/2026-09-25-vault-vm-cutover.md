@@ -2090,7 +2090,7 @@ Start only after Task 10 passes: `git checkout main && git pull && git checkout 
 - Consumes: `~/.homelab-ca/ca.crt` on the workstation (Task 10).
 - Produces: ConfigMap `vault-ca` in `argocd` (key `ca.crt`), mounted in the `avp` sidecar at `/etc/vault-ca`; `VAULT_ADDR=https://vault.mgryn.cc:8200`, `VAULT_CACERT=/etc/vault-ca/ca.crt`; pod annotation `checksum/vault-ca`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```yaml
 - name: The repo-server values trust the Vault CA and reach Vault by name
@@ -2120,7 +2120,7 @@ Start only after Task 10 passes: `git checkout main && git pull && git checkout 
 
 Save as `$SCRATCH/vault-tests/argocd-values-test.yaml`. It reads the CA the Task 3 test created; re-run that test first if `$SCRATCH/vault-tests/tls/ca/ca.crt` is gone.
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 ```bash
 cd $SCRATCH/vault-tests && export SCRATCH && RUN argocd-values-test.yaml
@@ -2128,7 +2128,7 @@ cd $SCRATCH/vault-tests && export SCRATCH && RUN argocd-values-test.yaml
 
 Expected: FAIL on `VAULT_ADDR`.
 
-- [ ] **Step 3: Defaults**
+- [x] **Step 3: Defaults**
 
 Replace `argocd_vault_address: "{{ host_ips['vault-01'] }}"` with:
 
@@ -2161,7 +2161,7 @@ and in `repoServer.volumes`:
         name: vault-ca
 ```
 
-- [ ] **Step 4: Tasks** — in `ansible/roles/argocd/tasks/main.yaml`, directly after `Create the AVP configuration Secret` and before the Helm deploy:
+- [x] **Step 4: Tasks** — in `ansible/roles/argocd/tasks/main.yaml`, directly after `Create the AVP configuration Secret` and before the Helm deploy:
 
 ```yaml
 - name: Create the Vault CA ConfigMap
@@ -2180,9 +2180,9 @@ and in `repoServer.volumes`:
         ca.crt: "{{ argocd_vault_ca_cert }}"
 ```
 
-- [ ] **Step 5: Run the test again** — expected: `failed=0`.
+- [x] **Step 5: Run the test again** — expected: `failed=0`.
 
-- [ ] **Step 6: Lint, syntax-check, commit**
+- [x] **Step 6: Lint, syntax-check, commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/argocd 2>&1 | tail -1 | cat
@@ -2200,7 +2200,7 @@ with a third checksum annotation so a new CA rolls the pod."
 - Move: `argocd/apps/jobboard/base/secret.yaml` → `argocd/apps/jobboard/dev/secret.yaml`, `argocd/apps/jobboard/base/ghcr-secret.yaml` → `argocd/apps/jobboard/dev/ghcr-secret.yaml`
 - Modify: both kustomizations, `argocd/apps/cert-manager-issuers/dev/cloudflare-secret.yaml`, `argocd/environments/dev/applications/cert-manager-issuers.yaml` (comment), `ansible/secret.yaml.example` (comments)
 
-- [ ] **Step 1: Record the failing check**
+- [x] **Step 1: Record the failing check**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -2208,7 +2208,7 @@ grep -rn '<path:secret/' argocd/ | wc -l          # 5 now; must become 0
 kustomize build argocd/apps/jobboard/base | grep -c '^kind: Secret'   # 2 now; must become 0
 ```
 
-- [ ] **Step 2: Move the two Secrets into the dev overlay**
+- [x] **Step 2: Move the two Secrets into the dev overlay**
 
 ```bash
 git mv argocd/apps/jobboard/base/secret.yaml argocd/apps/jobboard/dev/secret.yaml
@@ -2217,11 +2217,11 @@ git mv argocd/apps/jobboard/base/ghcr-secret.yaml argocd/apps/jobboard/dev/ghcr-
 
 Remove both from `base/kustomization.yaml`'s `resources`; add them to `dev/kustomization.yaml`'s `resources` after `../base`, with a comment: the placeholders name `kv-dev`, and a base a prod overlay also consumes must not carry an environment's mount.
 
-- [ ] **Step 3: Rewrite the five placeholders**
+- [x] **Step 3: Rewrite the five placeholders**
 
 `secret/data/` → `kv-dev/data/` in `dev/secret.yaml` (three), `dev/ghcr-secret.yaml` (one), `cert-manager-issuers/dev/cloudflare-secret.yaml` (one). Update comments that quote a placeholder: `argocd/environments/dev/applications/cert-manager-issuers.yaml` and the `vault_kv` comments in `ansible/secret.yaml.example` (`<path:secret/data/cert-manager/cloudflare#API_TOKEN>` → `kv-dev`).
 
-- [ ] **Step 4: Check**
+- [x] **Step 4: Check**
 
 ```bash
 grep -rn 'secret/data/' argocd/ ansible/secret.yaml.example         # nothing
@@ -2232,7 +2232,7 @@ kustomize build argocd/apps/cert-manager-issuers/dev | grep -c 'kv-dev/data/cert
 scripts/check-manifests.sh >/dev/null 2>&1; echo rc=$?             # 0
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add argocd ansible/secret.yaml.example
@@ -2248,17 +2248,17 @@ inherit a dev mount."
 **Files:**
 - Modify: `CLAUDE.md`, `docs/rebuild.md`, `README.md`, `ansible/README.md`
 
-- [ ] **Step 1: `CLAUDE.md`**
+- [x] **Step 1: `CLAUDE.md`**
 
 - The two places that give the placeholder form (`<path:secret/data/...#FIELD>` in "Load-bearing" and in "Secrets"): `<path:kv-<env>/data/...#FIELD>`, with `kv-dev` today.
 - `jobs.mgryn.cc`'s bullet: `secret/cert-manager/cloudflare` → `kv-dev/cert-manager/cloudflare`.
 - The `environments/shared` lines (Stack paragraph, layout tree) drop "not yet in service" for `vault-02`, and "will replace" becomes "replacing".
 
-- [ ] **Step 2: `docs/rebuild.md`, `README.md`, `ansible/README.md`** — every `secret/data/...` or `secret/<path>` reference to Vault's KV becomes `kv-dev/...`; every statement that AVP reaches Vault at `vault-01`'s address becomes `https://vault.mgryn.cc:8200`. `grep -rn "secret/data\|secret/jobboard\|secret/cert-manager" CLAUDE.md README.md docs/rebuild.md ansible/README.md` must return nothing. Leave `vault-01` itself alone — PR 5 removes it.
+- [x] **Step 2: `docs/rebuild.md`, `README.md`, `ansible/README.md`** — every `secret/data/...` or `secret/<path>` reference to Vault's KV becomes `kv-dev/...`; every statement that AVP reaches Vault at `vault-01`'s address becomes `https://vault.mgryn.cc:8200`. `grep -rn "secret/data\|secret/jobboard\|secret/cert-manager" CLAUDE.md README.md docs/rebuild.md ansible/README.md` must return nothing. Leave `vault-01` itself alone — PR 5 removes it.
 
-- [ ] **Step 3: Verify** — Task 9 Step 1's command block plus the Task 11 test; `kustomize build` on both jobboard directories.
+- [x] **Step 3: Verify** — Task 9 Step 1's command block plus the Task 11 test; `kustomize build` on both jobboard directories.
 
-- [ ] **Step 4: Review and PR** — `superpowers:requesting-code-review`, `superpowers:finishing-a-development-branch`. The supervisor ticks Task 10 and Tasks 11-13 before pushing. PR body to `$SCRATCH/pr-vault-cutover.md`: the two changes, **the accepted window** (after the Ansible run and before the merge, the three apps report `ComparisonError` for about one Argo poll; nothing goes down), and Task 14 verbatim.
+- [x] **Step 4: Review and PR** — `superpowers:requesting-code-review`, `superpowers:finishing-a-development-branch`. The supervisor ticks Task 10 and Tasks 11-13 before pushing. PR body to `$SCRATCH/pr-vault-cutover.md`: the two changes, **the accepted window** (after the Ansible run and before the merge, the three apps report `ComparisonError` for about one Argo poll; nothing goes down), and Task 14 verbatim.
 
 ```bash
 git push -u origin vault-cutover

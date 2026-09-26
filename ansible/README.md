@@ -89,7 +89,7 @@ top-level keys are Vault mounts (must be in `vault_kv_mounts`), and
 `roles/vault/tasks/seed.yaml` writes each path under its mount into Vault's
 KV v2 store, writing a path only when its value differs from what is
 already there. From `kv-dev/jobboard/db` and `kv-dev/jobboard/ghcr`,
-argocd-vault-plugin resolves `<path:secret/data/jobboard/...#FIELD>`
+argocd-vault-plugin resolves `<path:kv-dev/data/jobboard/...#FIELD>`
 placeholders in the committed jobboard manifests at ArgoCD sync time. The
 vault of record for a running secret is Vault, not `secret.yaml` — this
 block only exists so a lost or resealed Vault can be re-seeded from

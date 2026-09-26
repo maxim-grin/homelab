@@ -5,6 +5,10 @@ namespace: jobboard
 
 resources:
   - ../base
+  # The placeholders here name kv-dev; a base a prod overlay also
+  # consumes must not carry an environment's mount.
+  - secret.yaml
+  - ghcr-secret.yaml
   - ingress.yaml
 
 # The deploy history for dev: one line per release, bumped by hand after the
