@@ -102,8 +102,7 @@ module "vault_vm" {
   ssh_public_key = var.ssh_public_key
 
   # OS configuration lives in the ansible/ vault role, run against
-  # ansible/inventories/shared. This VM is empty until that runs; the
-  # vault-01 LXC keeps serving until then.
+  # inventories/shared. This is the Vault both clusters read.
 
   # Tags
   tags = "ubuntu,vault,shared"

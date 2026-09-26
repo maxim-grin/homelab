@@ -2271,37 +2271,70 @@ gh pr create --base main --head vault-cutover --title "feat: cut argocd over to 
 
 Not for agents. One sitting.
 
-- [ ] **Step 1: Ansible** — on the Mac, from the `vault-cutover` branch (the merge comes second): `ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass`. Then `kubectl -n argocd rollout status deploy/argocd-repo-server`.
-- [ ] **Step 2: Merge PR 4** at once. Watch `kubectl -n argocd get applications` until `jobboard`, `cert-manager-issuers` and the rest are `Synced`.
-- [ ] **Step 3: Verify**
+- [x] **Step 1: Ansible** — on the Mac, from the `vault-cutover` branch (the merge comes second): `ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass`. Then `kubectl -n argocd rollout status deploy/argocd-repo-server`.
+- [x] **Step 2: Merge PR 4** at once. Watch `kubectl -n argocd get applications` until `jobboard`, `cert-manager-issuers` and the rest are `Synced`.
+- [x] **Step 3: Verify** — the `curl` this step used to run fails: the
+  argocd image has no `curl`. Verify instead with what actually proved the
+  cutover:
 
 ```bash
-kubectl -n argocd exec deploy/argocd-repo-server -c avp -- sh -c 'getent hosts vault.mgryn.cc; curl -s --cacert /etc/vault-ca/ca.crt https://vault.mgryn.cc:8200/v1/sys/health | head -c 120'
+kubectl -n argocd exec deploy/argocd-repo-server -c avp -- getent hosts vault.mgryn.cc
+kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,REV:.status.sync.revision
+kubectl -n argocd get application jobboard -o jsonpath='{.status.conditions}'   # empty
 kubectl -n jobboard get secret -o name
 kubectl -n jobboard get secret <db secret> -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d | wc -c   # 24, not a <path:...> string
 ```
 
-- [ ] **Step 4: Restore drill** — the spec's proof that a snapshot is a backup.
+  Apps report `Synced` at the merge commit's revision with no conditions.
+  On `vault-02`, tail the audit log for an `auth/kubernetes/login` by
+  `argocd-repo-server` and a `kv-dev/data/jobboard/db` read — that is the
+  actual proof AVP authenticated and read the secret, not just that a
+  health endpoint answered.
+
+- [x] **Step 4: Restore drill** — the spec's proof that a snapshot is a backup.
+  Template 5000 has no NIC (Terraform adds NICs to every VM it builds; a
+  bare clone has none), so the drill VM needs one added by hand before it
+  gets an address.
 
 ```bash
-# on the Proxmox host: a throwaway clone of the template
-qm clone 5000 199 --name vault-drill --full && qm set 199 --ipconfig0 ip=dhcp && qm start 199
-# on vault-02: copy the newest snapshot to the drill VM
-ls -t /mnt/vault-backups/vault-*.snap | head -1
-# on vault-drill: install Vault 2.1.0-1 from the HashiCorp apt repo, then a scratch config
-#   storage "raft" { path = "/tmp/raft"  node_id = "drill" }
-#   listener "tcp" { address = "127.0.0.1:8200"  tls_disable = 1 }
-#   disable_mlock = true
+# on vault-02 first: reference hash to compare the restore against
+# root@vault-02, VAULT_ADDR=https://10.0.0.133:8200, production root token
+vault kv get -format=json kv-dev/jobboard/db | jq -S .data.data | sha256sum
+
+# on the Proxmox host, as root (use /usr/sbin/qm -- a shell entered with
+# `su` without `-` lacks /usr/sbin on PATH)
+qm clone 5000 199 --name vault-drill --full
+qm set 199 --net0 virtio,bridge=vmbr0 --ipconfig0 ip=dhcp --ciuser ubuntu --sshkeys ~/.ssh/authorized_keys --agent 1
+qm resize 199 scsi0 +10G   # the clone keeps the cloud image's few GB; the vault package needs ~0.7G more
+qm start 199
+# poll until the guest agent answers
+until qm agent 199 ping; do sleep 2; done
+# the host has no jq -- read the address by hand and take the 10.0.0.x line
+qm guest cmd 199 network-get-interfaces | grep '"ip-address"'
+
+# from the Mac, with the owner's key
+K=~/.ssh/homelab_dev
+ssh -i $K ubuntu@<drill-ip> true
+SNAP=$(ssh -i $K ubuntu@10.0.0.133 'ls -t /mnt/vault-backups/vault-*.snap | head -1')
+# if SNAP is empty: ssh -i $K ubuntu@10.0.0.133 'sudo mount /mnt/vault-backups' first
+ssh -i $K ubuntu@10.0.0.133 "sudo cat $SNAP" | ssh -i $K ubuntu@<drill-ip> 'cat > /tmp/drill.snap'
+
+# on vault-drill: HashiCorp apt repo (gpg --dearmor keyring + deb line with
+# $(lsb_release -cs)), then
+sudo apt-get install -y vault=2.1.0-1 jq   # before starting the server below
+mkdir -p ~/drill/raft && printf 'storage "raft" {\n  path = "%s/drill/raft"\n  node_id = "drill"\n}\nlistener "tcp" {\n  address = "127.0.0.1:8200"\n  tls_disable = 1\n}\ndisable_mlock = true\napi_addr = "http://127.0.0.1:8200"\ncluster_addr = "http://127.0.0.1:8201"\n' "$HOME" > ~/drill/drill.hcl   # in $HOME: a root-owned leftover in /tmp cannot be overwritten (fs.protected_regular)
+vault server -config=$HOME/drill/drill.hcl > ~/drill/vault.log 2>&1 &
 export VAULT_ADDR=http://127.0.0.1:8200
 vault operator init -key-shares=1 -key-threshold=1 && vault operator unseal <drill key>
-VAULT_TOKEN=<drill root> vault operator raft snapshot restore -force /tmp/<snapshot>.snap
+VAULT_TOKEN=<drill root> vault operator raft snapshot restore -force /tmp/drill.snap
 vault operator unseal <PRODUCTION unseal key>
-VAULT_TOKEN=<PRODUCTION root> vault kv get -format=json kv-dev/jobboard/db | jq -S .data.data | sha256sum   # same hash as Task 10
-# on the Proxmox host
-qm stop 199 && qm destroy 199 --purge
+VAULT_TOKEN=<PRODUCTION root> vault kv get -format=json kv-dev/jobboard/db | jq -S .data.data | sha256sum   # must equal the vault-02 hash above
+
+# on the Proxmox host -- the drill VM holds every secret
+/usr/sbin/qm stop 199 && /usr/sbin/qm destroy 199 --purge
 ```
 
-- [ ] **Step 5: Report back**, then PR 5 the same day.
+- [x] **Step 5: Report back**, then PR 5 the same day.
 
 ---
 
@@ -2314,9 +2347,9 @@ qm stop 199 && qm destroy 199 --purge
 **Files:**
 - Modify: `terraform/environments/dev/{main,variables}.tf`, `terraform/environments/dev/dev.tfvars.example`, `terraform/environments/prod/{main,variables,outputs}.tf`, `terraform/environments/prod/prod.tfvars.example`
 
-- [ ] **Step 1: Remove** `module "vault"` and its banner comment from dev `main.tf`; `variable "vault_lxc_ip"` and its comment from dev `variables.tf`; the Vault lines (comment and `vault_lxc_ip`) from `dev.tfvars.example`, and the example's comment that the LXC template is "required now that the vault container uses it" if no other container in dev uses `modules/lxc` (`grep -n 'modules/lxc' terraform/environments/dev/main.tf` decides). From prod: `module "vault_lxc"`, `variable "vault_ip"`, `output "vault_details"`, `vault_ip` in `prod.tfvars.example`, and "Vault" from that file's line-5 list.
+- [x] **Step 1: Remove** `module "vault"` and its banner comment from dev `main.tf`; `variable "vault_lxc_ip"` and its comment from dev `variables.tf`; the Vault lines (comment and `vault_lxc_ip`) from `dev.tfvars.example`, and the example's comment that the LXC template is "required now that the vault container uses it" if no other container in dev uses `modules/lxc` (`grep -n 'modules/lxc' terraform/environments/dev/main.tf` decides). From prod: `module "vault_lxc"`, `variable "vault_ip"`, `output "vault_details"`, `vault_ip` in `prod.tfvars.example`, and "Vault" from that file's line-5 list.
 
-- [ ] **Step 2: Validate**
+- [x] **Step 2: Validate**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -2328,7 +2361,7 @@ terraform fmt -recursive -check terraform && echo "fmt ok"
 
 Prod cannot `init` at all (its provider pins conflict — a known, separate problem); check it with `terraform fmt -check` and by reading the diff.
 
-- [ ] **Step 3: Commit** — `git commit -m "feat: remove the vault-01 lxc from terraform" -m "The dev container (vmid 104) and prod's never-applied duplicate (vmid 333) go. vault-02 in environments/shared serves both clusters."`
+- [x] **Step 3: Commit** — `git commit -m "feat: remove the vault-01 lxc from terraform" -m "The dev container (vmid 104) and prod's never-applied duplicate (vmid 333) go. vault-02 in environments/shared serves both clusters."`
 
 ---
 
@@ -2337,10 +2370,10 @@ Prod cannot `init` at all (its provider pins conflict — a known, separate prob
 **Files:**
 - Modify: `ansible/inventories/dev/hosts.yaml`, `ansible/inventories/prod/hosts.yaml`, `ansible/inventories/shared/hosts.yaml`, `ansible/playbooks/vault.yaml`, `ansible/roles/vault/defaults/main.yaml` (comment), `ansible/secret.yaml.example`, `CLAUDE.md`, `docs/rebuild.md`, `README.md`, `ansible/README.md`, `terraform/README.md`
 
-- [ ] **Step 1: Inventories** — delete the `vault` group from `inventories/dev` and `inventories/prod`; in `inventories/shared` rename `vault_vm` to `vault` and rewrite its comment (it is the Vault VM both clusters use; the LXC it replaced is gone). `playbooks/vault.yaml`: `hosts: vault`, comment updated.
-- [ ] **Step 2: `secret.yaml.example`** — delete `vault-01` from `host_ips` and `proxmox_vm_ids`.
-- [ ] **Step 3: Docs** — `CLAUDE.md`: delete the "Debian LXC template must exist" bullet; the sealed-Vault bullet says `vault-02`; the `environments/shared` lines describe `vault-02` as the Vault. `docs/rebuild.md`: remove the LXC template blocker and `pveam` step if nothing else needs them, the `vault-01` install/unseal/k8s-auth steps (the `vault-02` step from Task 8 replaces them), and `vault-01` from every table; the Vault data row describes raft on `vault-02` with snapshots. `README.md`, `ansible/README.md`, `terraform/README.md`: `vault-01` and the LXC go.
-- [ ] **Step 4: Check**
+- [x] **Step 1: Inventories** — delete the `vault` group from `inventories/dev` and `inventories/prod`; in `inventories/shared` rename `vault_vm` to `vault` and rewrite its comment (it is the Vault VM both clusters use; the LXC it replaced is gone). `playbooks/vault.yaml`: `hosts: vault`, comment updated.
+- [x] **Step 2: `secret.yaml.example`** — delete `vault-01` from `host_ips` and `proxmox_vm_ids`.
+- [x] **Step 3: Docs** — `CLAUDE.md`: delete the "Debian LXC template must exist" bullet; the sealed-Vault bullet says `vault-02`; the `environments/shared` lines describe `vault-02` as the Vault. `docs/rebuild.md`: remove the LXC template blocker and `pveam` step if nothing else needs them, the `vault-01` install/unseal/k8s-auth steps (the `vault-02` step from Task 8 replaces them), and `vault-01` from every table; the Vault data row describes raft on `vault-02` with snapshots. `README.md`, `ansible/README.md`, `terraform/README.md`: `vault-01` and the LXC go.
+- [x] **Step 4: Check**
 
 ```bash
 grep -rn "vault-01\|vault_lxc\|vault_vm\b\|10\.0\.0\.132\|vault-lxc" --exclude-dir=.git --exclude-dir=.superpowers . | grep -v "docs/superpowers"   # nothing
@@ -2350,15 +2383,15 @@ B=/home/ubuntu/.local/share/uv/tools/ansible-lint/bin
 pre-commit run --all-files >/dev/null 2>&1; echo rc=$?
 ```
 
-- [ ] **Step 5: Commit** — `git commit -m "docs: remove every trace of the vault-01 lxc"` (split into `refactor:` for the inventories and `docs:` for prose if the diff reads better that way).
+- [x] **Step 5: Commit** — `git commit -m "docs: remove every trace of the vault-01 lxc"` (split into `refactor:` for the inventories and `docs:` for prose if the diff reads better that way).
 
 ---
 
 ### Task 17: Review and PR 5
 
-- [ ] **Step 1:** Task 15 Step 2 and Task 16 Step 4 again on the final tree.
-- [ ] **Step 2:** `superpowers:requesting-code-review`, `superpowers:finishing-a-development-branch`.
-- [ ] **Step 3:** PR body to `$SCRATCH/pr-vault-decommission.md` — what goes, that the destroy is **irreversible** and happens in Task 18, and Task 18 verbatim. The supervisor ticks Task 14 and Tasks 15-17 before pushing; Task 18's boxes are ticked in whatever PR comes next.
+- [x] **Step 1:** Task 15 Step 2 and Task 16 Step 4 again on the final tree.
+- [x] **Step 2:** `superpowers:requesting-code-review`, `superpowers:finishing-a-development-branch`.
+- [x] **Step 3:** PR body to `$SCRATCH/pr-vault-decommission.md` — what goes, that the destroy is **irreversible** and happens in Task 18, and Task 18 verbatim. The supervisor ticks Task 14 and Tasks 15-17 before pushing; Task 18's boxes are ticked in whatever PR comes next.
 
 ```bash
 git push -u origin vault-lxc-decommission
@@ -2372,5 +2405,5 @@ gh pr create --base main --head vault-lxc-decommission --title "feat: decommissi
 Not for agents. After merging PR 5.
 
 - [ ] **Step 1:** `cd terraform/environments/dev && terraform plan -var-file=dev.tfvars` — **0 to add, 0 to change, 1 to destroy**, and the one is `module.vault`. Anything else: stop and paste it. Then `terraform apply -var-file=dev.tfvars`.
-- [ ] **Step 2:** Remove `vault_lxc_ip` from `dev.tfvars`; remove `vault-01` from `host_ips` and `proxmox_vm_ids` in `secret.yaml` (`ansible-vault edit`). Delete the old Vault's unseal key and root token from the password manager only after Step 3.
+- [ ] **Step 2:** Remove `vault_lxc_ip`, `debian_os_template` and `lxc_pass` from `dev.tfvars` (Terraform only warns about undeclared variables in a var-file, so the plan/apply in Step 1 still runs before this cleanup); remove `vault-01` from `host_ips` and `proxmox_vm_ids` in `secret.yaml` (`ansible-vault edit`). Delete the old Vault's unseal key and root token from the password manager only after Step 3.
 - [ ] **Step 3: Verify** — `pct status 104` → no such container; `terraform plan` clean in `dev` and `shared`; `kubectl -n argocd get applications` all `Synced`; `ansible-inventory -i inventories/shared --graph` shows `@vault` with `vault-02`.

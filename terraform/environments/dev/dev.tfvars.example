@@ -24,25 +24,14 @@ ci_password = "<PASSWORD>"
 ssh_private_key_path = "~/.ssh/homelab_dev"
 ssh_public_key       = "ssh-ed25519 AAAA... homelab-dev"
 
-# Templates that must already exist on the host; docs/rebuild.md has the
-# qm commands that build ubuntu-cid-tp. The LXC template string has to
-# match a file actually downloaded by `pveam download local <name>` --
-# check `pveam available | grep debian-13` and update this rather than
-# hunting for the exact build pinned here.
+# Template that must already exist on the host; docs/rebuild.md has the
+# qm commands that build ubuntu-cid-tp.
 clone_template_ubuntu = "ubuntu-cid-tp"
 clone_template_k8s    = "ubuntu-cid-tp"
-debian_os_template    = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
 
 # Kubernetes nodes are addressed from this CIDR by the ubuntu-k8s module.
 ub_k8s_cidr = "10.0.0.0/24"
 gateway     = "10.0.0.1"
 
-# LXC. lxc_pass is the root password for every module/lxc container --
-# required now that the vault container uses it
-lxc_pass = "<PASSWORD>"
-
 # Claude Code workstation VM. Must include CIDR.
 claude_code_ip = "10.0.0.130/24"
-
-# Vault container. Must include CIDR.
-vault_lxc_ip = "10.0.0.132/24"

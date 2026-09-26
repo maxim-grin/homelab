@@ -102,43 +102,6 @@ module "pi_hole" {
   tags = "lxc,dns,prod"
 }
 
-module "vault_lxc" {
-  source = "../../modules/lxc"
-
-  vmid               = 333
-  target_node        = var.pm_target_node
-  hostname           = "vault"
-  ostemplate         = var.debian_os_template
-  password           = var.lxc_pass
-  start_at_node_boot = true
-  unprivileged       = true
-  pool               = "LXC"
-
-  # Resources
-  cores  = 1
-  memory = 1024
-  swap   = 0
-
-  # Storage
-  rootfs_storage = "local-lvm"
-  rootfs_size    = "10G"
-
-  # Network
-  network_bridge = "vmbr0"
-  network_ip     = var.vault_ip
-  network_gw     = var.gateway
-
-  # Features
-  features_enabled = true
-  features = {
-    nesting = true
-  }
-
-  startup = "order=6,up=10"
-
-  tags = "lxc,vault,prod"
-}
-
 module "traefik" {
   source = "../../modules/lxc"
 
