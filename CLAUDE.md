@@ -243,9 +243,9 @@ pre-commit run --all-files                     # what the CI pre-commit job runs
 scripts/check-manifests.sh                     # every kustomization and Helm chart, rendered and schema-checked
 ```
 
-`argocd/apps/harbor/dev` and `argocd/apps/ingress-nginx/dev` hold only
-`values.yaml` — they are Helm inputs, not kustomize overlays, and
-`kustomize build` on them fails by design.
+`argocd/apps/ingress-nginx/dev` holds only `values.yaml` — it is a Helm
+input, not a kustomize overlay, and `kustomize build` on it fails by
+design.
 
 CI runs the same checks on every PR: `pre-commit`, `commits`, `terraform`,
 `manifests`. Green CI is the floor, not the finish: it renders and

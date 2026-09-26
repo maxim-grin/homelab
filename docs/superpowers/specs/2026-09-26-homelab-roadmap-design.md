@@ -98,7 +98,7 @@ revisions.
 | prod control plane | — | 2G |
 | prod workers | — | 2 × 4G |
 | Pi-hole, Traefik, Homepage, Uptime Kuma, LAN Orangutan | — | ~1.5G total |
-| **Total** | **~30G** | **~28.5G** |
+| **Total** | **~30G** | **~29.5G** |
 
 Prod gets two workers on purpose: drains, PodDisruptionBudgets,
 anti-affinity and rolling updates teach nothing on one node.
@@ -131,8 +131,8 @@ Each gets its own design at the weight it needs, and its own PR or PRs.
 **0. Make room.** Remove Harbor and Gitea — Applications, app
 directories, `cluster_secrets` entries, and mentions in `README.md`,
 `CLAUDE.md` and `docs/rebuild.md` (past specs and plans stay as
-history). Lower the dev control plane 8G → 4G and `claude-code` 8G →
-6G. Frees about 6G. Bounded: design in chat, no spec.
+history). Lower the dev control plane 8G → 4G and the dev workers 4G →
+3G. Frees 6G. Bounded: design in chat, no spec.
 
 **1. LAN services.** Five LXCs in `environments/shared`, an Ansible role
 each, Traefik routes by hostname (the domain is chosen there), Homepage widgets for Proxmox
@@ -152,8 +152,10 @@ kube-prometheus-stack with Grafana.
 **4. Dev becomes a spoke.** Register dev with prod's ArgoCD,
 ApplicationSets for dev's workloads, retire dev's ArgoCD, Prometheus
 agent remote-writing to prod, shrink dev to one 3G control plane and
-one 3G worker, and a rebuild that is one Terraform apply plus one
-playbook.
+one 3G worker, shrink `claude-code` 8G → 6G, and a rebuild that is one
+Terraform apply plus one playbook. Resizing `claude-code` reboots
+the VM that agent sessions run on, so it is a targeted apply from the
+workstation while no session is running.
 
 **5. jobboard in prod.** Prod overlay pinned to a tag, the dev-to-prod
 promotion flow, and `jobs.mgryn.cc` moved to prod.

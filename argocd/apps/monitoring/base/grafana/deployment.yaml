@@ -73,8 +73,8 @@ spec:
           configMap:
             name: grafana-dashboard-providers
         # A `configMap` volume source can only name one ConfigMap; `projected`
-        # combines all five dashboard ConfigMaps' single JSON key each into
-        # this one directory instead of needing five separate mounts.
+        # combines all four dashboard ConfigMaps' single JSON key each into
+        # this one directory instead of needing four separate mounts.
         - name: grafana-dashboards
           projected:
             sources:
@@ -86,8 +86,6 @@ spec:
                   name: grafana-dashboard-ingress-nginx
               - configMap:
                   name: grafana-dashboard-cert-manager
-              - configMap:
-                  name: grafana-dashboard-harbor
         - name: grafana-storage
           persistentVolumeClaim:
             claimName: grafana-storage

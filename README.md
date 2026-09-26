@@ -23,7 +23,7 @@ _not_ contain, which is the part that will bite.
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
-| Apps       | gitea, harbor, monitoring (Prometheus + Grafana), jobboard      | `argocd/apps/`                                            |
+| Apps       | monitoring (Prometheus + Grafana), jobboard                    | `argocd/apps/`                                            |
 | Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/dev` |
 
 Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
@@ -192,7 +192,7 @@ gh pr create --base main --fill
 
 jobboard: `https://jobs.mgryn.cc` -- the only name with TLS; HTTP 308s to it
 ArgoCD UI: `http://argocd.mgryn.cc`
-Gitea: `http://gitea.mgryn.cc` · Grafana: `http://grafana.mgryn.cc`
+Grafana: `http://grafana.mgryn.cc`
 Prometheus: `http://prometheus.mgryn.cc` (no authentication -- Prometheus ships none)
 Vault UI: `https://vault.mgryn.cc:8200` -- straight to `vault-02`, not through
 ingress-nginx, so it is reachable even when the cluster is down
