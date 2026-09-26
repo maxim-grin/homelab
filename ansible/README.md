@@ -197,7 +197,7 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
 7. **Install, seed and configure Vault:**
 
    Terraform creates the VM (`terraform/environments/shared`, module
-   `vault-vm`, `vault-02`); this playbook targets the `vault_vm` group,
+   `vault-vm`, `vault-02`); this playbook targets the `vault` group,
    which lives in `inventories/shared`. Install and TLS need only that
    inventory:
 
@@ -225,23 +225,18 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
    run and never stored** -- not in `secret.yaml`, not anywhere else in
    this repository.
 
-   **Troubleshooting the k8s-auth step.** These instructions target
-   `vault-01` and its retired `vault_configure_k8s_auth` flag; `main`'s
-   `playbooks/vault.yaml` now targets `vault-02` only, where k8s auth runs
-   under `-e vault_configure=true` with both inventories (see item 7
-   above). To run this against `vault-01`, use the role from before the
-   Vault VM rebuild: `git worktree add ../homelab-vault01 77aa741`. The task
-   that posts
-   `auth/kubernetes/config` is `no_log: true` -- its request body carries
-   the root token, the token-reviewer JWT and the cluster CA all at once,
-   and there is no way to hide one without hiding all three. A failure
-   there shows only `the output has been hidden due to the fact that
-   'no_log: true'`, which tells you nothing. Diagnose it by hand instead:
-   query the same endpoint directly with the root token,
+   **Troubleshooting the k8s-auth step.** k8s auth runs under
+   `-e vault_configure=true` with both inventories (see item 7 above). The
+   task that posts `auth/kubernetes/config` is `no_log: true` -- its request
+   body carries the root token, the token-reviewer JWT and the cluster CA
+   all at once, and there is no way to hide one without hiding all three. A
+   failure there shows only `the output has been hidden due to the fact
+   that 'no_log: true'`, which tells you nothing. Diagnose it by hand
+   instead: query the same endpoint directly with the root token,
 
    ```bash
-   curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-     http://<vault-01 IP>:8200/v1/auth/kubernetes/config | jq .
+   curl -s --cacert ~/.homelab-ca/ca.crt --header "X-Vault-Token: $VAULT_TOKEN" \
+     https://vault.mgryn.cc:8200/v1/auth/kubernetes/config | jq .
    ```
 
    and compare against what the task tried to send. Vault does not return

@@ -2273,13 +2273,23 @@ Not for agents. One sitting.
 
 - [ ] **Step 1: Ansible** — on the Mac, from the `vault-cutover` branch (the merge comes second): `ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass`. Then `kubectl -n argocd rollout status deploy/argocd-repo-server`.
 - [ ] **Step 2: Merge PR 4** at once. Watch `kubectl -n argocd get applications` until `jobboard`, `cert-manager-issuers` and the rest are `Synced`.
-- [ ] **Step 3: Verify**
+- [ ] **Step 3: Verify** — the `curl` this step used to run fails: the
+  argocd image has no `curl`. Verify instead with what actually proved the
+  cutover:
 
 ```bash
-kubectl -n argocd exec deploy/argocd-repo-server -c avp -- sh -c 'getent hosts vault.mgryn.cc; curl -s --cacert /etc/vault-ca/ca.crt https://vault.mgryn.cc:8200/v1/sys/health | head -c 120'
+kubectl -n argocd exec deploy/argocd-repo-server -c avp -- getent hosts vault.mgryn.cc
+kubectl -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,REV:.status.sync.revision
+kubectl -n argocd get application jobboard -o jsonpath='{.status.conditions}'   # empty
 kubectl -n jobboard get secret -o name
 kubectl -n jobboard get secret <db secret> -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d | wc -c   # 24, not a <path:...> string
 ```
+
+  Apps report `Synced` at the merge commit's revision with no conditions.
+  On `vault-02`, tail the audit log for an `auth/kubernetes/login` by
+  `argocd-repo-server` and a `kv-dev/data/jobboard/db` read — that is the
+  actual proof AVP authenticated and read the secret, not just that a
+  health endpoint answered.
 
 - [ ] **Step 4: Restore drill** — the spec's proof that a snapshot is a backup.
 

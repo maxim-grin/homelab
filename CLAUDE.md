@@ -26,8 +26,7 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`), no test suite.
 
 Only the `dev` environment exists, plus `terraform/environments/shared` for
-`nfs-01`, which serves both environments, and `vault-02`, the Vault VM
-replacing the `vault-01` LXC.
+`nfs-01`, which serves both environments, and `vault-02`, the Vault VM.
 `terraform/environments/prod` and `talos/` are scaffolding that has never been
 applied — do not extend them without saying so.
 
@@ -43,7 +42,7 @@ terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                               nfs-server, vault-vm, talos-*
                   environments/dev/     the dev machines
                   environments/shared/  nfs-01, serving dev and prod;
-                                        vault-02, replacing the vault-01 LXC
+                                        vault-02, the Vault VM
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
 ```
 
@@ -116,11 +115,6 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
 - **`ubuntu-cid-tp` must exist before any `terraform apply`.** Every VM is a
   `full_clone` of it and nothing in this repository creates it. `qm` commands
   in `docs/rebuild.md`.
-- **The Debian LXC template must exist before any dev `terraform apply`.**
-  `module "vault"` clones `local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst`
-  for `vault-01`; nothing in this repository downloads it. Missing it fails
-  the apply on vmid 104 with a template-not-found error. `pveam download`
-  command in `docs/rebuild.md`.
 - **`disk_size` only goes up.** Proxmox cannot shrink a disk; the attempt
   fails with `can't unplug bootdisk 'scsi0'` *and still writes the smaller
   value into `terraform.tfstate`*, so Terraform then believes a size the host
