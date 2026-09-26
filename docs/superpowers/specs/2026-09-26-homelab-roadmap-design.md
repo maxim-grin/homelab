@@ -107,6 +107,23 @@ Only 7G is free today, and prod plus the LXCs need about 11.5G, so dev
 shrinks in two steps — part of it before prod exists (sub-project 0),
 the rest once dev no longer runs ArgoCD (sub-project 4).
 
+## Disk budget
+
+`local-lvm` is a 141G thin pool, 55G written (39%) on 2026-09-26, with
+about 293G already allocated to guests. The three Talos VMs (3 × 20G)
+and five LXCs (5 × 8G) add 100G of allocation but about 20G of actual
+writes: roughly 75G of 141G used, allocation near 2.8× the pool.
+
+That fits, but a thin pool that reaches 100% gives every guest I/O
+errors at once. Three rules follow, each owned by a sub-project:
+
+- Prometheus in prod gets a `retention.size` well under the `nfs-prod`
+  disk (sub-project 3).
+- Space freed inside a guest returns to the pool only through discard:
+  check `discard=on` and `fstrim` when Harbor's data is deleted
+  (sub-project 0).
+- The pool's `data%` is scraped and alerts at 80% (sub-project 3).
+
 ## Sub-projects
 
 Each gets its own design at the weight it needs, and its own PR or PRs.
@@ -153,3 +170,7 @@ are independent of each other. 3 needs 2; 4 needs 3; 5 needs 4.
   as everything else, so a dead disk still loses them. Not in scope,
   and still the largest open risk.
 - **n8n.**
+- **New 1TB SSD.** Installed after this roadmap lands: as a second disk
+  for the NFS shares and Vault snapshots if the chassis has a free slot
+  — which also closes most of the backup risk above — otherwise as a
+  replacement, rebuilt from `docs/rebuild.md` as a drill.
