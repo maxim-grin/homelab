@@ -2321,10 +2321,7 @@ ssh -i $K ubuntu@10.0.0.133 "sudo cat $SNAP" | ssh -i $K ubuntu@<drill-ip> 'cat 
 # on vault-drill: HashiCorp apt repo (gpg --dearmor keyring + deb line with
 # $(lsb_release -cs)), then
 apt-get install -y vault=2.1.0-1 jq
-# /tmp/drill.hcl: storage "raft" { path = "/tmp/raft"  node_id = "drill" }
-#   listener "tcp" { address = "127.0.0.1:8200"  tls_disable = 1 }
-#   disable_mlock = true
-#   api_addr = "http://127.0.0.1:8200"  cluster_addr = "http://127.0.0.1:8201"
+mkdir -p /tmp/raft && printf 'storage "raft" {\n  path = "/tmp/raft"\n  node_id = "drill"\n}\nlistener "tcp" {\n  address = "127.0.0.1:8200"\n  tls_disable = 1\n}\ndisable_mlock = true\napi_addr = "http://127.0.0.1:8200"\ncluster_addr = "http://127.0.0.1:8201"\n' > /tmp/drill.hcl
 vault server -config=/tmp/drill.hcl > /tmp/vault.log 2>&1 &
 export VAULT_ADDR=http://127.0.0.1:8200
 vault operator init -key-shares=1 -key-threshold=1 && vault operator unseal <drill key>
