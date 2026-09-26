@@ -101,6 +101,18 @@ gh pr create --base main --head <change-name> --title "..." --body-file <file>
 `GITHUB_TOKEN` in the environment silently overrides the logged-in account;
 if `gh` starts returning 403, check `gh auth status` first.
 
+**A spec opens the pull request.** As soon as a brainstorming spec is
+committed, push the branch and open a draft, so the design is reviewable
+on GitHub before any plan or code exists:
+
+```bash
+gh pr create --draft --base main --head <change-name> --title "..." --body-file <file>
+```
+
+The plan and implementation that follow land in the same draft; `gh pr
+ready <N>` once the branch's work is finished and verified. A draft
+cannot be merged, so this never shortcuts review.
+
 One PR per logical change. A repo-wide convention change and an unrelated
 feature are two PRs, not one — the title can only describe one of them
 honestly. A plan's operator steps that said "merge and push `main`" now mean
