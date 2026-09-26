@@ -141,24 +141,3 @@ data:
           - source_labels: [__meta_kubernetes_pod_name]
             action: replace
             target_label: kubernetes_pod_name
-
-      # Harbor. Its chart (goharbor/harbor v1.18.0) has no annotation-based
-      # discovery path -- metrics.enabled=true only adds a `metrics` port to
-      # each component's own Service (verified against the chart's actual
-      # Service templates), never a prometheus.io/scrape annotation, and its
-      # only scrape-related template is a ServiceMonitor for the Prometheus
-      # Operator, which this cluster doesn't run. Static targets are the
-      # only option; names match `harbor.fullname`-derived Service names for
-      # releaseName "harbor" (fullname resolves to "harbor" itself, since
-      # the release name already contains the chart name).
-      - job_name: 'harbor'
-        metrics_path: /metrics
-        static_configs:
-          - targets: ['harbor-core.harbor.svc.cluster.local:8001']
-            labels: {component: core}
-          - targets: ['harbor-registry.harbor.svc.cluster.local:8001']
-            labels: {component: registry}
-          - targets: ['harbor-jobservice.harbor.svc.cluster.local:8001']
-            labels: {component: jobservice}
-          - targets: ['harbor-exporter.harbor.svc.cluster.local:8001']
-            labels: {component: exporter}
