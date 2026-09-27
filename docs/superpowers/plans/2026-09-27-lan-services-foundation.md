@@ -69,12 +69,12 @@
 - Consumes: `var.ssh_public_key`, `var.gateway`, `var.pm_target_node` already declared in `environments/shared/variables.tf`.
 - Produces: `module.lan_service["<name>"]` for `pihole traefik glance gatus orangutan`; variables `lxc_ips` (map of `"10.0.0.14x/24"`) and `debian_lxc_template` (string) that the operator sets in `shared.tfvars`.
 
-- [ ] **Step 1: Show the shared root has no LXCs yet**
+- [x] **Step 1: Show the shared root has no LXCs yet**
 
 Run: `grep -c 'modules/lxc' terraform/environments/shared/main.tf`
 Expected: `0`
 
-- [ ] **Step 2: Make the module's password optional**
+- [x] **Step 2: Make the module's password optional**
 
 In `terraform/modules/lxc/variables.tf`, replace the `password` variable with:
 
@@ -115,7 +115,7 @@ In `terraform/modules/lxc/main.tf`, after `pool            = var.pool` add:
   searchdomain    = var.searchdomain
 ```
 
-- [ ] **Step 3: Declare the shared root's inputs**
+- [x] **Step 3: Declare the shared root's inputs**
 
 Append to `terraform/environments/shared/variables.tf`:
 
@@ -143,7 +143,7 @@ variable "debian_lxc_template" {
 }
 ```
 
-- [ ] **Step 4: Declare the containers**
+- [x] **Step 4: Declare the containers**
 
 Append to `terraform/environments/shared/main.tf`:
 
@@ -204,7 +204,7 @@ module "lan_service" {
 }
 ```
 
-- [ ] **Step 5: Document the new tfvars**
+- [x] **Step 5: Document the new tfvars**
 
 Append to `terraform/environments/shared/shared.tfvars.example`:
 
@@ -227,7 +227,7 @@ lxc_ips = {
 }
 ```
 
-- [ ] **Step 6: Record the password decision in the spec**
+- [x] **Step 6: Record the password decision in the spec**
 
 In `docs/superpowers/specs/2026-09-27-lan-services-design.md`, replace the paragraph beginning "The root password is a `random_password` resource" with:
 
@@ -239,7 +239,7 @@ no password lands in tfvars or state.
 
 Replace "`modules/lxc` gains `nameserver` and `searchdomain` inputs" paragraph's first sentence to read "`modules/lxc` gains `nameserver` and `searchdomain` inputs and an optional `password`,".
 
-- [ ] **Step 7: Validate both roots that use the module**
+- [x] **Step 7: Validate both roots that use the module**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -255,7 +255,7 @@ git status --short
 
 Expected: `fmt` silent; `Success! The configuration is valid.` twice; `tflint` silent; `git status` lists only the six files above.
 
-- [ ] **Step 8: Show the validation catches a bad address**
+- [x] **Step 8: Show the validation catches a bad address**
 
 ```bash
 cd $SCRATCH && rm -rf tfv && mkdir tfv && cp -r /home/ubuntu/homelab/terraform tfv/
@@ -268,7 +268,7 @@ terraform console -var='lxc_ips={pihole="10.0.0.140"}' -var='debian_lxc_template
 
 Expected: `lxc_ips needs pihole, traefik, glance, gatus and orangutan, each as 10.0.0.N/24.` If `console` asks for another variable, add it as `-var='<name>=x'`.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -290,12 +290,12 @@ an optional password; these containers have none, SSH key only."
 - Consumes: `host_ips`, `proxmox_vm_ids`, `ssh_private_key` from `secret.yaml`.
 - Produces: groups `lan_services` with children `pihole`, `traefik`, `glance`, `gatus`, `orangutan`, one host each of the same name; playbook `ansible/playbooks/lan_services.yaml` whose first play bootstraps Python on `lan_services`. PR 2 and PR 3 append plays to it. `host_ips['pve']` for PR 3.
 
-- [ ] **Step 1: Show the group does not exist**
+- [x] **Step 1: Show the group does not exist**
 
 Run: `grep -c lan_services ansible/inventories/shared/hosts.yaml`
 Expected: `0`
 
-- [ ] **Step 2: Add the group**
+- [x] **Step 2: Add the group**
 
 Append under `all.children` in `ansible/inventories/shared/hosts.yaml`, at the same indentation as `vault:`:
 
@@ -335,7 +335,7 @@ Append under `all.children` in `ansible/inventories/shared/hosts.yaml`, at the s
               proxmox_vm_id: "{{ proxmox_vm_ids['orangutan'] }}"
 ```
 
-- [ ] **Step 3: Create the playbook**
+- [x] **Step 3: Create the playbook**
 
 `ansible/playbooks/lan_services.yaml`:
 
@@ -360,7 +360,7 @@ Append under `all.children` in `ansible/inventories/shared/hosts.yaml`, at the s
       changed_when: "'installed' in lan_services_python.stdout"
 ```
 
-- [ ] **Step 4: Add the example addresses**
+- [x] **Step 4: Add the example addresses**
 
 In `ansible/secret.yaml.example`, append to `host_ips:` after `vault-02: 10.0.0.133`:
 
@@ -385,7 +385,7 @@ and to `proxmox_vm_ids:` after `vault-02: 105`:
   orangutan: 144
 ```
 
-- [ ] **Step 5: Check the inventory resolves and the playbook lints**
+- [x] **Step 5: Check the inventory resolves and the playbook lints**
 
 ```bash
 cd /home/ubuntu/homelab/ansible
@@ -402,7 +402,7 @@ ansible-lint playbooks/lan_services.yaml
 
 Expected: the host dump shows `"ansible_user": "root"`, `"ansible_become": false`, `"ansible_host": "10.0.0.141"`; `--list-hosts` lists the five hosts; ansible-lint `Passed`.
 
-- [ ] **Step 6: Rehearse the bootstrap play against a bare Debian 13 container**
+- [x] **Step 6: Rehearse the bootstrap play against a bare Debian 13 container**
 
 ```bash
 $B/ansible-galaxy collection install community.docker -p $SCRATCH/collections 2>&1 | tail -1
@@ -426,7 +426,7 @@ docker rm -f lan-bootstrap
 
 Expected: run 1 `changed=1 ... failed=0`; run 2 `changed=0 ... failed=0`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /home/ubuntu/homelab
@@ -447,7 +447,7 @@ service's play is appended as its role lands."
 - Consumes: Task 1's tfvars names, Task 2's playbook path.
 - Produces: rebuild step "LAN services" that PRs 2 and 3 extend.
 
-- [ ] **Step 1: README table row**
+- [x] **Step 1: README table row**
 
 In `README.md`, after the `vault-02` row add:
 
@@ -455,7 +455,7 @@ In `README.md`, after the `vault-02` row add:
 | LXCs       | `pihole`, `traefik`, `glance`, `gatus`, `orangutan` at `.140`–`.144`, empty until their roles land | `terraform/environments/shared` |
 ```
 
-- [ ] **Step 2: rebuild.md step 2**
+- [x] **Step 2: rebuild.md step 2**
 
 In `docs/rebuild.md` step 2, replace "(the `LXC` pool is unused by dev today; only prod's never-applied scaffolding would need it, and its Debian template, should prod ever apply)" with "(the `LXC` pool holds the LAN service containers; grant `TerraformProv` on `/pool/LXC` as on the others, or placement fails)", and append to step 2:
 
@@ -466,11 +466,11 @@ In `docs/rebuild.md` step 2, replace "(the `LXC` pool is unused by dev today; on
    `pveam download local <file>`.
 ```
 
-- [ ] **Step 3: rebuild.md step 4**
+- [x] **Step 3: rebuild.md step 4**
 
 In step 4, change "and `vault-02` (vmid 105) with its data disk;" to "`vault-02` (vmid 105) with its data disk, and the five LAN service containers (vmids 140–144);".
 
-- [ ] **Step 4: rebuild.md new last step**
+- [x] **Step 4: rebuild.md new last step**
 
 After the last numbered step of "Rebuild order" (the `/etc/hosts` step), add:
 
@@ -485,12 +485,12 @@ After the last numbered step of "Rebuild order" (the `/etc/hosts` step), add:
     [LAN services design](superpowers/specs/2026-09-27-lan-services-design.md).
 ```
 
-- [ ] **Step 5: Check**
+- [x] **Step 5: Check**
 
 Run: `pre-commit run --all-files 2>&1 | grep -iv 'passed\|skipped'; grep -n '^1[0-9]\. \*\*' docs/rebuild.md`
 Expected: no failures; steps 10–15 listed once each.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add README.md docs/rebuild.md
