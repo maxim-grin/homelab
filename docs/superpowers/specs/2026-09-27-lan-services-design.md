@@ -35,31 +35,10 @@ Done means:
 | Secrets | `ansible/secret.yaml`; Traefik gets its own Cloudflare token |
 | Traefik routes | The four other services and the Proxmox UI; cluster apps wait for sub-project 3 |
 | Vault UI | Stays direct at `vault.mgryn.cc:8200` |
-| Uptime monitor | Gatus instead of Uptime Kuma: monitors in YAML, `/metrics` for Prometheus |
+| Uptime monitor | Gatus |
 | Alerts | Telegram bot |
-| Dashboard | Glance instead of Homepage: one Go binary, ~30M instead of ~1G |
+| Dashboard | Glance |
 | Ansible structure | One role per service, one `lan_services.yaml` playbook |
-
-### Why Gatus rather than Uptime Kuma
-
-Kuma keeps its monitors in its own SQLite database, created through its
-UI; a rebuild loses them, and the only config-as-code route is a
-community collection that targets Kuma 1.x. Gatus reads its monitors from
-one YAML file, so they live in git and a rebuild restores them, and it
-exposes per-endpoint results on `/metrics`, which the prod Prometheus
-scrapes in sub-project 3. What it lacks — Docker and database monitors,
-editing in a browser — nothing here needs.
-
-### Why Glance rather than Homepage
-
-Homepage is a Next.js application; a native install builds it with
-`pnpm`, which needs over 1G of memory, and every upgrade rebuilds it.
-Glance is a single Go binary using about 30M. It has fewer ready-made
-integrations — Proxmox and Gatus panels are `custom-api` widgets written
-here — but it calls every API server-side, so tokens never reach the
-browser, and it installs the same way as Traefik, Gatus and Orangutan.
-Homer was rejected because its widgets call APIs from the browser,
-shipping the Proxmox and Pi-hole credentials to every visitor.
 
 ### Why no Pi-hole for the LXCs themselves
 
