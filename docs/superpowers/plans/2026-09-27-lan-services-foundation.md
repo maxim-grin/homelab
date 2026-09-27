@@ -501,16 +501,16 @@ and ends with the lan_services playbook."
 
 ### Task 4: Operator — create the containers (owner, not an agent)
 
-- [ ] On `pve`: `pveam update && pveam available | grep debian-13`, then `pveam download local <file>`.
-- [ ] On `pve`: the `LXC` pool exists (`pveum pool list`), and `pveum acl modify /pool/LXC --roles TerraformProv --users terraform@pve` (or the token's user) has been run.
-- [ ] In `shared.tfvars` on the Mac: `debian_lxc_template` and `lxc_ips` as in `shared.tfvars.example`.
-- [ ] `terraform plan -var-file=shared.tfvars` in `environments/shared`: **5 to add, 0 to change, 0 to destroy.** Anything else is a stop.
-- [ ] `terraform apply -var-file=shared.tfvars`.
-- [ ] `terraform plan -var-file=shared.tfvars` again: **No changes.** An in-place update on the new containers (e.g. tags reordered by Proxmox) is drift to fix in code before merging, not noise to skim.
-- [ ] `ansible-vault edit ansible/secret.yaml`: add the `host_ips` and `proxmox_vm_ids` entries from the example, including `pve`.
-- [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass`: five hosts `ok`, `failed=0`.
-- [ ] `ssh -i ~/.ssh/homelab_dev root@10.0.0.140 cat /etc/resolv.conf` shows `nameserver 10.0.0.1` and `nameserver 1.1.1.1`.
-- [ ] Mark PR 1 ready (`gh pr ready 51`); the owner merges.
+- [x] On `pve`: `pveam update && pveam available | grep debian-13`, then `pveam download local <file>`.
+- [x] On `pve`: the `LXC` pool exists (`pveum pool list`), and `pveum acl modify /pool/LXC --roles TerraformProv --users terraform@pve` (or the token's user) has been run.
+- [x] In `shared.tfvars` on the Mac: `debian_lxc_template` and `lxc_ips` as in `shared.tfvars.example`.
+- [x] `terraform plan -var-file=shared.tfvars` in `environments/shared`: **5 to add, 0 to change, 0 to destroy.** Anything else is a stop.
+- [x] `terraform apply -var-file=shared.tfvars`.
+- [x] `terraform plan -var-file=shared.tfvars` again: **No changes.** An in-place update on the new containers (e.g. tags reordered by Proxmox) is drift to fix in code before merging, not noise to skim.
+- [x] `ansible-vault edit ansible/secret.yaml`: add the `host_ips` and `proxmox_vm_ids` entries from the example, including `pve`.
+- [x] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass`: five hosts `ok`, `failed=0`.
+- [x] `ssh -i ~/.ssh/homelab_dev root@10.0.0.140 cat /etc/resolv.conf` shows `nameserver 10.0.0.1` and `nameserver 1.1.1.1`.
+- [x] Mark PR 1 ready (`gh pr ready 51`); the owner merges.
 
 ---
 
