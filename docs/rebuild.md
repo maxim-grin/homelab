@@ -352,7 +352,10 @@ Two allocations are simply wasteful and inflate the warning for nothing:
 
 ## Rebuild order
 
-Each step depends on the one above it.
+Each step depends on the one above it. Every `ansible-playbook` command
+runs from `ansible/`, and every one needs `-e @secret.yaml
+--ask-vault-pass`: host addresses, the SSH user and the key path all come
+from `secret.yaml`.
 
 1. **Install Proxmox VE** on the new SSD. Node name must be `pve` or
    `dev.tfvars` needs updating.
@@ -370,13 +373,30 @@ Each step depends on the one above it.
    `nfs-backups` data disks, and `vault-02` (vmid 105) with its data disk;
    `terraform/environments/dev` with `-var-file=dev.tfvars` creates the
    other four VMs.
-5. **`ansible-playbook -i inventories/shared playbooks/nfs_server.yaml`**
-   then `nfs_setup.yaml` (default dev inventory) — the first formats and
-   mounts all three data disks and exports `nfs-dev` to the dev nodes;
-   storage first, because everything else claims PVCs from it.
-6. **`ansible-playbook playbooks/site.yaml`** — kubeadm cluster.
-7. **`ansible-playbook playbooks/cluster_init.yaml`** and `join_workers.yaml`.
-8. **Build `vault-02`** — install the collections it needs, then install
+5. **Storage** — the first formats and mounts all three data disks on
+   `nfs-01` and exports `nfs-dev` to the dev nodes; the second (default
+   dev inventory) prepares the clients. Storage first, because everything
+   else claims PVCs from it.
+
+   ```bash
+   ansible-playbook -i inventories/shared playbooks/nfs_server.yaml -e @secret.yaml --ask-vault-pass
+   ansible-playbook playbooks/nfs_setup.yaml -e @secret.yaml --ask-vault-pass
+   ```
+
+6. **kubeadm cluster** — OS preparation, control plane and worker join, in
+   one run:
+
+   ```bash
+   ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
+   ```
+
+   The workers join with a command the control-plane play creates with
+   `set_fact`, which exists only for the length of one `ansible-playbook`
+   run. `join_workers.yaml` on its own therefore always fails; to re-run
+   the join, pass both playbooks to one invocation:
+   `ansible-playbook playbooks/cluster_init.yaml playbooks/join_workers.yaml
+   -e @secret.yaml --ask-vault-pass`.
+7. **Build `vault-02`** — install the collections it needs, then install
    Vault on the VM:
 
    ```bash
@@ -405,8 +425,13 @@ Each step depends on the one above it.
    Configuring and seeding `vault-02` needs the `vault-auth-token` Secret
    that `argocd-config` creates — see the "Configure and seed `vault-02`"
    step below, after `argocd-config` has synced.
-9. **`ansible-playbook playbooks/argocd-dev.yaml`** — ArgoCD via Helm. The
-   UI login is `admin`, with the password whose bcrypt hash is
+8. **ArgoCD via Helm:**
+
+   ```bash
+   ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass
+   ```
+
+   The UI login is `admin`, with the password whose bcrypt hash is
    `argocd_admin_password_hash` in `secret.yaml`. The play asserts that hash
    is present before installing, so a forgotten value fails here rather than
    leaving a random password in `argocd-initial-admin-secret`. Before Helm
@@ -418,6 +443,23 @@ Each step depends on the one above it.
    and the playbook still reports `changed`; confirm
    `kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-repo-server`
    shows `2/2` before continuing.
+9. **Out-of-band Secrets** — creates the `grafana-admin` Secret from
+   `secret.yaml`:
+
+   ```bash
+   ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
+   ```
+
+   **Run this before step 11**, which starts ArgoCD syncing the monitoring
+   app: Grafana seeds its admin password only when it first creates its
+   database, so an install without the Secret keeps the default until it
+   is destroyed and rebuilt.
+   - **Grafana** reads `GF_SECURITY_ADMIN_PASSWORD` through a `secretKeyRef`
+     with no `optional: true`, so until this runs the pod sits in
+     `CreateContainerConfigError` — loud, deliberately, rather than
+     silently starting on the default password. On an instance whose PVC
+     already holds a Grafana database, reset it explicitly:
+     `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
 10. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject. Nothing
     has applied it yet at this point in a rebuild, so it must go on by hand;
     from here on, the `argocd-config` Application syncs it. This same command
@@ -426,8 +468,8 @@ Each step depends on the one above it.
     is gone ArgoCD can no longer sync `argocd-config` either, and nothing is
     left that can recreate the AppProject except this manual apply.
 11. **`kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml`**
-    — `root-dev` then pulls in ingress-nginx, nfs, monitoring,
-    jobboard, and `argocd-config` itself. `argocd-config` syncing
+    — `root-dev` then pulls in ingress-nginx, nfs, cert-manager and its
+    issuers, monitoring, jobboard, and `argocd-config` itself. `argocd-config` syncing
     `argocd/base/` is what creates the `vault-auth` ServiceAccount,
     ClusterRoleBinding and `vault-auth-token` Secret in
     `argocd/base/vault-auth-delegator.yaml` — needed by the next step.
@@ -447,7 +489,7 @@ Each step depends on the one above it.
     is not configured until then. That is expected, not a wiring fault; it
     clears once step 12 runs.
 12. **Configure and seed `vault-02`** — now that `argocd-config` has synced
-    and created the `vault-auth-token` Secret, finish step 8 above:
+    and created the `vault-auth-token` Secret, finish step 7 above:
 
     ```bash
     ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
@@ -467,20 +509,13 @@ Each step depends on the one above it.
     config is `no_log: true` (the body carries the root token, the
     reviewer JWT and the cluster CA together); see `ansible/README.md`
     for how to diagnose a failure here.
-13. **`ansible-playbook playbooks/workstation.yaml`** — the workstation VM.
-14. **`ansible-playbook playbooks/cluster_secrets.yaml`** — creates the
-    `grafana-admin` Secret from `secret.yaml`. **Run this before ArgoCD
-    syncs the monitoring app**, not after: Grafana seeds its admin
-    password only when it first creates its database, so an install
-    without the Secret keeps the default until it is destroyed and
-    rebuilt.
-    - **Grafana** reads `GF_SECURITY_ADMIN_PASSWORD` through a `secretKeyRef`
-      with no `optional: true`, so until this runs the pod sits in
-      `CreateContainerConfigError` — loud, deliberately, rather than
-      silently starting on the default password. On an instance whose PVC
-      already holds a Grafana database, reset it explicitly:
-      `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
-15. **Point `/etc/hosts`** at a node IP for `argocd.mgryn.cc`,
+13. **The workstation VM:**
+
+    ```bash
+    ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
+    ```
+
+14. **Point `/etc/hosts`** at a node IP for `argocd.mgryn.cc`,
     `grafana.mgryn.cc` and
     `prometheus.mgryn.cc`. One line per name, all pointing at the same node
     -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
@@ -512,7 +547,7 @@ Snapshot files are `vault-<UTC timestamp>.snap` in `/srv/nfs/backups` on
 was taken under — not any key or token generated afterward.
 
 On a fresh `vault-02` (after its own `vault operator init` and
-`vault operator unseal`, step 8 above):
+`vault operator unseal`, step 7 above):
 
 ```bash
 vault operator raft snapshot restore -force <file>
@@ -522,6 +557,89 @@ then unseal with the **original** unseal key and log in with the
 **original** root token — the ones recorded when the snapshot's data was
 written, not the fresh store's own. The drill that proves this works
 end-to-end is PR 4's (Task 14).
+
+## Rebuilding dev only
+
+When the dev VMs are recreated but the host, `nfs-01` and `vault-02` are
+not — a `terraform apply` that replaced them, as PR #47's module rename
+did on 2026-09-27 — skip steps 1–5 and 7 above, and step 13 unless `claude-code` was
+replaced too. Vault is initialised
+and seeded, NFS still holds every PVC's data, and the node vmids and IPs
+come back unchanged, so `/etc/hosts` and the Cloudflare records need
+nothing.
+
+From the workstation, in `ansible/`:
+
+```bash
+# New VMs, new SSH host keys. host_key_checking = False keeps Ansible
+# going, but every connection warns until the stale keys are removed.
+ssh-keygen -R <master-ip>; ssh-keygen -R <worker-01-ip>; ssh-keygen -R <worker-02-ip>
+
+ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
+# New cluster, new CA: the old kubeconfig no longer authenticates.
+ssh <master-ip> sudo cat /etc/kubernetes/admin.conf > ~/.kube/homelab-dev.conf
+export KUBECONFIG=~/.kube/homelab-dev.conf
+
+ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass
+ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
+kubectl apply -f ../argocd/base/projects.yaml
+kubectl apply -f ../argocd/environments/dev/applications/app-of-apps.yaml
+
+# once argocd-config has created it:
+kubectl -n argocd get secret vault-auth-token
+
+# Point Vault's Kubernetes auth at the new cluster's CA and reviewer JWT.
+# The KV store is already seeded, so no seed.
+ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+  -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=false \
+  -e vault_token=<root token>
+ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
+```
+
+Applications that carry `<path:...>` placeholders show `Unknown` until
+the Vault step runs, and clear on Argo's next poll. jobboard restarting
+a few times at first is its database host not resolving yet; it settles.
+
+**Verify from the workstation, not a node.** `curl https://jobs.mgryn.cc`
+run on a node returns `000`: a node cannot reach its own host port through
+its LAN address. From the workstation it returns `303` to the login page.
+There is no metrics-server, so `kubectl top` does not work; use `free -m`
+on the nodes.
+
+### The new cluster starts with empty volumes
+
+Every PVC is new, so `nfs-dev` gives each one a new directory,
+`/srv/nfs/k8s/<namespace>-<pvc>-<pv>`. The old cluster's directories are
+still there, untouched — their PVCs were never deleted, so the provisioner
+never removed them. jobboard comes up with its schema and no rows. To bring
+the old database back, pause ArgoCD first; otherwise selfHeal scales
+Postgres back up mid-copy. `root-dev` before `jobboard`, or `root-dev`
+restores `jobboard`'s sync policy at once:
+
+```bash
+kubectl -n argocd patch application root-dev --type json -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]'
+kubectl -n argocd patch application jobboard --type json -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]'
+kubectl -n jobboard scale deploy/jobboard --replicas=0
+kubectl -n jobboard scale sts/postgres --replicas=0
+kubectl -n jobboard wait --for=delete pod/postgres-0 --timeout=2m
+```
+
+On `nfs-01`, find the two `jobboard-data-postgres-0-pvc-*` directories
+with `ls -la /srv/nfs/k8s/` and tell them apart by date:
+
+```bash
+O=/srv/nfs/k8s/jobboard-data-postgres-0-pvc-<old>
+N=/srv/nfs/k8s/jobboard-data-postgres-0-pvc-<new>
+sudo cat "$O/pgdata/PG_VERSION"          # the major version the image runs
+sudo mv "$N/pgdata" "$N/pgdata.empty"
+sudo cp -a "$O/pgdata" "$N/pgdata"       # -a keeps UID 999 ownership
+```
+
+Then scale `postgres` to 1, wait for Ready, check a row count with `psql`,
+scale `jobboard` to 1, and re-apply `app-of-apps.yaml` to restore
+auto-sync on both. The password matches because both databases were
+initialised from the same Vault secret. Delete the old directory and
+`pgdata.empty` once the app is confirmed working.
 
 ## Gaps worth closing before the disk is replaced
 
