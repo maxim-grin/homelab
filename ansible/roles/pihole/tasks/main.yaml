@@ -1,0 +1,114 @@
+---
+- name: Require the Pi-hole admin password
+  ansible.builtin.assert:
+    that:
+      - pihole_admin_password is defined
+      - pihole_admin_password | length >= 12
+    fail_msg: pihole_admin_password must be set in ansible/secret.yaml, 12 characters or more.
+    quiet: true
+
+- name: Install the installer's prerequisites
+  ansible.builtin.apt:
+    name: [curl, ca-certificates]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create /etc/pihole
+  ansible.builtin.file:
+    path: /etc/pihole
+    state: directory
+    mode: "0755"
+
+- name: Check whether Pi-hole is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/pihole
+  register: pihole_binary
+
+# Both seed files are one-shot input to the installer. v6 imports them into
+# pihole.toml / gravity.db and does not keep them in sync afterwards -- the
+# installer's own first gravity build removes adlists.list once its URL is
+# in the database, so re-seeding it post-install would just recreate a file
+# nothing reads again and defeat idempotence.
+- name: Seed pihole.toml so the installer runs unattended
+  ansible.builtin.template:
+    src: pihole.toml.j2
+    dest: /etc/pihole/pihole.toml
+    mode: "0644"
+    force: false
+  when: not pihole_binary.stat.exists
+
+- name: Seed the blocklists gravity starts from
+  ansible.builtin.template:
+    src: adlists.list.j2
+    dest: /etc/pihole/adlists.list
+    mode: "0644"
+    force: false
+  when: not pihole_binary.stat.exists
+
+- name: Install Pi-hole
+  ansible.builtin.shell:
+    cmd: set -o pipefail && curl -fsSL {{ pihole_installer_url | quote }} | bash /dev/stdin --unattended
+    executable: /bin/bash
+    creates: /usr/local/bin/pihole
+  notify: Rebuild gravity
+
+- name: Apply FTL settings
+  ansible.builtin.include_tasks: ftl_setting.yaml
+  loop:
+    - { key: dns.upstreams, value: "{{ pihole_upstreams | to_json }}" }
+    - { key: dns.listeningMode, value: "{{ pihole_listening_mode }}" }
+    - { key: dns.revServers, value: "{{ [pihole_rev_server] | to_json }}" }
+  loop_control:
+    loop_var: pihole_setting
+    label: "{{ pihole_setting.key }}"
+
+- name: Register each blocklist in gravity
+  ansible.builtin.command:
+    argv:
+      - pihole-FTL
+      - sqlite3
+      - /etc/pihole/gravity.db
+      - >-
+        INSERT OR IGNORE INTO adlist (address, enabled, comment)
+        VALUES ('{{ item }}', 1, 'ansible'); SELECT changes();
+  loop: "{{ pihole_adlists }}"
+  register: pihole_adlist_insert
+  changed_when: pihole_adlist_insert.stdout | trim == '1'
+  notify: Rebuild gravity
+
+# Flushed here, before the password is set: a fresh install's gravity
+# rebuild restarts pihole-FTL, whose prestart script sweeps /etc/pihole
+# permissions (0640 on every plain file). Setting the password marker
+# afterwards means its 0600 is the state that survives, not one the next
+# run has to fight the sweep to restore.
+- name: Apply any pending gravity rebuild before the password is set
+  ansible.builtin.meta: flush_handlers
+
+- name: Read the hash of the password last set
+  ansible.builtin.slurp:
+    src: "{{ pihole_password_marker }}"
+  register: pihole_password_marker_content
+  failed_when: false
+
+- name: Set the admin password
+  ansible.builtin.command:
+    argv: [pihole, setpassword, "{{ pihole_admin_password }}"]
+  when: >-
+    (pihole_password_marker_content.content | default('') | b64decode | trim)
+    != (pihole_admin_password | hash('sha256'))
+  changed_when: true
+  no_log: true
+
+- name: Record the hash of the password now set
+  ansible.builtin.copy:
+    content: "{{ pihole_admin_password | hash('sha256') }}\n"
+    dest: "{{ pihole_password_marker }}"
+    mode: "0600"
+  no_log: true
+
+- name: Keep pihole-FTL running at boot
+  ansible.builtin.service:
+    name: pihole-FTL
+    state: started
+    enabled: true

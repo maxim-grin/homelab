@@ -16,3 +16,8 @@
         (apt-get update -qq && apt-get install -y -qq python3 >/dev/null && echo installed)
       register: lan_services_python
       changed_when: "'installed' in lan_services_python.stdout"
+
+- name: Pi-hole
+  hosts: pihole
+  roles:
+    - pihole

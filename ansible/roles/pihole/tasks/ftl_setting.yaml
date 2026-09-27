@@ -1,0 +1,16 @@
+---
+- name: Read {{ pihole_setting.key }}
+  ansible.builtin.command: pihole-FTL --config {{ pihole_setting.key }}
+  register: pihole_setting_before
+  changed_when: false
+
+- name: Set {{ pihole_setting.key }}
+  ansible.builtin.command: pihole-FTL --config {{ pihole_setting.key }} {{ pihole_setting.value | quote }}
+  register: pihole_setting_set
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Re-read {{ pihole_setting.key }}
+  ansible.builtin.command: pihole-FTL --config {{ pihole_setting.key }}
+  register: pihole_setting_after
+  changed_when: pihole_setting_after.stdout != pihole_setting_before.stdout

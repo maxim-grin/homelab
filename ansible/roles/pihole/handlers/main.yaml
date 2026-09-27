@@ -1,0 +1,14 @@
+---
+# The unattended installer starts pihole-FTL before its own gravity build
+# finishes, so FTL opens gravity.db while the gravity table is still empty
+# and logs "no such table: main.gravity" forever after -- `pihole -g` alone
+# does not make it reopen the database. Only a restart does.
+- name: Rebuild gravity
+  ansible.builtin.command: pihole -g
+  changed_when: true
+  notify: Restart pihole-FTL
+
+- name: Restart pihole-FTL
+  ansible.builtin.service:
+    name: pihole-FTL
+    state: restarted

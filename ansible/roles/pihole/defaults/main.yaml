@@ -1,0 +1,25 @@
+---
+# The installer at a fixed tag, so its behaviour does not change under us.
+# It still installs the current Pi-hole and FTL releases: Pi-hole offers no
+# way to pin those. Upgrade by hand with `pihole -up`.
+pihole_installer_url: "https://raw.githubusercontent.com/pi-hole/pi-hole/v6.4.3/automated%20install/basic-install.sh"
+
+pihole_upstreams:
+  - 1.1.1.1
+  - 9.9.9.9
+
+# ALL: answer every client, not only those on a directly attached subnet.
+# The LAN is one /24, but the extender in the path makes "local" guessing
+# pointless; the container is not reachable from outside the LAN anyway.
+pihole_listening_mode: ALL
+
+# Reverse lookups for the LAN go to the router, so the query log shows
+# device names instead of bare addresses. Format: enabled,cidr,server,domain.
+pihole_rev_server: "true,10.0.0.0/24,10.0.0.1,lan"
+
+pihole_adlists:
+  - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+# Where the role records a hash of the admin password it last set, so a
+# rotation in secret.yaml is applied and an unchanged one is not.
+pihole_password_marker: /etc/pihole/.ansible-admin-password.sha256

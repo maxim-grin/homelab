@@ -1,0 +1,7 @@
+# Seeded by Ansible before the Pi-hole installer runs. FTL rewrites this
+# file on first start; afterwards the role sets these keys through
+# pihole-FTL --config.
+[dns]
+  upstreams = [{% for u in pihole_upstreams %}"{{ u }}"{{ ", " if not loop.last }}{% endfor %}]
+  listeningMode = "{{ pihole_listening_mode }}"
+  revServers = ["{{ pihole_rev_server }}"]
