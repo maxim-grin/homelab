@@ -21,5 +21,9 @@ pihole_adlists:
   - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
 
 # Where the role records a hash of the admin password it last set, so a
-# rotation in secret.yaml is applied and an unchanged one is not.
-pihole_password_marker: /etc/pihole/.ansible-admin-password.sha256
+# rotation in secret.yaml is applied and an unchanged one is not. Outside
+# /etc/pihole deliberately: pihole-FTL's prestart script sweeps that whole
+# tree to 0640 on every start, which would flip this back from the 0600 it
+# is written with and read as an unrelated "changed" on the next run, and
+# would leave the unsalted hash group-readable by pihole.
+pihole_password_marker: /var/lib/ansible-pihole/admin-password.sha256

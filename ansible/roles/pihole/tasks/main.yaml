@@ -77,13 +77,12 @@
   changed_when: pihole_adlist_insert.stdout | trim == '1'
   notify: Rebuild gravity
 
-# Flushed here, before the password is set: a fresh install's gravity
-# rebuild restarts pihole-FTL, whose prestart script sweeps /etc/pihole
-# permissions (0640 on every plain file). Setting the password marker
-# afterwards means its 0600 is the state that survives, not one the next
-# run has to fight the sweep to restore.
-- name: Apply any pending gravity rebuild before the password is set
-  ansible.builtin.meta: flush_handlers
+- name: Create the directory holding the password marker
+  ansible.builtin.file:
+    path: "{{ pihole_password_marker | dirname }}"
+    state: directory
+    owner: root
+    mode: "0700"
 
 - name: Read the hash of the password last set
   ansible.builtin.slurp:
