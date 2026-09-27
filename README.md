@@ -15,7 +15,7 @@ _not_ contain, which is the part that will bite.
 | Layer      | What                                                           | Where it is defined                                       |
 | ---------- | -------------------------------------------------------------- | --------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                         | not in git — see `docs/rebuild.md`                        |
-| VMs        | ubuntu, ubuntu-2, k8s master + 2 workers, workstation          | `terraform/environments/dev`                                |
+| VMs        | k8s master + 2 workers, `claude-code` workstation              | `terraform/environments/dev`                                |
 | VM         | `nfs-01`, serving both dev and prod                            | `terraform/environments/shared`                              |
 | VM         | `vault-02`, the Vault VM                                        | `terraform/environments/shared`                              |
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
@@ -24,12 +24,97 @@ _not_ contain, which is the part that will bite.
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
 | Apps       | monitoring (Prometheus + Grafana), jobboard                    | `argocd/apps/`                                            |
-| Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/dev` |
+| Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/shared` |
 
 Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
 a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the
-exception and points straight at `vault-02`. There is no Pi-hole, no Traefik
-and no Cloudflare Tunnel.
+exception and points straight at `vault-02`. There is no Cloudflare Tunnel.
+
+**Planned, not yet running:** Pi-hole, Traefik, Glance, Gatus and LAN
+Orangutan, one LXC each in `terraform/environments/shared`, reached as
+`*.hl.mgryn.cc` — see the
+[LAN services design](docs/superpowers/specs/2026-09-27-lan-services-design.md).
+After them, a Talos prod cluster that runs ArgoCD and monitoring for both
+clusters — see the
+[roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md).
+
+## Diagram
+
+Solid boxes run today; dashed boxes are planned. Addresses are on
+`10.0.0.0/24`, whose DHCP pool is `.2`–`.99`; everything below has a
+static address above it.
+
+```mermaid
+flowchart TB
+    subgraph internet["Internet"]
+        github["GitHub<br/>maxim-grin/homelab main"]
+        cloudflare["Cloudflare DNS<br/>jobs · vault · *.hl"]
+        letsencrypt["Let's Encrypt"]
+        telegram["Telegram"]:::planned
+    end
+
+    router["Router 10.0.0.1<br/>DHCP .2–.99"]
+    lan["LAN clients<br/>laptop, phones, TV"]
+    extender["Wi-Fi extender"]
+
+    lan --- router
+    router --- extender
+
+    subgraph pve["Proxmox VE host pve — one SSD"]
+        subgraph dev["terraform/environments/dev"]
+            subgraph k8s["kubeadm cluster"]
+                master["master-01 .101"]
+                w1["worker-01 .201"]
+                w2["worker-02 .202"]
+                argocd["ArgoCD + AVP"]
+                ingress["ingress-nginx<br/>host ports 80/443"]
+                certmgr["cert-manager"]
+                mon["Prometheus + Grafana"]
+                jobboard["jobboard + Postgres"]
+            end
+            claude["claude-code .130"]
+        end
+
+        subgraph shared["terraform/environments/shared"]
+            nfs["nfs-01 .131<br/>nfs-dev · nfs-prod · backups"]
+            vault["vault-02 .133<br/>kv-dev · kv-prod"]
+            subgraph lxcs["LAN services, one LXC each"]
+                pihole["Pi-hole .140<br/>DNS + ad blocking"]:::planned
+                traefik["Traefik .141<br/>*.hl.mgryn.cc"]:::planned
+                glance["Glance .142<br/>dashboard"]:::planned
+                gatus["Gatus .143<br/>uptime"]:::planned
+                orangutan["LAN Orangutan .144<br/>device discovery"]:::planned
+            end
+        end
+
+        subgraph prod["terraform/environments/prod"]
+            talos["Talos cluster .110–.119<br/>ArgoCD + monitoring hub"]:::planned
+        end
+    end
+
+    extender --- pve
+
+    argocd -- "syncs main" --> github
+    argocd -- "AVP reads secrets" --> vault
+    k8s -- "PVCs" --> nfs
+    vault -- "raft snapshots" --> nfs
+    certmgr -- "DNS-01" --> cloudflare
+    lan -- "jobs.mgryn.cc" --> ingress
+    ingress --> jobboard
+
+    lan -. "DNS" .-> pihole
+    lan -. "*.hl.mgryn.cc" .-> traefik
+    traefik -.-> glance
+    traefik -.-> gatus
+    traefik -.-> orangutan
+    traefik -.-> pihole
+    traefik -. "DNS-01" .-> letsencrypt
+    gatus -. "alerts" .-> telegram
+    talos -. "manages" .-> k8s
+
+    classDef planned stroke-dasharray: 5 5,opacity:0.8
+```
+
 
 `jobs.mgryn.cc` is the one name in public DNS: a DNS-only (grey cloud)
 Cloudflare record holding a node IP, so any device on the LAN resolves it

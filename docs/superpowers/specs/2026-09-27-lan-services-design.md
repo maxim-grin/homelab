@@ -292,16 +292,18 @@ written.
 ## Pull requests
 
 One logical change each, each body carrying its playbook command and its
-checks:
+checks. Each also documents what it brings up: its rows in `README.md`'s
+table and its boxes in the `README.md` diagram go from dashed (planned) to
+solid, and its host prerequisites and playbook go into `docs/rebuild.md`.
+Documentation lands with the change, not after the last one.
 
-1. This design, the implementation plan, and the Terraform and inventory
-   for the five LXCs (step 1)
+1. This design, the implementation plan, the planned-state `README.md`
+   diagram, and the Terraform and inventory for the five LXCs (step 1)
 2. Pi-hole role (step 2)
 3. Traefik role (step 3)
 4. Gatus role (step 4)
 5. LAN Orangutan role, after the raw-socket check (step 5)
-6. Glance role, the cutover (step 7), and the `docs/rebuild.md`,
-   `README.md` and `CLAUDE.md` updates
+6. Glance role, and the cutover (step 7) with its `CLAUDE.md` entry
 
 ## Out of scope
 
