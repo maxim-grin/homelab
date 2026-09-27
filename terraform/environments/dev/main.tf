@@ -1,8 +1,8 @@
 ################################################################################
-# Ubuntu K8s Cluster
+# Dev K8s Cluster
 ################################################################################
 
-module "ubunut-k8s-1" {
+module "dev-cluster" {
   source = "../../modules/ubuntu-k8s"
 
   target_node = var.pm_target_node
@@ -107,5 +107,3 @@ module "claude_code" {
   # Tags
   tags = "ubuntu,claude-code,dev"
 }
-
-# nfs-01 (vmid 103) lives in terraform/environments/shared.
