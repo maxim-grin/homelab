@@ -127,6 +127,23 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
 - **`ubuntu-cid-tp` must exist before any `terraform apply`.** Every VM is a
   `full_clone` of it and nothing in this repository creates it. `qm` commands
   in `docs/rebuild.md`.
+- **Renaming a module or resource destroys what it manages.** Terraform
+  tracks resources by address, so a new name reads as "delete the old,
+  create the new". PR #47 renamed `module "ubunut-k8s-1"` to
+  `"dev-cluster"` and the apply rebuilt all three dev VMs from the blank
+  template, cluster and all. Every rename carries a `moved` block in the
+  same commit:
+
+  ```hcl
+  moved {
+    from = module.ubunut-k8s-1
+    to   = module.dev-cluster
+  }
+  ```
+
+  CI runs `validate`, not `plan`, so nothing catches a missing one. Read
+  the plan summary before every apply: a `destroy` you did not intend is
+  a stop, not a warning.
 - **`disk_size` only goes up.** Proxmox cannot shrink a disk; the attempt
   fails with `can't unplug bootdisk 'scsi0'` *and still writes the smaller
   value into `terraform.tfstate`*, so Terraform then believes a size the host
