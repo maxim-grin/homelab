@@ -25,6 +25,32 @@
     path: /usr/local/bin/pihole
   register: pihole_binary
 
+# Self-heal for a run that never reached the handler flush (killed,
+# SSH dropped, an earlier interrupted run) rather than one this run's own
+# force_handlers already covers: if the *currently running* FTL process's
+# own log shows it opened gravity.db before the gravity table existed, it
+# is answering every domain unfiltered and no later query will fix that --
+# only a restart reopens the database. Scoped to lines since this
+# instance's own start line so a restart from a previous run's failure
+# is not re-detected forever.
+- name: Check this FTL instance's own log for a stale gravity handle
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      awk '/FTL started on/{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}'
+      /var/log/pihole/FTL.log 2>/dev/null | grep -q 'no such table: main.gravity'
+  register: pihole_ftl_stale
+  changed_when: false
+  failed_when: false
+  when: pihole_binary.stat.exists
+
+- name: Restart FTL if this run's instance never saw gravity load
+  ansible.builtin.service:
+    name: pihole-FTL
+    state: restarted
+  when: pihole_binary.stat.exists and pihole_ftl_stale.rc == 0
+  changed_when: true
+
 # Both seed files are one-shot input to the installer. v6 imports them into
 # pihole.toml / gravity.db and does not keep them in sync afterwards -- the
 # installer's own first gravity build removes adlists.list once its URL is
@@ -51,7 +77,11 @@
     cmd: set -o pipefail && curl -fsSL {{ pihole_installer_url | quote }} | bash /dev/stdin --unattended
     executable: /bin/bash
     creates: /usr/local/bin/pihole
-  notify: Rebuild gravity
+  register: pihole_install
+  # The installer already built gravity itself -- notifying a restart
+  # directly, not another `pihole -g`, so a fresh install doesn't need a
+  # second network fetch of every blocklist to reach a working FTL.
+  notify: Restart pihole-FTL
 
 - name: Apply FTL settings
   ansible.builtin.include_tasks: ftl_setting.yaml
@@ -89,6 +119,7 @@
     src: "{{ pihole_password_marker }}"
   register: pihole_password_marker_content
   failed_when: false
+  no_log: true
 
 - name: Set the admin password
   ansible.builtin.command:
@@ -96,6 +127,7 @@
   when: >-
     (pihole_password_marker_content.content | default('') | b64decode | trim)
     != (pihole_admin_password | hash('sha256'))
+    or pihole_install is changed
   changed_when: true
   no_log: true
 

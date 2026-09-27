@@ -19,5 +19,9 @@
 
 - name: Pi-hole
   hosts: pihole
+  # A later task failing on the first run must not strand FTL holding a
+  # gravity handle opened before gravity existed -- the restart handler
+  # notified by the install has to fire regardless.
+  force_handlers: true
   roles:
     - pihole

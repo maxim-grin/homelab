@@ -17,6 +17,10 @@ pihole_listening_mode: ALL
 # device names instead of bare addresses. Format: enabled,cidr,server,domain.
 pihole_rev_server: "true,10.0.0.0/24,10.0.0.1,lan"
 
+# This list only adds: the role inserts a URL into gravity's adlist table
+# but never removes one no longer listed here. Dropping a URL from this
+# list also means removing it in the Pi-hole UI (Group Management ->
+# Adlists), or its domains stay blocked.
 pihole_adlists:
   - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
 
