@@ -69,10 +69,10 @@ pveum aclmod /pool/Ubuntu-K8s -user terraform@pve -role TerraformProv
 pveum aclmod /pool/LXC        -user terraform@pve -role TerraformProv
 ```
 
-`LXC` pool and ACL are unused by dev today — only prod's never-applied
-`modules/lxc` would need them, should prod ever apply. The same goes for
-the Debian LXC template that module clones: nothing in dev's rebuild path
-needs it.
+The `LXC` pool holds the five LAN service containers in
+`environments/shared`, and they clone the Debian 13 LXC template
+downloaded in step 2 of the rebuild order below; without the pool's ACL,
+their placement fails.
 
 ### 2. The cloud-init VM template — a hard blocker
 
@@ -362,15 +362,21 @@ from `secret.yaml`.
 2. **Prepare the host** — section 1: swap the enterprise repo for
    no-subscription, add the admin user, create `terraform@pve` with the
    `TerraformProv` role, issue an API token, and create the `VM`,
-   `Ubuntu-K8s` and `LXC` pools (the `LXC` pool is unused by dev today; only
-   prod's never-applied scaffolding would need it, and its Debian template,
-   should prod ever apply). Put the token in `dev.tfvars`.
+   `Ubuntu-K8s` and `LXC` pools (the `LXC` pool holds the LAN service
+   containers; grant `TerraformProv` on `/pool/LXC` as on the others, or
+   placement fails). Put the token in `dev.tfvars`.
+
+   Download the Debian 13 LXC template the LAN services use, and put its
+   name in `shared.tfvars` as `debian_lxc_template`:
+   `pveam update && pveam available | grep debian-13`, then
+   `pveam download local <file>`.
 3. **Build the cloud-init template** — section 2. It must be named whatever
    `clone_template_ubuntu` says.
 4. **`terraform apply`, `shared` first, then `dev`** —
    `terraform/environments/shared` with `-var-file=shared.tfvars` creates
    `nfs-01` (vmid 103) with its OS disk and the `nfs-dev`, `nfs-prod` and
-   `nfs-backups` data disks, and `vault-02` (vmid 105) with its data disk;
+   `nfs-backups` data disks, `vault-02` (vmid 105) with its data disk, and
+   the five LAN service containers (vmids 140–144);
    `terraform/environments/dev` with `-var-file=dev.tfvars` creates the
    other four VMs.
 5. **Storage** — the first formats and mounts all three data disks on
@@ -536,6 +542,15 @@ from `secret.yaml`.
     `--cacert ~/.homelab-ca/ca.crt`) even when the cluster itself is down
     — which is exactly when an operator needs to check whether it is
     sealed.
+
+15. **LAN services** — from `ansible/`:
+
+    ```bash
+    ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass
+    ```
+
+    Each service's play is added as its role lands; see the
+    [LAN services design](superpowers/specs/2026-09-27-lan-services-design.md).
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
