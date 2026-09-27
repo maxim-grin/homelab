@@ -2,11 +2,17 @@
 - name: Retrieve join command from control plane host
   ansible.builtin.set_fact:
     node_join_command: "{{ hostvars[groups['k8s_control_plane'][0]].control_plane_worker_join }}"
-  when: hostvars[groups['k8s_control_plane'][0]].get('control_plane_worker_join') is defined
+  # Not .get(...) is defined: .get returns None for a missing key, and None
+  # is defined, so the guard passed and templating crashed instead of
+  # reaching the explicit failure below.
+  when: hostvars[groups['k8s_control_plane'][0]].control_plane_worker_join is defined
 
 - name: Fail clearly if join command absent
   ansible.builtin.fail:
-    msg: "Join command not available. Run the control_plane role first."
+    msg: >-
+      Join command not available. It exists only within one ansible-playbook
+      run: run site.yaml, or pass cluster_init.yaml and join_workers.yaml to
+      the same invocation.
   when: node_join_command is not defined
 
 - name: Wait for API server to be reachable
