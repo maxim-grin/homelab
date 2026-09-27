@@ -1,0 +1,18 @@
+---
+# LAN services, one LXC each, in dependency order. Run from ansible/:
+#   ansible-playbook -i inventories/shared playbooks/lan_services.yaml \
+#     -e @secret.yaml --ask-vault-pass
+# --limit <service> runs one; the bootstrap play always applies to it.
+
+- name: Bootstrap Python on the LAN service containers
+  hosts: lan_services
+  gather_facts: false
+  tasks:
+    # The Debian LXC template may ship without python3, which every module
+    # but raw needs.
+    - name: Install python3 when absent
+      ansible.builtin.raw: >-
+        test -x /usr/bin/python3 && echo present ||
+        (apt-get update -qq && apt-get install -y -qq python3 >/dev/null && echo installed)
+      register: lan_services_python
+      changed_when: "'installed' in lan_services_python.stdout"

@@ -20,3 +20,36 @@ all:
         vault-02:
           ansible_host: "{{ host_ips['vault-02'] }}"
           proxmox_vm_id: "{{ proxmox_vm_ids['vault-02'] }}"
+    # One unprivileged LXC per LAN service. Containers have no cloud-init
+    # user: Terraform injects the key for root, there is no sudo in the
+    # Debian template, and become would only fail looking for it.
+    lan_services:
+      vars:
+        ansible_user: root
+        ansible_become: false
+      children:
+        pihole:
+          hosts:
+            pihole:
+              ansible_host: "{{ host_ips['pihole'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['pihole'] }}"
+        traefik:
+          hosts:
+            traefik:
+              ansible_host: "{{ host_ips['traefik'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['traefik'] }}"
+        glance:
+          hosts:
+            glance:
+              ansible_host: "{{ host_ips['glance'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['glance'] }}"
+        gatus:
+          hosts:
+            gatus:
+              ansible_host: "{{ host_ips['gatus'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['gatus'] }}"
+        orangutan:
+          hosts:
+            orangutan:
+              ansible_host: "{{ host_ips['orangutan'] }}"
+              proxmox_vm_id: "{{ proxmox_vm_ids['orangutan'] }}"

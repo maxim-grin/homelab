@@ -85,10 +85,10 @@ module "vault_vm" {
   vault_data_disk_size = "10G"
   disk_storage         = "local-lvm"
 
-  # First up, ahead of nfs-01 at order=10 and the cluster at 20/30. Vault is
-  # the root of trust: when it is sealed or absent, argocd-vault-plugin
-  # renders nothing and every Application carrying a <path:...> placeholder
-  # fails to sync.
+  # Starts after pihole (order=1) and traefik (order=2) at order=5, ahead of
+  # nfs-01 at order=10 and the cluster at 20/30. Vault is the root of trust:
+  # when it is sealed or absent, argocd-vault-plugin renders nothing and
+  # every Application carrying a <path:...> placeholder fails to sync.
   start_at_node_boot = true
   startup            = "order=5,up=20"
 
@@ -106,4 +106,59 @@ module "vault_vm" {
 
   # Tags
   tags = "ubuntu,vault,shared"
+}
+
+################################################################################
+# LAN services — one unprivileged LXC each
+################################################################################
+
+# vmid matches the address's last octet: pct enter 141 is Traefik.
+# Pi-hole starts first, ahead of vault-02 (order=5) and nfs-01 (order=10):
+# after a host power loss every other machine's lookups go through it.
+locals {
+  lan_services = {
+    pihole    = { vmid = 140, memory = 256, rootfs_size = "8G", startup = "order=1" }
+    traefik   = { vmid = 141, memory = 256, rootfs_size = "4G", startup = "order=2" }
+    glance    = { vmid = 142, memory = 128, rootfs_size = "4G", startup = "order=15" }
+    gatus     = { vmid = 143, memory = 128, rootfs_size = "4G", startup = "order=15" }
+    orangutan = { vmid = 144, memory = 256, rootfs_size = "4G", startup = "order=15" }
+  }
+}
+
+module "lan_service" {
+  source   = "../../modules/lxc"
+  for_each = local.lan_services
+
+  vmid               = each.value.vmid
+  target_node        = var.pm_target_node
+  hostname           = each.key
+  ostemplate         = var.debian_lxc_template
+  ssh_public_keys    = var.ssh_public_key
+  unprivileged       = true
+  start_at_node_boot = true
+  pool               = "LXC"
+
+  cores  = 1
+  memory = each.value.memory
+  swap   = 0
+
+  rootfs_storage = "local-lvm"
+  rootfs_size    = each.value.rootfs_size
+
+  network_bridge = "vmbr0"
+  network_ip     = var.lxc_ips[each.key]
+  network_gw     = var.gateway
+
+  # Never Pi-hole: Gatus alerts and Traefik's certificate renewals must
+  # keep resolving when Pi-hole is the thing that is down.
+  nameserver = "10.0.0.1 1.1.1.1"
+
+  # systemd in Debian 13 needs nesting inside an unprivileged container.
+  features_enabled = true
+  features = {
+    nesting = true
+  }
+
+  startup = each.value.startup
+  tags    = "lxc,shared,${each.key}"
 }
