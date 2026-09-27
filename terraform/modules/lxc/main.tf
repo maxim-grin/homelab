@@ -9,6 +9,8 @@ resource "proxmox_lxc" "lxc_container" {
   start           = var.start
   onboot          = var.start_at_node_boot
   pool            = var.pool
+  nameserver      = var.nameserver
+  searchdomain    = var.searchdomain
 
   # Resources
   cores  = var.cores

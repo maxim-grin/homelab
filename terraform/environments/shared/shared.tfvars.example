@@ -29,3 +29,19 @@ nfs_vm_ip = "10.0.0.131/24"
 # before applying -- every VM here takes a static address and the pool has
 # not been checked against them.
 vault_vm_ip = "10.0.0.133/24"
+
+# LAN services (docs/superpowers/specs/2026-09-27-lan-services-design.md).
+# The template must already be on the host:
+#   pveam update && pveam available | grep debian-13
+#   pveam download local debian-13-standard_<version>_amd64.tar.zst
+debian_lxc_template = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
+
+# Outside the router's DHCP pool (.2-.99). vmids in main.tf match the last
+# octet.
+lxc_ips = {
+  pihole    = "10.0.0.140/24"
+  traefik   = "10.0.0.141/24"
+  glance    = "10.0.0.142/24"
+  gatus     = "10.0.0.143/24"
+  orangutan = "10.0.0.144/24"
+}

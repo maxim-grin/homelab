@@ -20,10 +20,14 @@ variable "ostemplate" {
   type        = string
 }
 
+# Optional: with SSH keys injected, a container needs no root password, and
+# leaving it null keeps one out of tfvars and state. prod's never-applied
+# scaffolding still passes one.
 variable "password" {
-  description = "Root password for the LXC container"
+  description = "Root password for the LXC container; null for key-only access"
   type        = string
   sensitive   = true
+  default     = null
 }
 
 # Injected into the container at create time, the way cloud-init injects the
@@ -156,4 +160,18 @@ variable "tags" {
   description = "Container tags"
   type        = string
   default     = "lxc"
+}
+
+# DNS for the container itself. null inherits the Proxmox host's resolver,
+# which is what every container got before these existed.
+variable "nameserver" {
+  description = "Space-separated DNS servers for the container"
+  type        = string
+  default     = null
+}
+
+variable "searchdomain" {
+  description = "DNS search domain for the container"
+  type        = string
+  default     = null
 }

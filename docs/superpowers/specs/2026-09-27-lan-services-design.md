@@ -85,13 +85,13 @@ All five: Debian 13 standard template, unprivileged, `nesting = true`
 `LXC`, `start_at_node_boot = true`, the existing SSH public key for
 `root`, `nameserver = "10.0.0.1 1.1.1.1"`, tags `lxc,shared,<service>`.
 
-The root password is a `random_password` resource — no one logs in with
-it, and it never appears in tfvars. It is in the local state file, which
-is gitignored with the rest of the state.
+No root password: `modules/lxc`'s `password` input becomes optional, and
+these containers leave it null. Access is the injected SSH key alone, and
+no password lands in tfvars or state.
 
-`modules/lxc` gains `nameserver` and `searchdomain` inputs, both
-defaulting to `null`, which keeps today's behaviour of inheriting the
-host's resolver.
+`modules/lxc` gains `nameserver` and `searchdomain` inputs and an optional `password`,
+all defaulting to `null`. The name inputs keep today's behaviour of inheriting the
+host's resolver, and the optional password keeps one out of tfvars and state.
 
 Addresses come from a new `lxc_ips` map in `shared.tfvars`, keyed by
 service, alongside `nfs_vm_ip` and `vault_vm_ip`. `shared.tfvars.example`
