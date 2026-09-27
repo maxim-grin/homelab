@@ -552,6 +552,11 @@ from `secret.yaml`.
     Each service's play is added as its role lands; see the
     [LAN services design](superpowers/specs/2026-09-27-lan-services-design.md).
 
+    **Pi-hole** needs `pihole_admin_password` in `secret.yaml`. Check it
+    from the workstation before pointing anything at it:
+    `dig @10.0.0.140 example.com +short` answers, and
+    `dig @10.0.0.140 doubleclick.net +short` returns `0.0.0.0`.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
