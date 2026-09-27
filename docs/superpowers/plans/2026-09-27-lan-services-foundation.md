@@ -916,7 +916,8 @@ Expected: `PARSE OK`; no pre-commit failures.
 ### Task 7: Operator — Pi-hole (owner, not an agent)
 
 - [ ] `ansible-vault edit ansible/secret.yaml`: add `pihole_admin_password`.
-- [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit pihole`: `failed=0`; a second run `changed=0`.
+- [ ] Before running the playbook: `ssh -i ~/.ssh/homelab_dev root@10.0.0.140 'ss -lntup | grep -E ":(53|80)\b"'` prints nothing — nothing is already bound to the ports Pi-hole needs.
+- [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit pihole`: `failed=0`; a second run `changed=0`. FTL logging "Insufficient permissions to set system time (CAP_SYS_TIME)" is expected in an unprivileged LXC, not a failure.
 - [ ] From the Mac: `dig @10.0.0.140 example.com +short` answers; the blocklist domain from rebuild.md step 15 returns `0.0.0.0`.
 - [ ] `http://10.0.0.140/admin/` logs in with the password from `secret.yaml`.
 - [ ] Do **not** change the router's DNS yet — that is PR 6.

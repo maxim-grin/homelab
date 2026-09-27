@@ -18,7 +18,7 @@ _not_ contain, which is the part that will bite.
 | VMs        | k8s master + 2 workers, `claude-code` workstation              | `terraform/environments/dev`                                |
 | VM         | `nfs-01`, serving both dev and prod                            | `terraform/environments/shared`                              |
 | VM         | `vault-02`, the Vault VM                                        | `terraform/environments/shared`                              |
-| LXCs       | `pihole` (DNS, ad blocking) at `.140`; the rest empty until their roles land | `terraform/environments/shared` |
+| LXCs       | `pihole` (DNS, ad blocking) at `.140`; the rest empty until their roles land | `terraform/environments/shared`, `ansible/roles/pihole` |
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
 | GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`              | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
@@ -31,8 +31,8 @@ Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
 a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the
 exception and points straight at `vault-02`. There is no Cloudflare Tunnel.
 
-**Planned, not yet running:** Pi-hole, Traefik, Glance, Gatus and LAN
-Orangutan, one LXC each in `terraform/environments/shared`, reached as
+**Planned, not yet running:** Traefik, Glance, Gatus and LAN Orangutan,
+one LXC each in `terraform/environments/shared`, reached as
 `*.hl.mgryn.cc` — see the
 [LAN services design](docs/superpowers/specs/2026-09-27-lan-services-design.md).
 After them, a Talos prod cluster that runs ArgoCD and monitoring for both
