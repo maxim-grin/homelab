@@ -24,8 +24,8 @@ Success looks like:
 - a change merged to `main` reaches dev, is tested there, and reaches
   prod only through a second pull request
 - dev can be destroyed and rebuilt without losing anything
-- Pi-hole, Traefik, Homepage, Uptime Kuma and LAN Orangutan running on
-  the LAN, Homepage showing Proxmox and every service
+- Pi-hole, Traefik, Glance, Gatus and LAN Orangutan running on the LAN,
+  Glance showing Proxmox and every service
 
 ## Constraints
 
@@ -47,7 +47,7 @@ Success looks like:
 | Monitoring topology | Prometheus and Grafana in prod; Prometheus in agent mode on dev, remote-writing to prod |
 | Dev's role | Workloads only; rebuilt freely, re-registered with the hub |
 | Promotion | Dev overlays track the latest version, prod overlays pin a tag; promotion is a PR bumping the pin |
-| LAN services | Pi-hole, Traefik, Homepage, Uptime Kuma, LAN Orangutan |
+| LAN services | Pi-hole, Traefik, Glance, Gatus, LAN Orangutan ([design](2026-09-27-lan-services-design.md)) |
 | Where LAN services run | One unprivileged LXC each, native install via Ansible, no Docker |
 | Terraform root for LXCs | `environments/shared`, beside `nfs-01` and `vault-02` |
 | Harbor, Gitea | Removed |
@@ -69,7 +69,7 @@ ArgoCD has to be retired.
 
 ### Why LAN services sit outside both clusters
 
-Uptime Kuma has to survive the things it monitors. Pi-hole answers DNS
+Gatus has to survive the things it monitors. Pi-hole answers DNS
 for the whole LAN and cannot go down with a cluster rebuild. LAN
 Orangutan scans with nmap and needs layer-2 access to `vmbr0` to see
 MAC addresses, which a pod network hides. Traefik is the thing being
@@ -97,13 +97,13 @@ revisions.
 | dev workers | 2 × 4G | 1 × 3G |
 | prod control plane | — | 2G |
 | prod workers | — | 2 × 4G |
-| Pi-hole, Traefik, Homepage, Uptime Kuma, LAN Orangutan | — | ~1.5G total |
-| **Total** | **~30G** | **~29.5G** |
+| Pi-hole, Traefik, Glance, Gatus, LAN Orangutan | — | ~1G total |
+| **Total** | **~30G** | **~29G** |
 
 Prod gets two workers on purpose: drains, PodDisruptionBudgets,
 anti-affinity and rolling updates teach nothing on one node.
 
-Only 7G is free today, and prod plus the LXCs need about 11.5G, so dev
+Only 7G is free today, and prod plus the LXCs need about 11G, so dev
 shrinks in two steps — part of it before prod exists (sub-project 0),
 the rest once dev no longer runs ArgoCD (sub-project 4).
 
@@ -135,7 +135,7 @@ history). Lower the dev control plane 8G → 4G and the dev workers 4G →
 3G. Frees 6G. Bounded: design in chat, no spec.
 
 **1. LAN services.** Five LXCs in `environments/shared`, an Ansible role
-each, Traefik routes by hostname (the domain is chosen there), Homepage widgets for Proxmox
+each, Traefik routes by hostname (the domain is chosen there), Glance widgets for Proxmox
 and every service. Pi-hole becomes the router's DNS.
 
 **2. Prod Talos cluster.** Fix the prod root's provider and Terraform
