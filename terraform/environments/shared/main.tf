@@ -85,10 +85,10 @@ module "vault_vm" {
   vault_data_disk_size = "10G"
   disk_storage         = "local-lvm"
 
-  # First up, ahead of nfs-01 at order=10 and the cluster at 20/30. Vault is
-  # the root of trust: when it is sealed or absent, argocd-vault-plugin
-  # renders nothing and every Application carrying a <path:...> placeholder
-  # fails to sync.
+  # Starts after pihole (order=1) and traefik (order=2) at order=5, ahead of
+  # nfs-01 at order=10 and the cluster at 20/30. Vault is the root of trust:
+  # when it is sealed or absent, argocd-vault-plugin renders nothing and
+  # every Application carrying a <path:...> placeholder fails to sync.
   start_at_node_boot = true
   startup            = "order=5,up=20"
 

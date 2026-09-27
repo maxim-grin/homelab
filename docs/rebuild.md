@@ -70,7 +70,7 @@ pveum aclmod /pool/LXC        -user terraform@pve -role TerraformProv
 ```
 
 The `LXC` pool holds the five LAN service containers in
-`environments/shared`, and they clone the Debian 13 LXC template
+`environments/shared`, and they are created from the Debian 13 LXC template
 downloaded in step 2 of the rebuild order below; without the pool's ACL,
 their placement fails.
 

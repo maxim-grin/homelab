@@ -67,9 +67,9 @@ does not hide vendors from LAN Orangutan.
 
 ## Terraform
 
-Five `module "lxc"` calls in `environments/shared/main.tf`:
+One `module "lan_service"` with `for_each` over `local.lan_services`, addressing containers as `module.lan_service["pihole"]`, etc. Renaming the module or a map key destroys that container; use a `moved` block (see CLAUDE.md's resource-rename rule).
 
-| Module | vmid | Address | Memory | Root disk | Startup |
+| Key | vmid | Address | Memory | Root disk | Startup |
 | --- | --- | --- | --- | --- | --- |
 | `pihole` | 140 | `10.0.0.140/24` | 256M | 8G | `order=1` |
 | `traefik` | 141 | `10.0.0.141/24` | 256M | 4G | `order=2` |
