@@ -569,6 +569,17 @@ from `secret.yaml`.
     installed but nothing works, `pihole -r` (reconfigure) or removing
     `/usr/local/bin/pihole` and re-running the play forces a clean one.
 
+    **Traefik** needs `traefik_cloudflare_api_token` (its own token:
+    Zone → DNS → Edit and Zone → Zone → Read on `mgryn.cc`) and
+    `traefik_dashboard_users` in `secret.yaml`, and a DNS-only Cloudflare
+    record `*.hl.mgryn.cc` → `10.0.0.141`. Issue from staging first
+    (`-e traefik_cert_resolver=letsencrypt-staging`), then re-run without
+    it; production allows five failed validations per hostname per hour.
+    If Traefik's journal shows `Invalid format for Authorization header`,
+    the token in `secret.yaml` is malformed (stray quotes or whitespace).
+    `curl -v https://pihole.hl.mgryn.cc/admin/` from the workstation then
+    shows a Let's Encrypt certificate for `*.hl.mgryn.cc`.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
