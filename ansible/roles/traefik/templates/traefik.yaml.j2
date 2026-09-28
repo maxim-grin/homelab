@@ -17,22 +17,29 @@ entryPoints:
           - main: "{{ traefik_domain }}"
             sans:
               - "*.{{ traefik_domain }}"
+    # Traefik v3 defaults readTimeout to 60s on every entrypoint, which cuts
+    # off a Proxmox ISO upload or a long noVNC console through this route.
+    transport:
+      respondingTimeouts:
+        readTimeout: 0
+  # Unauthenticated and LAN-only: never forward this entrypoint out to the
+  # internet or through the reverse proxy itself.
   metrics:
     address: ":8082"
 
+# Only the resolver traefik_cert_resolver names is defined here. Traefik
+# loads every configured resolver's stored certs into one shared default
+# TLS store at startup, so defining both risks serving whichever
+# provider's certificate loaded last rather than the one this run asked
+# for. The task "Remove the inactive resolver's ACME storage" deletes the
+# other's storage file so a later switch back re-issues cleanly.
 certificatesResolvers:
-  letsencrypt:
+  {{ traefik_cert_resolver }}:
     acme:
-      storage: /var/lib/traefik/acme.json
-      dnsChallenge:
-        provider: cloudflare
-        resolvers:
-          - "1.1.1.1:53"
-          - "1.0.0.1:53"
-  letsencrypt-staging:
-    acme:
-      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
-      storage: /var/lib/traefik/acme-staging.json
+{% if traefik_cert_resolvers[traefik_cert_resolver].caServer is defined %}
+      caServer: "{{ traefik_cert_resolvers[traefik_cert_resolver].caServer }}"
+{% endif %}
+      storage: {{ traefik_cert_resolvers[traefik_cert_resolver].storage }}
       dnsChallenge:
         provider: cloudflare
         resolvers:

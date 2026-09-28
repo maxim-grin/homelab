@@ -11,6 +11,9 @@ http:
       rule: "Host(`{{ r.host }}`)"
       entryPoints: [websecure]
       service: {{ r.name }}
+{% if r.redirect_root | default(false) %}
+      middlewares: [{{ r.name }}-root-redirect]
+{% endif %}
 {% endfor %}
 
   services:
@@ -30,6 +33,18 @@ http:
         users:
 {% for u in traefik_dashboard_users %}
           - "{{ u }}"
+{% endfor %}
+{% for r in traefik_routes %}
+{% if r.redirect_root | default(false) %}
+    {{ r.name }}-root-redirect:
+      # redirectRegex matches the full request URL (scheme://host/path),
+      # not just the path, so the pattern anchors on the bare root of
+      # this route's own host rather than "^/$".
+      redirectRegex:
+        regex: '^(https?)://{{ r.host | regex_escape }}/$'
+        replacement: "${1}://{{ r.host }}/admin/"
+        permanent: false
+{% endif %}
 {% endfor %}
 
   serversTransports:

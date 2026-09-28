@@ -8,16 +8,38 @@ traefik_domain: hl.mgryn.cc
 # letsencrypt-staging while debugging an issuance: production allows five
 # failed validations per hostname per hour. Switch with
 #   -e traefik_cert_resolver=letsencrypt-staging
+# The role removes the OTHER resolver's ACME storage file each run, so
+# switching back re-issues from scratch rather than resurrecting a stale
+# certificate -- see traefik_cert_resolvers below and the "Remove the
+# inactive resolver's ACME storage" task.
 traefik_cert_resolver: letsencrypt
+
+# One block per resolver name traefik_cert_resolver may be set to. Static
+# config only ever defines the one traefik_cert_resolver names -- Traefik
+# loads every configured resolver's stored certs into one shared default
+# TLS store at startup, so defining both at once means the store can end
+# up serving whichever provider's certs loaded last, staging included.
+# caServer absent means production's default (Let's Encrypt's production
+# ACME endpoint).
+traefik_cert_resolvers:
+  letsencrypt:
+    storage: /var/lib/traefik/acme.json
+  letsencrypt-staging:
+    caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+    storage: /var/lib/traefik/acme-staging.json
 
 # Every name Traefik serves apart from its own dashboard. Each later role's
 # PR appends its entry. insecure: skip verifying the backend's certificate,
-# for Proxmox's self-signed one.
+# for Proxmox's self-signed one. redirect_root: Pi-hole's webserver only
+# serves its webhome (/admin/) and /api -- the bare path answers 403
+# (serve_all is off), so this adds a route-scoped redirectRegex sending
+# `/` to `/admin/` without touching the merged pihole role.
 traefik_routes:
   - name: pihole
     host: "pihole.{{ traefik_domain }}"
     url: "http://{{ host_ips['pihole'] }}:80"
     insecure: false
+    redirect_root: true
   - name: proxmox
     host: "proxmox.{{ traefik_domain }}"
     url: "https://{{ host_ips['pve'] }}:8006"

@@ -5,12 +5,22 @@
       - traefik_cloudflare_api_token is defined
       - traefik_cloudflare_api_token | length > 0
       - traefik_dashboard_users is defined
+      - traefik_dashboard_users is not string
+      - traefik_dashboard_users is sequence
       - traefik_dashboard_users | length > 0
       - host_ips['pve'] is defined
       - host_ips['pihole'] is defined
     fail_msg: >-
-      traefik_cloudflare_api_token, traefik_dashboard_users, host_ips['pve']
+      traefik_cloudflare_api_token, traefik_dashboard_users (a list), host_ips['pve']
       and host_ips['pihole'] must be set in ansible/secret.yaml.
+    quiet: true
+
+- name: Require a known cert resolver
+  ansible.builtin.assert:
+    that:
+      - traefik_cert_resolver in traefik_cert_resolvers
+    fail_msg: >-
+      traefik_cert_resolver must be one of {{ traefik_cert_resolvers.keys() | list }}.
     quiet: true
 
 - name: Create the traefik system user
@@ -73,6 +83,20 @@
     owner: root
     group: traefik
     mode: "0640"
+  notify: Restart traefik
+
+# Traefik loads every resolver's stored certs it finds into one shared
+# default TLS store at startup, so a stale file from a resolver this run
+# no longer uses could still get served after a restart. Removing it keeps
+# a later switch back a clean re-issue rather than resurrecting old certs.
+- name: Remove the inactive resolver's ACME storage
+  ansible.builtin.file:
+    path: "{{ item.value.storage }}"
+    state: absent
+  loop: "{{ traefik_cert_resolvers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: item.key != traefik_cert_resolver
   notify: Restart traefik
 
 - name: Write the Cloudflare token
