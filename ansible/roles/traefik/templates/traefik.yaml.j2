@@ -1,0 +1,62 @@
+# Managed by Ansible (roles/traefik). Static configuration: a change here
+# restarts Traefik. Routes live in dynamic/, which it reloads on its own.
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: {{ traefik_cert_resolver }}
+        domains:
+          - main: "{{ traefik_domain }}"
+            sans:
+              - "*.{{ traefik_domain }}"
+    # Traefik v3 defaults readTimeout to 60s on every entrypoint, which cuts
+    # off a Proxmox ISO upload or a long noVNC console through this route.
+    transport:
+      respondingTimeouts:
+        readTimeout: 0
+  # Unauthenticated and LAN-only: never forward this entrypoint out to the
+  # internet or through the reverse proxy itself.
+  metrics:
+    address: ":8082"
+
+# Only the resolver traefik_cert_resolver names is defined here. Traefik
+# loads every configured resolver's stored certs into one shared default
+# TLS store at startup, so defining both risks serving whichever
+# provider's certificate loaded last rather than the one this run asked
+# for. The task "Remove the inactive resolver's ACME storage" deletes the
+# other's storage file so a later switch back re-issues cleanly.
+certificatesResolvers:
+  {{ traefik_cert_resolver }}:
+    acme:
+{% if traefik_cert_resolvers[traefik_cert_resolver].caServer is defined %}
+      caServer: "{{ traefik_cert_resolvers[traefik_cert_resolver].caServer }}"
+{% endif %}
+      storage: {{ traefik_cert_resolvers[traefik_cert_resolver].storage }}
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - "1.1.1.1:53"
+          - "1.0.0.1:53"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+api:
+  dashboard: true
+
+metrics:
+  prometheus:
+    entryPoint: metrics
+
+log:
+  level: INFO

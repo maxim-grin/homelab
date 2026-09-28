@@ -169,6 +169,9 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   here, so most hostnames resolve via `/etc/hosts` on the workstation.
   `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.
+  `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
+  Traefik on `10.0.0.141`, which terminates TLS for the LAN services and
+  the Proxmox UI.
 - **`jobs.mgryn.cc`'s certificate comes from cert-manager, not Cloudflare.**
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME

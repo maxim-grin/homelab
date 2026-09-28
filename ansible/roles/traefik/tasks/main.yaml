@@ -1,0 +1,132 @@
+---
+- name: Require Traefik's secrets
+  ansible.builtin.assert:
+    that:
+      - traefik_cloudflare_api_token is defined
+      - traefik_cloudflare_api_token | length > 0
+      - traefik_dashboard_users is defined
+      - traefik_dashboard_users is not string
+      - traefik_dashboard_users is sequence
+      - traefik_dashboard_users | length > 0
+      - host_ips['pve'] is defined
+      - host_ips['pihole'] is defined
+    fail_msg: >-
+      traefik_cloudflare_api_token, traefik_dashboard_users (a list), host_ips['pve']
+      and host_ips['pihole'] must be set in ansible/secret.yaml.
+    quiet: true
+
+- name: Require a known cert resolver
+  ansible.builtin.assert:
+    that:
+      - traefik_cert_resolver in traefik_cert_resolvers
+    fail_msg: >-
+      traefik_cert_resolver must be one of {{ traefik_cert_resolvers.keys() | list }}.
+    quiet: true
+
+- name: Create the traefik system user
+  ansible.builtin.user:
+    name: traefik
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/traefik
+    create_home: false
+
+- name: Create Traefik's directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: traefik
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/traefik, owner: root, mode: "0750" }
+    - { path: /etc/traefik/dynamic, owner: root, mode: "0750" }
+    - { path: /var/lib/traefik, owner: traefik, mode: "0700" }
+    - { path: "/opt/traefik/{{ traefik_version }}", owner: root, mode: "0755" }
+
+# get_url needs ca-certificates to verify GitHub's TLS certificate. The
+# real LXC has no other role installing it first, so this role must not
+# rely on it arriving as a side effect of something else.
+- name: Install ca-certificates
+  ansible.builtin.apt:
+    name: ca-certificates
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Download Traefik, checked against the release's checksums
+  ansible.builtin.get_url:
+    url: "{{ traefik_release_url }}/{{ traefik_archive }}"
+    dest: "/opt/traefik/{{ traefik_archive }}"
+    checksum: "sha256:{{ traefik_release_url }}/traefik_v{{ traefik_version }}_checksums.txt"
+    mode: "0644"
+
+- name: Unpack Traefik
+  ansible.builtin.unarchive:
+    src: "/opt/traefik/{{ traefik_archive }}"
+    dest: "/opt/traefik/{{ traefik_version }}"
+    remote_src: true
+    include: [traefik]
+    creates: "/opt/traefik/{{ traefik_version }}/traefik"
+
+- name: Point /usr/local/bin/traefik at this version
+  ansible.builtin.file:
+    src: "/opt/traefik/{{ traefik_version }}/traefik"
+    dest: /usr/local/bin/traefik
+    state: link
+  notify: Restart traefik
+
+- name: Write the static configuration
+  ansible.builtin.template:
+    src: traefik.yaml.j2
+    dest: /etc/traefik/traefik.yaml
+    owner: root
+    group: traefik
+    mode: "0640"
+  notify: Restart traefik
+
+# Traefik loads every resolver's stored certs it finds into one shared
+# default TLS store at startup, so a stale file from a resolver this run
+# no longer uses could still get served after a restart. Removing it keeps
+# a later switch back a clean re-issue rather than resurrecting old certs.
+- name: Remove the inactive resolver's ACME storage
+  ansible.builtin.file:
+    path: "{{ item.value.storage }}"
+    state: absent
+  loop: "{{ traefik_cert_resolvers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: item.key != traefik_cert_resolver
+  notify: Restart traefik
+
+- name: Write the Cloudflare token
+  ansible.builtin.template:
+    src: traefik.env.j2
+    dest: /etc/traefik/traefik.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart traefik
+
+- name: Write the routes
+  ansible.builtin.template:
+    src: routes.yaml.j2
+    dest: /etc/traefik/dynamic/routes.yaml
+    owner: root
+    group: traefik
+    mode: "0640"
+
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: traefik.service.j2
+    dest: /etc/systemd/system/traefik.service
+    mode: "0644"
+  notify: Restart traefik
+
+- name: Start Traefik at boot
+  ansible.builtin.systemd_service:
+    name: traefik
+    state: started
+    enabled: true
+    daemon_reload: true
