@@ -944,7 +944,7 @@ Expected: `PARSE OK`; no pre-commit failures.
 - Consumes: group `traefik` (Task 2); `host_ips['pve']`, `traefik_cloudflare_api_token`, `traefik_dashboard_users` from `secret.yaml`; Pi-hole on `http://10.0.0.140:80` (Task 5).
 - Produces: `traefik_routes`, a list of `{name, host, url, insecure}` in role defaults. PRs 4-6 append their service's route to it. Entry points `web` (:80), `websecure` (:443), `metrics` (:8082); resolvers `letsencrypt`, `letsencrypt-staging`, chosen by `traefik_cert_resolver`.
 
-- [ ] **Step 1: Container and checks, failing first**
+- [x] **Step 1: Container and checks, failing first**
 
 ```bash
 $SCRATCH/lan-container.sh lan-traefik
@@ -997,7 +997,7 @@ Expected: `FAIL` lines, `exit=1`.
 
 The Pi-hole backend in the rehearsal is `127.0.0.1:80`, which is Traefik's own web entrypoint rather than nothing listening — the redirect check uses plain HTTP, which Traefik answers before routing. A real 200 through the `pihole` route needs a second container as its backend.
 
-- [ ] **Step 2: Metadata and defaults**
+- [x] **Step 2: Metadata and defaults**
 
 `ansible/roles/traefik/meta/main.yaml`:
 
@@ -1044,7 +1044,7 @@ traefik_routes:
     insecure: true
 ```
 
-- [ ] **Step 3: Templates**
+- [x] **Step 3: Templates**
 
 `ansible/roles/traefik/templates/traefik.yaml.j2`:
 
@@ -1180,7 +1180,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-- [ ] **Step 4: Tasks and handlers**
+- [x] **Step 4: Tasks and handlers**
 
 `ansible/roles/traefik/tasks/main.yaml`:
 
@@ -1295,7 +1295,7 @@ WantedBy=multi-user.target
     daemon_reload: true
 ```
 
-- [ ] **Step 5: Add the play and the example secrets**
+- [x] **Step 5: Add the play and the example secrets**
 
 Append to `ansible/playbooks/lan_services.yaml`:
 
@@ -1323,7 +1323,7 @@ traefik_dashboard_users:
   - "admin:$2y$05$<bcrypt>"
 ```
 
-- [ ] **Step 6: Rehearse — first run, checks, idempotence**
+- [x] **Step 6: Rehearse — first run, checks, idempotence**
 
 ```bash
 $SCRATCH/run-traefik.sh | grep -E 'changed=|failed=|FAILED|fatal'
@@ -1334,7 +1334,7 @@ docker exec lan-traefik journalctl -u traefik --no-pager | grep -m1 -i 'acme\|cl
 
 Expected: first run `failed=0`; checks all `ok`, `exit=0`; second run `changed=0 ... failed=0`; the journal shows an ACME/Cloudflare error from the dummy token while Traefik keeps serving — the Review Focus case.
 
-- [ ] **Step 7: Rehearse — a new route reloads without a restart**
+- [x] **Step 7: Rehearse — a new route reloads without a restart**
 
 ```bash
 PID1=$(docker exec lan-traefik systemctl show -p MainPID --value traefik)
@@ -1348,7 +1348,7 @@ docker rm -f lan-traefik
 
 Expected: `ok no restart`; `502`.
 
-- [ ] **Step 8: Lint and commit**
+- [x] **Step 8: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/traefik playbooks/lan_services.yaml
@@ -1367,13 +1367,13 @@ the Proxmox UI, and the dashboard behind basic auth."
 - Modify: `docs/rebuild.md` (step 15)
 - Modify: `CLAUDE.md` (the ingress bullet)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 Table row from Task 3 becomes: "`pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`; the rest empty until their roles land". In the diagram, drop `:::planned` from `traefik[...]` and from `letsencrypt` if it carries it, and make `lan -. "*.hl.mgryn.cc" .-> traefik`, `traefik -.-> pihole` and `traefik -. "DNS-01" .-> letsencrypt` solid (`-->`, `-- "label" -->`). The Proxmox UI route needs no edge: the `pve` box already stands for the host.
 
 In the "Planned, not yet running" paragraph, remove Pi-hole and Traefik from the list and add a sentence: "`pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc` and `traefik.hl.mgryn.cc` resolve on any LAN device through a Cloudflare DNS-only wildcard record, `*.hl.mgryn.cc` → `10.0.0.141`."
 
-- [ ] **Step 2: rebuild.md step 15**
+- [x] **Step 2: rebuild.md step 15**
 
 Append:
 
@@ -1388,11 +1388,11 @@ Append:
     shows a Let's Encrypt certificate for `*.hl.mgryn.cc`.
 ```
 
-- [ ] **Step 3: CLAUDE.md**
+- [x] **Step 3: CLAUDE.md**
 
 In the "Load-bearing and non-obvious" bullet that begins "**ingress-nginx is a DaemonSet on host ports 80/443**", append: "`*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at Traefik on `10.0.0.141`, which terminates TLS for the LAN services and the Proxmox UI."
 
-- [ ] **Step 4: Validate and commit**
+- [x] **Step 4: Validate and commit**
 
 Run the Mermaid check from Task 6 Step 3 (`node $SCRATCH/mp/p.mjs`) and `pre-commit run --all-files`.
 
