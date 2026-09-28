@@ -574,11 +574,17 @@ from `secret.yaml`.
     `traefik_dashboard_users` in `secret.yaml`, and a DNS-only Cloudflare
     record `*.hl.mgryn.cc` → `10.0.0.141`. Issue from staging first
     (`-e traefik_cert_resolver=letsencrypt-staging`), then re-run without
-    it; production allows five failed validations per hostname per hour.
-    If Traefik's journal shows `Invalid format for Authorization header`,
-    the token in `secret.yaml` is malformed (stray quotes or whitespace).
-    `curl -v https://pihole.hl.mgryn.cc/admin/` from the workstation then
-    shows a Let's Encrypt certificate for `*.hl.mgryn.cc`.
+    it — switching resolvers is just re-running with or without that
+    flag; the role removes the *other* resolver's ACME storage file each
+    run, so it is a clean re-issue rather than a resurrected stale
+    certificate. Production allows five failed validations per hostname
+    per hour. If Traefik's journal shows `Invalid format for Authorization
+    header`, the token in `secret.yaml` is malformed (stray quotes or
+    whitespace). Wait for issuance before checking — `journalctl -u
+    traefik -f` until a certificate is obtained, ~1-2 minutes; curling
+    immediately after the run only shows TRAEFIK DEFAULT CERT. Once
+    issued, `curl -v https://pihole.hl.mgryn.cc/admin/` from the
+    workstation shows a Let's Encrypt certificate for `*.hl.mgryn.cc`.
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.

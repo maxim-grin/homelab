@@ -39,7 +39,9 @@ After them, a Talos prod cluster that runs ArgoCD and monitoring for both
 clusters — see the
 [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md).
 
-`pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc` and `traefik.hl.mgryn.cc` resolve on any LAN device through a Cloudflare DNS-only wildcard record, `*.hl.mgryn.cc` → `10.0.0.141`.
+`pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc` and `traefik.hl.mgryn.cc`
+resolve on any LAN device through a Cloudflare DNS-only wildcard record,
+`*.hl.mgryn.cc` → `10.0.0.141`.
 
 ## Diagram
 
@@ -119,19 +121,23 @@ flowchart TB
 ```
 
 
-`jobs.mgryn.cc` is the one name in public DNS: a DNS-only (grey cloud)
-Cloudflare record holding a node IP, so any device on the LAN resolves it
-without a hosts entry. Public DNS answering with a private address is fine,
-though some routers drop it as DNS-rebinding protection. It is also the only
-name served over HTTPS — see TLS, below.
+`jobs.mgryn.cc` and `*.hl.mgryn.cc` are the two names in public DNS: both
+are DNS-only (grey cloud) Cloudflare records holding a node IP, so any
+device on the LAN resolves them without a hosts entry. Public DNS
+answering with a private address is fine, though some routers drop it as
+DNS-rebinding protection. Both are also served over HTTPS — see TLS,
+below.
 
 ## TLS
 
-`jobs.mgryn.cc` is served over HTTPS with a Let's Encrypt certificate.
-cert-manager obtains it with an ACME DNS-01 challenge, writing a TXT record
-through the Cloudflare API with a token held in Vault at
-`kv-dev/cert-manager/cloudflare`. Renewal is automatic, 30 days before
-expiry.
+`jobs.mgryn.cc` and `*.hl.mgryn.cc` are each served over HTTPS with their
+own Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT
+record through the Cloudflare API — but by two different components with
+two different tokens. `jobs.mgryn.cc`'s comes from cert-manager, with a
+token held in Vault at `kv-dev/cert-manager/cloudflare`; `*.hl.mgryn.cc`'s
+comes from Traefik itself, with its own token in `secret.yaml`
+(`traefik_cloudflare_api_token`) — kept separate so either can be revoked
+without touching the other. Renewal is automatic, 30 days before expiry.
 
 DNS-01 rather than HTTP-01 because nothing here is reachable from the public
 internet, and DNS-01 proves domain control by writing a record rather than

@@ -1410,8 +1410,11 @@ Expected: `PARSE OK`; no pre-commit failures.
 - [ ] Cloudflare: create a token with Zone → DNS → Edit and Zone → Zone → Read on `mgryn.cc`.
 - [ ] Cloudflare: DNS-only record `*.hl.mgryn.cc` → `10.0.0.141`. `dig +short pihole.hl.mgryn.cc` → `10.0.0.141`.
 - [ ] `ansible-vault edit ansible/secret.yaml`: `traefik_cloudflare_api_token`, `traefik_dashboard_users` (`htpasswd -nbB admin '<password>'`).
-- [ ] Staging: `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit traefik -e traefik_cert_resolver=letsencrypt-staging`; `curl -vk https://pihole.hl.mgryn.cc/admin/ 2>&1 | grep -i 'issuer'` names a staging issuer.
-- [ ] Production: the same without `-e traefik_cert_resolver=...`; `curl -v https://pihole.hl.mgryn.cc/admin/ 2>&1 | grep -iE 'issuer|subject|SSL certificate verify'` shows Let's Encrypt, `*.hl.mgryn.cc`, `verify ok`.
+- [ ] Staging: `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit traefik -e traefik_cert_resolver=letsencrypt-staging`; then wait for issuance before curling —
+      `journalctl -u traefik -f` until a certificate is obtained (~1-2 min); an immediate curl only shows TRAEFIK DEFAULT CERT. Then `curl -vk https://pihole.hl.mgryn.cc/admin/ 2>&1 | grep -i 'issuer'` names a staging issuer.
+- [ ] Production: the same without `-e traefik_cert_resolver=...` (switching resolvers is just re-running with/without that flag — the role removes the *other* resolver's ACME storage file each run, so this is a clean re-issue, not a resurrection of a stale cert). Wait for issuance the same way, then `curl -v https://pihole.hl.mgryn.cc/admin/ 2>&1 | grep -iE 'issuer|subject|SSL certificate verify'` shows Let's Encrypt, `*.hl.mgryn.cc`, `verify ok`.
 - [ ] `https://proxmox.hl.mgryn.cc` opens the Proxmox login; `https://traefik.hl.mgryn.cc/dashboard/` asks for the password and shows the three routers.
+- [ ] Log in at `https://pihole.hl.mgryn.cc/admin/` and load the query log.
+- [ ] Keep a Proxmox noVNC console open via `https://proxmox.hl.mgryn.cc` for more than 2 minutes (the entrypoint's readTimeout is 0 — a default 60s would cut this off, and ISO uploads with it).
 - [ ] Second playbook run: `changed=0`.
 - [ ] PR 3 ready; the owner merges. Then: plan PRs 4-6 (Gatus, LAN Orangutan, Glance) against what is now live.
