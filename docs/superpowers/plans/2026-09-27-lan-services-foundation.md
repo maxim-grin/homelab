@@ -501,16 +501,16 @@ and ends with the lan_services playbook."
 
 ### Task 4: Operator — create the containers (owner, not an agent)
 
-- [ ] On `pve`: `pveam update && pveam available | grep debian-13`, then `pveam download local <file>`.
-- [ ] On `pve`: the `LXC` pool exists (`pveum pool list`), and `pveum acl modify /pool/LXC --roles TerraformProv --users terraform@pve` (or the token's user) has been run.
-- [ ] In `shared.tfvars` on the Mac: `debian_lxc_template` and `lxc_ips` as in `shared.tfvars.example`.
-- [ ] `terraform plan -var-file=shared.tfvars` in `environments/shared`: **5 to add, 0 to change, 0 to destroy.** Anything else is a stop.
-- [ ] `terraform apply -var-file=shared.tfvars`.
-- [ ] `terraform plan -var-file=shared.tfvars` again: **No changes.** An in-place update on the new containers (e.g. tags reordered by Proxmox) is drift to fix in code before merging, not noise to skim.
-- [ ] `ansible-vault edit ansible/secret.yaml`: add the `host_ips` and `proxmox_vm_ids` entries from the example, including `pve`.
-- [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass`: five hosts `ok`, `failed=0`.
-- [ ] `ssh -i ~/.ssh/homelab_dev root@10.0.0.140 cat /etc/resolv.conf` shows `nameserver 10.0.0.1` and `nameserver 1.1.1.1`.
-- [ ] Mark PR 1 ready (`gh pr ready 51`); the owner merges.
+- [x] On `pve`: `pveam update && pveam available | grep debian-13`, then `pveam download local <file>`.
+- [x] On `pve`: the `LXC` pool exists (`pveum pool list`), and `pveum acl modify /pool/LXC --roles TerraformProv --users terraform@pve` (or the token's user) has been run.
+- [x] In `shared.tfvars` on the Mac: `debian_lxc_template` and `lxc_ips` as in `shared.tfvars.example`.
+- [x] `terraform plan -var-file=shared.tfvars` in `environments/shared`: **5 to add, 0 to change, 0 to destroy.** Anything else is a stop.
+- [x] `terraform apply -var-file=shared.tfvars`.
+- [x] `terraform plan -var-file=shared.tfvars` again: **No changes.** An in-place update on the new containers (e.g. tags reordered by Proxmox) is drift to fix in code before merging, not noise to skim.
+- [x] `ansible-vault edit ansible/secret.yaml`: add the `host_ips` and `proxmox_vm_ids` entries from the example, including `pve`.
+- [x] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass`: five hosts `ok`, `failed=0`.
+- [x] `ssh -i ~/.ssh/homelab_dev root@10.0.0.140 cat /etc/resolv.conf` shows `nameserver 10.0.0.1` and `nameserver 1.1.1.1`.
+- [x] Mark PR 1 ready (`gh pr ready 51`); the owner merges.
 
 ---
 
@@ -533,7 +533,7 @@ and ends with the lan_services playbook."
 - Consumes: group `pihole` and the bootstrap play (Task 2); `pihole_admin_password` from `secret.yaml`.
 - Produces: Pi-hole answering DNS on `:53` for the LAN and its web UI on `:80` at `/admin/`, for PR 3's route. Settings `pihole_upstreams`, `pihole_listening_mode`, `pihole_rev_server`, `pihole_adlists`.
 
-- [ ] **Step 1: Stand up a systemd Debian 13 container and write the rehearsal inventory**
+- [x] **Step 1: Stand up a systemd Debian 13 container and write the rehearsal inventory**
 
 ```bash
 cat > $SCRATCH/lan-container.sh <<'EOF'
@@ -573,7 +573,7 @@ chmod +x $SCRATCH/run-pihole.sh
 
 Expected: `lan-pihole: running` (or `degraded`).
 
-- [ ] **Step 2: Write the checks, and see them fail**
+- [x] **Step 2: Write the checks, and see them fail**
 
 ```bash
 cat > $SCRATCH/check-pihole.sh <<'EOF'
@@ -602,7 +602,7 @@ $SCRATCH/check-pihole.sh; echo "exit=$?"
 
 Expected: `FAIL` lines and `exit=1` — nothing is installed.
 
-- [ ] **Step 3: Role metadata and defaults**
+- [x] **Step 3: Role metadata and defaults**
 
 `ansible/roles/pihole/meta/main.yaml`:
 
@@ -650,7 +650,7 @@ pihole_adlists:
 pihole_password_marker: /etc/pihole/.ansible-admin-password.sha256
 ```
 
-- [ ] **Step 4: Seed templates**
+- [x] **Step 4: Seed templates**
 
 `ansible/roles/pihole/templates/pihole.toml.j2` — read by the installer, which runs unattended only when this file exists; FTL rewrites it in full on first start, after which `tasks/ftl_setting.yaml` owns these keys:
 
@@ -672,7 +672,7 @@ pihole_password_marker: /etc/pihole/.ansible-admin-password.sha256
 {% endfor %}
 ```
 
-- [ ] **Step 5: One FTL setting, idempotently**
+- [x] **Step 5: One FTL setting, idempotently**
 
 `ansible/roles/pihole/tasks/ftl_setting.yaml` — reads the value, sets it, reads it again; `changed` only when the two reads differ, so the comparison never depends on how FTL formats a value:
 
@@ -695,7 +695,7 @@ pihole_password_marker: /etc/pihole/.ansible-admin-password.sha256
   changed_when: pihole_setting_after.stdout != pihole_setting_before.stdout
 ```
 
-- [ ] **Step 6: Main tasks and handler**
+- [x] **Step 6: Main tasks and handler**
 
 `ansible/roles/pihole/tasks/main.yaml`:
 
@@ -804,7 +804,7 @@ pihole_password_marker: /etc/pihole/.ansible-admin-password.sha256
   changed_when: true
 ```
 
-- [ ] **Step 7: Add the play and the example secret**
+- [x] **Step 7: Add the play and the example secret**
 
 Append to `ansible/playbooks/lan_services.yaml`:
 
@@ -825,7 +825,7 @@ Append to `ansible/secret.yaml.example`:
 pihole_admin_password: "<24 random chars>"
 ```
 
-- [ ] **Step 8: Rehearse — first run, checks, idempotence**
+- [x] **Step 8: Rehearse — first run, checks, idempotence**
 
 ```bash
 $SCRATCH/run-pihole.sh | grep -E 'changed=|failed=|FAILED|fatal'
@@ -835,7 +835,7 @@ $SCRATCH/run-pihole.sh | grep -E 'changed=|failed='
 
 Expected: first run `failed=0`; checks all `ok`, `exit=0`; second run `changed=0 ... failed=0`. If a check fails, fix the role, not the check, unless the check is shown wrong against Pi-hole's own documentation — say so in the report.
 
-- [ ] **Step 9: Rehearse — password rotation, and a login with it**
+- [x] **Step 9: Rehearse — password rotation, and a login with it**
 
 ```bash
 printf 'pihole_admin_password: "second-password-456"\n' > $SCRATCH/pihole-secrets.yaml
@@ -846,7 +846,7 @@ docker exec lan-pihole curl -s -X POST http://127.0.0.1/api/auth -d '{"password"
 
 Expected: the task shows `changed`; the new password `"valid":true`; the old `"valid":false`.
 
-- [ ] **Step 10: Rehearse — a fresh container reaches the same state**
+- [x] **Step 10: Rehearse — a fresh container reaches the same state**
 
 ```bash
 $SCRATCH/lan-container.sh lan-pihole
@@ -857,7 +857,7 @@ docker rm -f lan-pihole
 
 Expected: `failed=0`, `exit=0`.
 
-- [ ] **Step 11: Lint and commit**
+- [x] **Step 11: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/pihole playbooks/lan_services.yaml
@@ -875,11 +875,11 @@ secret.yaml takes effect on the next run."
 - Modify: `README.md` (table row, diagram)
 - Modify: `docs/rebuild.md` (step 15)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 In the table row added in Task 3, change "empty until their roles land" to "Pi-hole (DNS, ad blocking) at `.140`; the rest empty until their roles land". In the diagram, change `pihole["Pi-hole .140<br/>DNS + ad blocking"]:::planned` to `pihole["Pi-hole .140<br/>DNS + ad blocking"]`. Leave the `lan -. "DNS" .-> pihole` edge dashed: clients use it only after the cutover in PR 6.
 
-- [ ] **Step 2: rebuild.md step 15**
+- [x] **Step 2: rebuild.md step 15**
 
 Append to step 15:
 
@@ -891,7 +891,7 @@ Append to step 15:
     "select domain from gravity limit 1"`) returns `0.0.0.0`.
 ```
 
-- [ ] **Step 3: Validate the diagram and commit**
+- [x] **Step 3: Validate the diagram and commit**
 
 ```bash
 cd $SCRATCH/mp 2>/dev/null || { mkdir -p $SCRATCH/mp && cd $SCRATCH/mp && npm init -y >/dev/null && npm i -s mermaid jsdom >/dev/null 2>&1; }
@@ -916,7 +916,8 @@ Expected: `PARSE OK`; no pre-commit failures.
 ### Task 7: Operator — Pi-hole (owner, not an agent)
 
 - [ ] `ansible-vault edit ansible/secret.yaml`: add `pihole_admin_password`.
-- [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit pihole`: `failed=0`; a second run `changed=0`.
+- [ ] Before running the playbook: `ssh -i ~/.ssh/homelab_dev root@10.0.0.140 'ss -lntup | grep -E ":(53|80)\b"'` prints nothing — nothing is already bound to the ports Pi-hole needs.
+- [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit pihole`: `failed=0`; a second run `changed=0`. FTL logging "Insufficient permissions to set system time (CAP_SYS_TIME)" is expected in an unprivileged LXC, not a failure.
 - [ ] From the Mac: `dig @10.0.0.140 example.com +short` answers; the blocklist domain from rebuild.md step 15 returns `0.0.0.0`.
 - [ ] `http://10.0.0.140/admin/` logs in with the password from `secret.yaml`.
 - [ ] Do **not** change the router's DNS yet — that is PR 6.
