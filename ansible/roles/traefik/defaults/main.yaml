@@ -1,0 +1,24 @@
+---
+traefik_version: "3.7.13"
+traefik_release_url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}"
+traefik_archive: "traefik_v{{ traefik_version }}_linux_amd64.tar.gz"
+
+traefik_domain: hl.mgryn.cc
+
+# letsencrypt-staging while debugging an issuance: production allows five
+# failed validations per hostname per hour. Switch with
+#   -e traefik_cert_resolver=letsencrypt-staging
+traefik_cert_resolver: letsencrypt
+
+# Every name Traefik serves apart from its own dashboard. Each later role's
+# PR appends its entry. insecure: skip verifying the backend's certificate,
+# for Proxmox's self-signed one.
+traefik_routes:
+  - name: pihole
+    host: "pihole.{{ traefik_domain }}"
+    url: "http://{{ host_ips['pihole'] }}:80"
+    insecure: false
+  - name: proxmox
+    host: "proxmox.{{ traefik_domain }}"
+    url: "https://{{ host_ips['pve'] }}:8006"
+    insecure: true

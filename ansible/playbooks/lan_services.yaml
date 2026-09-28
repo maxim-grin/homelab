@@ -25,3 +25,8 @@
   force_handlers: true
   roles:
     - pihole
+
+- name: Traefik
+  hosts: traefik
+  roles:
+    - traefik

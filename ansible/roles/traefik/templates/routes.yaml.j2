@@ -1,0 +1,37 @@
+# Managed by Ansible (roles/traefik). Reloaded by Traefik on change.
+http:
+  routers:
+    dashboard:
+      rule: "Host(`traefik.{{ traefik_domain }}`)"
+      entryPoints: [websecure]
+      service: api@internal
+      middlewares: [dashboard-auth]
+{% for r in traefik_routes %}
+    {{ r.name }}:
+      rule: "Host(`{{ r.host }}`)"
+      entryPoints: [websecure]
+      service: {{ r.name }}
+{% endfor %}
+
+  services:
+{% for r in traefik_routes %}
+    {{ r.name }}:
+      loadBalancer:
+{% if r.insecure %}
+        serversTransport: insecure
+{% endif %}
+        servers:
+          - url: "{{ r.url }}"
+{% endfor %}
+
+  middlewares:
+    dashboard-auth:
+      basicAuth:
+        users:
+{% for u in traefik_dashboard_users %}
+          - "{{ u }}"
+{% endfor %}
+
+  serversTransports:
+    insecure:
+      insecureSkipVerify: true
