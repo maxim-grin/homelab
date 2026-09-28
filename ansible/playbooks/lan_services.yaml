@@ -28,5 +28,9 @@
 
 - name: Traefik
   hosts: traefik
+  # A later task failing on a run that already rewrote traefik.yaml, its
+  # env file or its systemd unit must not leave the old process running
+  # against new files on disk -- the restart handler has to fire regardless.
+  force_handlers: true
   roles:
     - traefik

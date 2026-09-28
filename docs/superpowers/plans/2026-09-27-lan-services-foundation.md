@@ -976,7 +976,9 @@ cat > $SCRATCH/check-traefik.sh <<'EOF'
 #!/bin/sh
 C=lan-traefik; fail=0
 code() { docker exec $C curl -sk -o /dev/null -w '%{http_code}' --resolve "$1:$2:127.0.0.1" "$3" $4; }
-[ "$(code pihole.hl.mgryn.cc 80 http://pihole.hl.mgryn.cc/)" = "308" ] && echo "ok http redirects" || { echo "FAIL redirect"; fail=1; }
+# Traefik's entrypoint redirection defaults permanent: true, which answers
+# 301 for GET/HEAD (308 only applies to other methods) -- curl sends GET.
+[ "$(code pihole.hl.mgryn.cc 80 http://pihole.hl.mgryn.cc/)" = "301" ] && echo "ok http redirects" || { echo "FAIL redirect"; fail=1; }
 [ "$(code traefik.hl.mgryn.cc 443 https://traefik.hl.mgryn.cc/dashboard/)" = "401" ] && echo "ok dashboard needs auth" || { echo "FAIL dashboard auth"; fail=1; }
 [ "$(code traefik.hl.mgryn.cc 443 https://traefik.hl.mgryn.cc/dashboard/ '-u admin:rehearsal-pass')" = "200" ] && echo "ok dashboard login" || { echo "FAIL dashboard login"; fail=1; }
 c=$(code proxmox.hl.mgryn.cc 443 https://proxmox.hl.mgryn.cc/)
@@ -993,7 +995,7 @@ $SCRATCH/check-traefik.sh; echo "exit=$?"
 
 Expected: `FAIL` lines, `exit=1`.
 
-The Pi-hole backend in the rehearsal is `127.0.0.1:80`, where nothing listens, so `pihole.hl` itself would also 502 — the redirect check uses plain HTTP, which Traefik answers before routing.
+The Pi-hole backend in the rehearsal is `127.0.0.1:80`, which is Traefik's own web entrypoint rather than nothing listening — the redirect check uses plain HTTP, which Traefik answers before routing. A real 200 through the `pihole` route needs a second container as its backend.
 
 - [ ] **Step 2: Metadata and defaults**
 

@@ -7,9 +7,10 @@
       - traefik_dashboard_users is defined
       - traefik_dashboard_users | length > 0
       - host_ips['pve'] is defined
+      - host_ips['pihole'] is defined
     fail_msg: >-
-      traefik_cloudflare_api_token, traefik_dashboard_users and host_ips['pve']
-      must be set in ansible/secret.yaml.
+      traefik_cloudflare_api_token, traefik_dashboard_users, host_ips['pve']
+      and host_ips['pihole'] must be set in ansible/secret.yaml.
     quiet: true
 
 - name: Create the traefik system user
