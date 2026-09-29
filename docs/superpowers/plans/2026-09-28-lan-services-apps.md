@@ -32,10 +32,10 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 - Every role: version pinned in `defaults/main.yaml`, SHA-256 verified before install, dedicated system user, systemd unit with `Restart=on-failure`, `force_handlers: true` on its play. Secrets live only in a root `0600` `EnvironmentFile` read by systemd — or, where the service itself must open the file (LAN Orangutan's password file), `0400` owned by the service user — never group- or world-readable, with `no_log` on the task that writes it.
 - Gatus and Glance trust the homelab CA (`~/.homelab-ca/ca.crt` on the controller) to reach `https://vault.mgryn.cc:8200`.
 - Secrets are top-level variables in `ansible/secret.yaml` with a placeholder in `ansible/secret.yaml.example`: `gatus_telegram_token`, `gatus_telegram_chat_id` (PR 4); `orangutan_password` (PR 5); `pihole_app_password`, `pihole_app_pwhash`, `glance_proxmox_token_id`, `glance_proxmox_token_secret` (PR 6).
-- Memory: Gatus and Glance 128M, LAN Orangutan 256M, no swap (Terraform, PR 1). Each role is rehearsed once under that cap.
+- Memory: every LAN service LXC has 256M, no swap (Gatus and Glance raised from 128M in PR 4). Each role is rehearsed once under that cap.
 - Documentation lands with the change that makes it true: each PR updates `README.md`'s table row, diagram (dashed `:::planned` → solid) and planned sentence, and `docs/rebuild.md` step 15.
 - Never run a playbook against a real host, never `terraform plan`/`apply`, never read or decrypt `ansible/secret.yaml`. Rehearsals run only against local Docker containers.
-- Tools: `ansible-lint`, `pre-commit` on PATH; `ansible-playbook` at `B=/home/ubuntu/.local/share/uv/tools/ansible-lint/bin` (pipe through `| cat`). `SCRATCH=/tmp/claude-1000/-home-ubuntu-homelab/1c3ea487-3b2b-4aa8-aeab-f14553ab3f8e/scratchpad` — if the executing session has another scratchpad, use that one and recreate what it lacks. `$SCRATCH/collections` holds `community.docker`; `$SCRATCH/lan-container.sh <name>` starts a systemd Debian 13 container; `$SCRATCH/mp/p.mjs` parses the README's Mermaid. From the foundation plan's Task 5, `$SCRATCH` also holds the Pi-hole rehearsal: `run-pihole.sh`, `check-pihole.sh`, `rehearse-pihole.ini`, `pihole-secrets.yaml`. Scripts one task writes (`lan-container-128.sh`, `run-gatus.sh`, `rehearsal-ca.crt`, `pihole-app.yaml`, …) are reused by later tasks; if a later task finds one missing, recreate it from the step that wrote it — the foundation plan's Task 5 and 6 for the Pi-hole ones.
+- Tools: `ansible-lint`, `pre-commit` on PATH; `ansible-playbook` at `B=/home/ubuntu/.local/share/uv/tools/ansible-lint/bin` (pipe through `| cat`). `SCRATCH=/tmp/claude-1000/-home-ubuntu-homelab/1c3ea487-3b2b-4aa8-aeab-f14553ab3f8e/scratchpad` — if the executing session has another scratchpad, use that one and recreate what it lacks. `$SCRATCH/collections` holds `community.docker`; `$SCRATCH/lan-container.sh <name>` starts a systemd Debian 13 container; `$SCRATCH/mp/p.mjs` parses the README's Mermaid. From the foundation plan's Task 5, `$SCRATCH` also holds the Pi-hole rehearsal: `run-pihole.sh`, `check-pihole.sh`, `rehearse-pihole.ini`, `pihole-secrets.yaml`. Scripts one task writes (`lan-container-256.sh`, `run-gatus.sh`, `rehearsal-ca.crt`, `pihole-app.yaml`, …) are reused by later tasks; if a later task finds one missing, recreate it from the step that wrote it — the foundation plan's Task 5 and 6 for the Pi-hole ones.
 - Rehearsal inventories set `ansible_user=root` under `[lan_services:vars]` (`ansible/ansible.cfg` sets `remote_user = ubuntu`). Rehearsals needing a Traefik certificate use `-e traefik_cert_resolver=letsencrypt-staging`.
 - Read narrowly: `grep -n`, `sed -n`, `head`/`tail`.
 
@@ -72,10 +72,20 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 
 ```bash
 export SCRATCH B=/home/ubuntu/.local/share/uv/tools/ansible-lint/bin
-# A 128M container, the size of the real LXC.
-sed 's/--privileged/--memory 128m --memory-swap 128m --privileged/' $SCRATCH/lan-container.sh > $SCRATCH/lan-container-128.sh
-chmod +x $SCRATCH/lan-container-128.sh
-$SCRATCH/lan-container-128.sh lan-gatus
+# A 256M container, the size of the real LXC. Bootstrapping systemd and
+# dbus from a bare debian:trixie image needs more headroom than 256M gives
+# it at container-creation time (OOM during that install is reproducible
+# below that), so this boots unconstrained and only clamps memory once
+# systemd is up -- the real LXC never pays that cost, since it clones a
+# template with systemd already built in.
+cat > $SCRATCH/lan-container-256.sh <<'FIXEOF'
+#!/bin/sh
+# usage: lan-container-256.sh <name> -- a 256M Debian 13 systemd container
+"$(dirname "$0")/lan-container.sh" "$1" || exit 1
+docker update --memory 256m --memory-swap 256m "$1" >/dev/null
+FIXEOF
+chmod +x $SCRATCH/lan-container-256.sh
+$SCRATCH/lan-container-256.sh lan-gatus
 
 # A throwaway CA standing in for ~/.homelab-ca/ca.crt.
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=rehearsal-ca" \
@@ -85,7 +95,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=rehearsal-ca" \
 # records every sendMessage body.
 docker exec lan-gatus sh -c 'apt-get install -y -qq python3 curl >/dev/null'
 docker exec lan-gatus sh -c 'mkdir -p /srv/backend && echo ok > /srv/backend/index.html'
-docker exec lan-gatus sh -c 'cat > /usr/local/bin/tg-stub.py' <<'EOF'
+docker exec -i lan-gatus sh -c 'cat > /usr/local/bin/tg-stub.py' <<'EOF'
 import http.server, json
 class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
@@ -526,7 +536,7 @@ $SCRATCH/run-gatus.sh | grep -E 'changed=|failed='
 docker stats --no-stream --format '{{.MemUsage}}' lan-gatus
 ```
 
-Expected: first run `failed=0`; checks all `ok`, `exit=0`; second run `changed=0 ... failed=0`; memory well under 128MiB. If `loopback-icmp` fails, read `journalctl -u gatus` and `sysctl net.ipv4.ping_group_range` in the container before changing anything: Gatus pings unprivileged as a non-root user, which needs the group range to include `gatus`'s gid — fix the role (a `sysctl` drop-in), not the check.
+Expected: first run `failed=0`; checks all `ok`, `exit=0`; second run `changed=0 ... failed=0`; memory well under 256MiB. If `loopback-icmp` fails, read `journalctl -u gatus` and `sysctl net.ipv4.ping_group_range` in the container before changing anything: Gatus pings unprivileged as a non-root user, which needs the group range to include `gatus`'s gid — fix the role (a `sysctl` drop-in), not the check.
 
 - [ ] **Step 7: Rehearse — an outage alerts once, a recovery resolves once, and a dead Telegram changes nothing**
 
@@ -1246,15 +1256,15 @@ and its hash are created once through its API and both kept."
 
 ```bash
 # Gatus, for its statuses API: re-use Task 1's rehearsal (it only needs to answer).
-$SCRATCH/lan-container-128.sh lan-gatus
+$SCRATCH/lan-container-256.sh lan-gatus
 docker exec lan-gatus sh -c 'apt-get install -y -qq python3 curl >/dev/null'
 docker exec -d lan-gatus sh -c 'mkdir -p /srv/backend && cd /srv/backend && echo ok > index.html && python3 -m http.server 9001 --bind 127.0.0.1'
 $SCRATCH/run-gatus.sh | grep -E 'changed=|failed='
-$SCRATCH/lan-container-128.sh lan-glance
+$SCRATCH/lan-container-256.sh lan-glance
 docker exec lan-glance sh -c 'apt-get install -y -qq python3 curl >/dev/null'
 # A Proxmox stub answering /api2/json/cluster/resources, and recording the
 # Authorization header it receives.
-docker exec lan-glance sh -c 'cat > /usr/local/bin/pve-stub.py' <<'EOF'
+docker exec -i lan-glance sh -c 'cat > /usr/local/bin/pve-stub.py' <<'EOF'
 import http.server, json
 DATA = {"data": [
   {"vmid": 101, "name": "rehearsal-vm", "type": "qemu", "status": "running", "mem": 1073741824, "maxmem": 4294967296},
@@ -1654,7 +1664,7 @@ docker exec lan-glance tail -1 /tmp/pve-auth.log | cut -c1-32
 docker stats --no-stream --format '{{.MemUsage}}' lan-glance
 ```
 
-Expected: first run `failed=0`; checks all `ok`, `exit=0` — the dns-stats line proves the application password logs in to a real Pi-hole v6; second run `changed=0`; the stub saw `PVEAPIToken=glance@pve!glance=` (the header reached Proxmox's shape); memory well under 128MiB.
+Expected: first run `failed=0`; checks all `ok`, `exit=0` — the dns-stats line proves the application password logs in to a real Pi-hole v6; second run `changed=0`; the stub saw `PVEAPIToken=glance@pve!glance=` (the header reached Proxmox's shape); memory well under 256MiB.
 
 - [ ] **Step 7: Rehearse — one backend down leaves the page up**
 

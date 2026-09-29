@@ -6,6 +6,9 @@ web:
 storage:
   type: sqlite
   path: /var/lib/gatus/data.db
+# The bot token is part of the Telegram API URL path; a failed send logs
+# that URL, so a failure lands the token in journalctl -u gatus (root and
+# adm read it, no one else).
 alerting:
   telegram:
     token: "${GATUS_TELEGRAM_TOKEN}"

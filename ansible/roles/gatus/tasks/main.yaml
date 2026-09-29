@@ -34,22 +34,12 @@
     - { path: /var/lib/gatus, owner: gatus, mode: "0700" }
     - { path: "/opt/gatus/{{ gatus_version }}", owner: root, mode: "0755" }
 
-# ansible.builtin.apt loads python-apt's Cache(), which peaked at ~190MB
-# in testing regardless of update_cache -- more than this LXC's 128M, no
-# swap. Plain apt-get does the same work at ~120MB, so this shells out
-# instead of using the apt module.
-- name: Check whether ca-certificates is installed
-  ansible.builtin.command: dpkg-query -W -f=${Status} ca-certificates
-  register: gatus_ca_certificates
-  changed_when: false
-  failed_when: false
-
-- name: Install ca-certificates  # noqa: command-instead-of-module
-  ansible.builtin.command: apt-get install -y -qq ca-certificates
-  environment:
-    DEBIAN_FRONTEND: noninteractive
-  when: "'install ok installed' not in gatus_ca_certificates.stdout"
-  changed_when: true
+- name: Install ca-certificates
+  ansible.builtin.apt:
+    name: ca-certificates
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
 
 # vault.mgryn.cc is signed by the homelab's private CA.
 - name: Trust the homelab CA
@@ -80,6 +70,9 @@
       register: gatus_registry_token
       no_log: true
 
+    # ghcr.io redirects blob downloads to a CDN host; get_url follows the
+    # redirect and forwards the Authorization header there too -- fine
+    # here, since it is only an anonymous pull token for a public image.
     - name: Download the layer, checked against its digest
       ansible.builtin.get_url:
         url: "https://ghcr.io/v2/{{ gatus_image }}/blobs/{{ gatus_layer_digest }}"
