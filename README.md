@@ -1,3 +1,5 @@
+[![ci](https://github.com/maxim-grin/homelab/actions/workflows/ci.yaml/badge.svg)](https://github.com/maxim-grin/homelab/actions/workflows/ci.yaml)
+
 # homelab
 
 Bare-metal Proxmox homelab: VMs provisioned with Terraform, configured with
@@ -12,20 +14,20 @@ _not_ contain, which is the part that will bite.
 
 ## What actually runs
 
-| Layer      | What                                                           | Where it is defined                                       |
-| ---------- | -------------------------------------------------------------- | --------------------------------------------------------- |
-| Hypervisor | Proxmox VE, node `pve`                                         | not in git — see `docs/rebuild.md`                        |
-| VMs        | k8s master + 2 workers, `claude-code` workstation              | `terraform/environments/dev`                                |
-| VM         | `nfs-01`, serving both dev and prod                            | `terraform/environments/shared`                              |
-| VM         | `vault-02`, the Vault VM                                        | `terraform/environments/shared`                              |
-| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`; the rest empty until their roles land | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik` |
-| OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
-| GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`              | `ansible/roles/argocd`, `argocd/environments/dev`         |
-| Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
-| TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
-| Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
-| Apps       | monitoring (Prometheus + Grafana), jobboard                    | `argocd/apps/`                                            |
-| Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/shared` |
+| Layer      | What                                                                                                                      | Where it is defined                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Hypervisor | Proxmox VE, node `pve`                                                                                                    | not in git — see `docs/rebuild.md`                                               |
+| VMs        | k8s master + 2 workers, `claude-code` workstation                                                                         | `terraform/environments/dev`                                                     |
+| VM         | `nfs-01`, serving both dev and prod                                                                                       | `terraform/environments/shared`                                                  |
+| VM         | `vault-02`, the Vault VM                                                                                                  | `terraform/environments/shared`                                                  |
+| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`; the rest empty until their roles land       | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik` |
+| OS config  | kubeadm cluster, containerd, NFS server and client                                                                        | `ansible/`                                                                       |
+| GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`                                                                        | `ansible/roles/argocd`, `argocd/environments/dev`                                |
+| Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                             | `argocd/apps/ingress-nginx`                                                      |
+| TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare                                                            | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers`                   |
+| Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass                                                            | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner`                        |
+| Apps       | monitoring (Prometheus + Grafana), jobboard                                                                               | `argocd/apps/`                                                                   |
+| Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/shared`                           |
 
 Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
 a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the
@@ -119,7 +121,6 @@ flowchart TB
 
     classDef planned stroke-dasharray: 5 5,opacity:0.8
 ```
-
 
 `jobs.mgryn.cc` and `*.hl.mgryn.cc` are the two names in public DNS: both
 are DNS-only (grey cloud) Cloudflare records holding a node IP, so any
@@ -215,12 +216,12 @@ GitHub Actions (`.github/workflows/ci.yaml`) runs on every pull request and
 every push to `main`. Nothing in it touches the cluster, Proxmox or any
 secret; it only reads. Four jobs, in parallel:
 
-| Job | What it runs |
-| --- | --- |
-| `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes) |
-| `commits` | the conventional-commit hook over every non-merge commit in the PR (PRs only) |
-| `terraform` | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev` |
-| `manifests` | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
+| Job          | What it runs                                                                                                                                                                                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes)                                                                                                                       |
+| `commits`    | the conventional-commit hook over every non-merge commit in the PR (PRs only)                                                                                                                                                                                  |
+| `terraform`  | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev`                                                                                                                                                                       |
+| `manifests`  | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
 `kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`
@@ -230,7 +231,7 @@ placeholders are checked as plain strings; nothing resolves them against Vault.
 required. That is a repository setting, not a file in git. Suggested rules
 for `main`: pull request required with 0 approvals (you cannot approve your
 own PR), the four checks required, "up to date" not required, force-push and
-deletion blocked, no bypass. Enable it *after* `main` is green, or it blocks
+deletion blocked, no bypass. Enable it _after_ `main` is green, or it blocks
 the PR that fixes it. A check name only appears in the picker once it has run
 once. From the UI: Settings → Rules → Rulesets → New branch ruleset. Or, as a
 repo admin:
