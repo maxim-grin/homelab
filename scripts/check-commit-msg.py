@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check a commit message against CLAUDE.md's rules.
+"""Check a commit message against custom rules.
 
 Runs as a commit-msg hook (pre-commit passes the message file) and in CI's
 `commits` job, one message at a time. Conventional Commits' type and format
