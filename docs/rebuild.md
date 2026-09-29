@@ -586,17 +586,20 @@ from `secret.yaml`.
     issued, `curl -v https://pihole.hl.mgryn.cc/admin/` from the
     workstation shows a Let's Encrypt certificate for `*.hl.mgryn.cc`.
 
-    **Gatus** needs `gatus_telegram_token` and `gatus_telegram_chat_id`
-    in `secret.yaml` (the comments in `secret.yaml.example` say where
-    each comes from) and `~/.homelab-ca/ca.crt` on the workstation, which
+    **Gatus** needs `gatus_telegram_token`, `gatus_telegram_chat_id`,
+    `gatus_basic_user`, `gatus_basic_password` and
+    `gatus_basic_password_bcrypt` in `secret.yaml` (the comments in
+    `secret.yaml.example` say where each comes from, including the
+    `htpasswd -nbB <user> '<password>' | cut -d: -f2` command for the
+    hash) and `~/.homelab-ca/ca.crt` on the workstation, which
     `playbooks/vault.yaml` created. Re-run the Traefik play too, for the
-    `status.hl.mgryn.cc` route. Check: `https://status.hl.mgryn.cc` shows
-    every endpoint green, and `pct stop 140` on the host sends a Telegram
-    alert within about two minutes (two check intervals), `pct start 140`
-    a recovery. An outage sends one message per failing endpoint, not one
-    per host: stopping Pi-hole sends two (Pi-hole DNS and
-    `pihole.hl.mgryn.cc`), a Traefik outage one per `*.hl` name — each
-    followed by its own recovery.
+    `status.hl.mgryn.cc` route. Check: `https://status.hl.mgryn.cc` asks
+    for the Gatus login, and after it shows every endpoint green, and
+    `pct stop 140` on the host sends a Telegram alert within about two
+    minutes (two check intervals), `pct start 140` a recovery. An outage
+    sends one message per failing endpoint, not one per host: stopping
+    Pi-hole sends two (Pi-hole DNS and `pihole.hl.mgryn.cc`), a Traefik
+    outage one per `*.hl` name — each followed by its own recovery.
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.

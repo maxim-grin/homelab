@@ -68,6 +68,10 @@ gatus_endpoints:
     group: lan
     url: https://traefik.hl.mgryn.cc/dashboard/
     conditions: ["[STATUS] == 401", "[CERTIFICATE_EXPIRATION] > 336h"]
+  # Unlike traefik.hl, security.basic here protects only the API
+  # (/api/v1/...): the root path still serves Gatus's own login-form
+  # shell at 200, even unauthenticated. Confirmed on v5.37.0: this
+  # endpoint's expected status stays <400, not 401.
   - name: status.hl.mgryn.cc
     group: lan
     url: https://status.hl.mgryn.cc/

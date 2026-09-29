@@ -31,7 +31,7 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 - LXC resolvers stay `10.0.0.1 1.1.1.1`, never Pi-hole — Gatus must keep resolving when Pi-hole is the thing that is down.
 - Every role: version pinned in `defaults/main.yaml`, SHA-256 verified before install, dedicated system user, systemd unit with `Restart=on-failure`, `force_handlers: true` on its play. Secrets live only in a root `0600` `EnvironmentFile` read by systemd — or, where the service itself must open the file (LAN Orangutan's password file), `0400` owned by the service user — never group- or world-readable, with `no_log` on the task that writes it.
 - Gatus and Glance trust the homelab CA (`~/.homelab-ca/ca.crt` on the controller) to reach `https://vault.mgryn.cc:8200`.
-- Secrets are top-level variables in `ansible/secret.yaml` with a placeholder in `ansible/secret.yaml.example`: `gatus_telegram_token`, `gatus_telegram_chat_id` (PR 4); `orangutan_password` (PR 5); `pihole_app_password`, `pihole_app_pwhash`, `glance_proxmox_token_id`, `glance_proxmox_token_secret` (PR 6).
+- Secrets are top-level variables in `ansible/secret.yaml` with a placeholder in `ansible/secret.yaml.example`: `gatus_telegram_token`, `gatus_telegram_chat_id`, `gatus_basic_user`, `gatus_basic_password`, `gatus_basic_password_bcrypt` (PR 4); `orangutan_password` (PR 5); `pihole_app_password`, `pihole_app_pwhash`, `glance_proxmox_token_id`, `glance_proxmox_token_secret` (PR 6).
 - Memory: every LAN service LXC has 256M, no swap (Gatus and Glance raised from 128M in PR 4). Each role is rehearsed once under that cap.
 - Documentation lands with the change that makes it true: each PR updates `README.md`'s table row, diagram (dashed `:::planned` → solid) and planned sentence, and `docs/rebuild.md` step 15.
 - Never run a playbook against a real host, never `terraform plan`/`apply`, never read or decrypt `ansible/secret.yaml`. Rehearsals run only against local Docker containers.
@@ -711,10 +711,10 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 
 - [ ] `terraform plan -var-file=shared.tfvars` in `terraform/environments/shared`: **0 to add, 2 to change, 0 to destroy** — memory 128 → 256 on `module.lan_service["gatus"]` and `["glance"]`, nothing else. Any `-/+` (replace) or change outside `memory` is a stop. Then `terraform apply -var-file=shared.tfvars`. The containers keep running; Proxmox raises an LXC's memory live.
 - [ ] Telegram: create a bot with @BotFather (`/newbot`), send it a message, read the chat id from `https://api.telegram.org/bot<token>/getUpdates`.
-- [ ] On the `lan-gatus` checkout: `ansible-vault edit ansible/secret.yaml` — add `gatus_telegram_token` and `gatus_telegram_chat_id`; commit (`ops: add gatus secrets`) and push to the branch.
+- [ ] On the `lan-gatus` checkout: `ansible-vault edit ansible/secret.yaml` — add `gatus_telegram_token`, `gatus_telegram_chat_id`, `gatus_basic_user`, `gatus_basic_password` and `gatus_basic_password_bcrypt` (`htpasswd -nbB <user> '<password>' | cut -d: -f2` makes the hash); commit (`ops: add gatus secrets`) and push to the branch.
 - [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit traefik,gatus`: `failed=0`; a second run `changed=0`.
 - [ ] On the host: `pct exec 143 -- cat /sys/fs/cgroup/memory.peak` (record it in the PR; well under 256M) and `pct exec 143 -- cat /proc/sys/net/ipv4/ping_group_range` shows `0 65535`.
-- [ ] `https://status.hl.mgryn.cc` loads with a valid certificate and every endpoint green within about two minutes (two check intervals).
+- [ ] `https://status.hl.mgryn.cc` asks for the Gatus login; after it, a valid certificate and every endpoint green within about two minutes (two check intervals).
 - [ ] `pct stop 140` on the host: a Telegram alert for "Pi-hole DNS" (and `pihole.hl.mgryn.cc`) within about two minutes (two check intervals). `pct start 140`: a recovery message.
 - [ ] **LAN Orangutan's raw-socket check, before PR 5 is written** (the spec requires it). On the host: `pct exec 144 -- sh -c 'apt-get update -qq && apt-get install -y -qq nmap >/dev/null && nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"'` prints a number close to the device count, and, as a normal user with capabilities: `pct exec 144 -- setpriv --reuid=nobody --regid=nogroup --clear-groups --inh-caps=+net_raw,+net_admin --ambient-caps=+net_raw,+net_admin env NMAP_PRIVILEGED=1 nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"` prints a similar number. Record both numbers in the PR. If either is `0`, stop: PR 5 needs `orangutan` privileged, which is a Terraform change and a new plan decision.
 - [ ] `gh pr ready <N>`; the owner merges.
@@ -1316,6 +1316,9 @@ glance_proxmox_url: "http://127.0.0.1:18006"
 glance_proxmox_token_id: "glance@pve!glance"
 glance_proxmox_token_secret: "00000000-rehearsal"
 glance_ca_cert_src: "$SCRATCH/rehearsal-ca.crt"
+# Matching the Gatus rehearsal's own basic-auth values (Task 1).
+gatus_basic_user: "rehearsal"
+gatus_basic_password: "rehearsal-pass-123"
 EOF
 } > $SCRATCH/glance-vars.yaml
 cat > $SCRATCH/run-glance.sh <<'EOF'
@@ -1473,6 +1476,9 @@ pages:
             cache: 1m
             # pageSize=1: each endpoint's results carry only its latest check.
             url: {{ glance_gatus_url }}/api/v1/endpoints/statuses?page=1&pageSize=1
+            basic-auth:
+              username: ${GLANCE_GATUS_USER}
+              password: ${GLANCE_GATUS_PASSWORD}
             template: |
 {% raw %}
               <ul class="list list-gap-8">
@@ -1492,6 +1498,8 @@ pages:
 # Managed by Ansible. Read by systemd as root; mode 0600.
 GLANCE_PIHOLE_PASSWORD={{ pihole_app_password }}
 GLANCE_PROXMOX_TOKEN={{ glance_proxmox_token_id }}={{ glance_proxmox_token_secret }}
+GLANCE_GATUS_USER={{ gatus_basic_user }}
+GLANCE_GATUS_PASSWORD={{ gatus_basic_password }}
 ```
 
 `ansible/roles/glance/templates/glance.service.j2`:
@@ -1532,13 +1540,18 @@ WantedBy=multi-user.target
       - "'!' in glance_proxmox_token_id"
       - glance_proxmox_token_secret is defined
       - glance_proxmox_token_secret | length > 0
+      - gatus_basic_user is defined
+      - gatus_basic_user | length > 0
+      - gatus_basic_password is defined
+      - gatus_basic_password | length > 0
       - host_ips['pve'] is defined
       - host_ips['pihole'] is defined
       - host_ips['gatus'] is defined
     fail_msg: >-
       pihole_app_password, glance_proxmox_token_id (user@realm!name),
-      glance_proxmox_token_secret and host_ips for pve, pihole and gatus
-      must be set in ansible/secret.yaml.
+      glance_proxmox_token_secret, gatus_basic_user, gatus_basic_password
+      and host_ips for pve, pihole and gatus must be set in
+      ansible/secret.yaml.
     quiet: true
 
 - name: Create the glance system user

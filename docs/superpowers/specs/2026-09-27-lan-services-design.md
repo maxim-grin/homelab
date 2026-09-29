@@ -205,6 +205,10 @@ Alerts go to Telegram (`gatus_telegram_token`, `gatus_telegram_chat_id`)
 on failure and on recovery. History is stored in SQLite under
 `/var/lib/gatus`. `metrics: true` exposes `/metrics`.
 
+Its own basic auth (`security.basic`) protects its API; the UI shows its
+own login form and gates the data behind the same credentials, which
+Glance's Gatus widget (PR 6) also authenticates with.
+
 ### orangutan — `lan.hl.mgryn.cc`
 
 LAN Orangutan and `nmap`, scanning `10.0.0.0/24` on an interval, web UI
@@ -255,6 +259,8 @@ in `secret.yaml.example`:
 | `traefik_dashboard_users` | Traefik dashboard basic auth, htpasswd format |
 | `orangutan_password` | LAN Orangutan's dashboard |
 | `gatus_telegram_token`, `gatus_telegram_chat_id` | Gatus alerts |
+| `gatus_basic_user`, `gatus_basic_password` | Glance's Gatus widget |
+| `gatus_basic_password_bcrypt` | Gatus's own `security.basic` |
 | `glance_proxmox_token_id`, `glance_proxmox_token_secret` | Glance's Proxmox widget |
 
 Plus `host_ips` entries for the five hosts and for `pve`, the Proxmox

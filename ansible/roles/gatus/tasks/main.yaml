@@ -6,11 +6,17 @@
       - gatus_telegram_token | length > 0
       - gatus_telegram_chat_id is defined
       - gatus_telegram_chat_id | string | length > 0
+      - gatus_basic_user is defined
+      - gatus_basic_user | length > 0
+      - gatus_basic_password_bcrypt is defined
+      - gatus_basic_password_bcrypt | length > 0
+      - gatus_basic_password_bcrypt is match('\$2')
       - host_ips['pve'] is defined
       - host_ips['nfs-01'] is defined
       - host_ips['pihole'] is defined
     fail_msg: >-
-      gatus_telegram_token, gatus_telegram_chat_id and host_ips for pve,
+      gatus_telegram_token, gatus_telegram_chat_id, gatus_basic_user,
+      gatus_basic_password_bcrypt (a bcrypt hash) and host_ips for pve,
       nfs-01 and pihole must be set in ansible/secret.yaml.
     quiet: true
 
