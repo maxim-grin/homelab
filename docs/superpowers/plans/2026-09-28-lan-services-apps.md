@@ -68,7 +68,7 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 - Consumes: group `gatus` (inventory, PR 1); `host_ips['pve']`, `host_ips['nfs-01']`, `host_ips['pihole']`; `gatus_telegram_token`, `gatus_telegram_chat_id` from `secret.yaml`; the CA at `~/.homelab-ca/ca.crt` on the controller.
 - Produces: Gatus on `http://<gatus>:8080` with `/api/v1/endpoints/statuses` and `/metrics`. `gatus_endpoints`, a list of `{name, group, url, conditions}` with optional `dns: {query_name, query_type}`, `insecure`, `interval`, which PRs 5 and 6 append to. `gatus_interval` (default `1m`).
 
-- [ ] **Step 1: Rehearsal fixtures, and see the checks fail**
+- [x] **Step 1: Rehearsal fixtures, and see the checks fail**
 
 ```bash
 export SCRATCH B=/home/ubuntu/.local/share/uv/tools/ansible-lint/bin
@@ -164,7 +164,7 @@ $SCRATCH/check-gatus.sh; echo "exit=$?"
 
 Expected: `FAIL` lines, `exit=1`.
 
-- [ ] **Step 2: Metadata and defaults**
+- [x] **Step 2: Metadata and defaults**
 
 `ansible/roles/gatus/meta/main.yaml`:
 
@@ -269,7 +269,7 @@ gatus_endpoints:
     conditions: ["[CONNECTED] == true"]
 ```
 
-- [ ] **Step 3: Templates**
+- [x] **Step 3: Templates**
 
 `ansible/roles/gatus/templates/config.yaml.j2`:
 
@@ -348,7 +348,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-- [ ] **Step 4: Tasks and handlers**
+- [x] **Step 4: Tasks and handlers**
 
 `ansible/roles/gatus/tasks/main.yaml`:
 
@@ -499,7 +499,7 @@ WantedBy=multi-user.target
     daemon_reload: true
 ```
 
-- [ ] **Step 5: The play and the example secrets**
+- [x] **Step 5: The play and the example secrets**
 
 Append to `ansible/playbooks/lan_services.yaml`:
 
@@ -527,7 +527,7 @@ gatus_telegram_token: "<bot token>"
 gatus_telegram_chat_id: "<chat id>"
 ```
 
-- [ ] **Step 6: Rehearse — first run, checks, idempotence**
+- [x] **Step 6: Rehearse — first run, checks, idempotence**
 
 ```bash
 $SCRATCH/run-gatus.sh | grep -E 'changed=|failed=|FAILED|fatal'
@@ -538,7 +538,7 @@ docker stats --no-stream --format '{{.MemUsage}}' lan-gatus
 
 Expected: first run `failed=0`; checks all `ok`, `exit=0`; second run `changed=0 ... failed=0`; memory well under 256MiB. If `loopback-icmp` fails, read `journalctl -u gatus` and `sysctl net.ipv4.ping_group_range` in the container before changing anything: Gatus pings unprivileged as a non-root user, which needs the group range to include `gatus`'s gid — fix the role (a `sysctl` drop-in), not the check.
 
-- [ ] **Step 7: Rehearse — an outage alerts once, a recovery resolves once, and a dead Telegram changes nothing**
+- [x] **Step 7: Rehearse — an outage alerts once, a recovery resolves once, and a dead Telegram changes nothing**
 
 ```bash
 docker exec lan-gatus sh -c ': > /tmp/telegram.log'
@@ -559,7 +559,7 @@ docker rm -f lan-gatus
 
 Expected: the log mentions `backend` after the outage; one triggered and one resolved message (read the log if the counts differ — the wording of Gatus's Telegram text decides the grep, the point is exactly one of each); with Telegram gone, `active` and `200`.
 
-- [ ] **Step 8: Lint and commit**
+- [x] **Step 8: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/gatus playbooks/lan_services.yaml
@@ -584,7 +584,7 @@ failure and recovery. Trusts the homelab CA for vault.mgryn.cc."
 - Consumes: `traefik_routes` entries `{name, host, url, insecure}` (PR 3); Gatus on `:8080` (Task 1).
 - Produces: `status.hl.mgryn.cc`.
 
-- [ ] **Step 1: See the route missing**
+- [x] **Step 1: See the route missing**
 
 ```bash
 cat > $SCRATCH/render-routes.yaml <<'EOF'
@@ -606,7 +606,7 @@ python3 -c "import yaml,os; d=yaml.safe_load(open(os.environ['SCRATCH']+'/routes
 
 Expected: routers `dashboard`, `pihole`, `proxmox` — no `status`.
 
-- [ ] **Step 2: Add the route**
+- [x] **Step 2: Add the route**
 
 Append to `traefik_routes` in `ansible/roles/traefik/defaults/main.yaml`:
 
@@ -621,7 +621,7 @@ In `ansible/roles/traefik/tasks/main.yaml`, add `- host_ips['gatus'] is defined`
 
 Re-run Step 1's commands. Expected: routers include `status`, and `yaml.safe_load` succeeds.
 
-- [ ] **Step 3: Record the planning decisions in the spec**
+- [x] **Step 3: Record the planning decisions in the spec**
 
 In `docs/superpowers/specs/2026-09-27-lan-services-design.md`:
 
@@ -670,14 +670,14 @@ In `docs/superpowers/specs/2026-09-27-lan-services-design.md`:
   | `orangutan_password` | LAN Orangutan's dashboard |
   ```
 
-- [ ] **Step 4: README**
+- [x] **Step 4: README**
 
 - The LXCs row: description becomes "`pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`; the rest empty until their roles land"; append `, `ansible/roles/gatus`` to its "where defined" cell.
 - The planned sentence: remove Gatus — "**Planned, not yet running:** Glance and LAN Orangutan,".
 - The `*.hl` sentence: "`pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc` and `traefik.hl.mgryn.cc`" becomes "`pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc` and `status.hl.mgryn.cc`". Re-wrap to ~80 columns.
 - Diagram: `gatus["Gatus .143<br/>uptime"]:::planned` → `gatus["Gatus .143<br/>uptime"]`; `telegram["Telegram"]:::planned` → `telegram["Telegram"]`; `traefik -.-> gatus` → `traefik --> gatus`; `gatus -. "alerts" .-> telegram` → `gatus -- "alerts" --> telegram`.
 
-- [ ] **Step 5: rebuild.md step 15**
+- [x] **Step 5: rebuild.md step 15**
 
 Append to step 15, after the Traefik paragraph, at its indentation:
 
@@ -691,7 +691,7 @@ Append to step 15, after the Traefik paragraph, at its indentation:
     alert within two minutes, `pct start 140` a recovery.
 ```
 
-- [ ] **Step 6: Check and commit**
+- [x] **Step 6: Check and commit**
 
 ```bash
 cd /home/ubuntu/homelab
