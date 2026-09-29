@@ -1,0 +1,82 @@
+---
+gatus_version: "5.37.0"
+
+# Gatus publishes container images, not binaries. The linux/amd64 image
+# keeps the statically linked binary alone in one layer, fetched here by
+# digest; a blob's digest is the SHA-256 of its bytes, so get_url checks
+# it like a release checksum. For a new version, read the new digest:
+#   T=$(curl -s 'https://ghcr.io/token?scope=repository:twin/gatus:pull' | jq -r .token)
+#   M=$(curl -s -H "Authorization: Bearer $T" \
+#     -H 'Accept: application/vnd.oci.image.index.v1+json' \
+#     https://ghcr.io/v2/twin/gatus/manifests/v<version> \
+#     | jq -r '.manifests[] | select(.platform.architecture=="amd64" and .platform.os=="linux") | .digest')
+#   curl -s -H "Authorization: Bearer $T" \
+#     -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+#     https://ghcr.io/v2/twin/gatus/manifests/$M | jq -r '.layers | max_by(.size) | .digest'
+gatus_image: twin/gatus
+gatus_layer_digest: "sha256:d20e87e818dd75483ecec9715e39c3d693b4b2b4113709780613d4bb410c0731"
+
+gatus_port: 8080
+
+# The homelab CA that signs vault.mgryn.cc, on the machine running Ansible.
+gatus_ca_cert_src: "~/.homelab-ca/ca.crt"
+
+# The rehearsal points this at a local stub.
+gatus_telegram_api_url: https://api.telegram.org
+
+# With failure-threshold 2, an outage alerts within two intervals.
+gatus_interval: 1m
+
+gatus_router: 10.0.0.1
+
+# Every check. PRs 5 and 6 append their service's name. Traefik renews at
+# 30 days remaining, so the 14-day (336h) certificate check is two weeks'
+# warning that renewal has stopped.
+gatus_endpoints:
+  - name: Proxmox UI
+    group: infra
+    url: "https://{{ host_ips['pve'] }}:8006"
+    insecure: true
+    conditions: ["[STATUS] == 200"]
+  - name: NFS
+    group: infra
+    url: "tcp://{{ host_ips['nfs-01'] }}:2049"
+    conditions: ["[CONNECTED] == true"]
+  # A sealed Vault answers 503: this is the first thing that notices.
+  - name: Vault
+    group: infra
+    url: https://vault.mgryn.cc:8200/v1/sys/health
+    conditions: ["[STATUS] == 200"]
+  - name: Pi-hole DNS
+    group: dns
+    url: "{{ host_ips['pihole'] }}"
+    dns:
+      query_name: example.com
+      query_type: A
+    conditions: ["[DNS_RCODE] == NOERROR"]
+  - name: pihole.hl.mgryn.cc
+    group: lan
+    url: https://pihole.hl.mgryn.cc/admin/
+    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+  - name: proxmox.hl.mgryn.cc
+    group: lan
+    url: https://proxmox.hl.mgryn.cc/
+    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+  # The dashboard sits behind basic auth: 401 proves Traefik and its auth
+  # both answer.
+  - name: traefik.hl.mgryn.cc
+    group: lan
+    url: https://traefik.hl.mgryn.cc/dashboard/
+    conditions: ["[STATUS] == 401", "[CERTIFICATE_EXPIRATION] > 336h"]
+  - name: status.hl.mgryn.cc
+    group: lan
+    url: https://status.hl.mgryn.cc/
+    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+  - name: jobs.mgryn.cc
+    group: dev
+    url: https://jobs.mgryn.cc/
+    conditions: ["[STATUS] < 400"]
+  - name: Router
+    group: network
+    url: "icmp://{{ gatus_router }}"
+    conditions: ["[CONNECTED] == true"]

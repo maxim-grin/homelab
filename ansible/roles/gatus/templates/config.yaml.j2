@@ -1,0 +1,40 @@
+# Managed by Ansible (roles/gatus). ${...} values come from
+# /etc/gatus/gatus.env, never from this file.
+metrics: true
+web:
+  port: {{ gatus_port }}
+storage:
+  type: sqlite
+  path: /var/lib/gatus/data.db
+alerting:
+  telegram:
+    token: "${GATUS_TELEGRAM_TOKEN}"
+    id: "${GATUS_TELEGRAM_CHAT_ID}"
+    api-url: "{{ gatus_telegram_api_url }}"
+    default-alert:
+      enabled: true
+      send-on-resolved: true
+      failure-threshold: 2
+      success-threshold: 2
+endpoints:
+{% for e in gatus_endpoints %}
+  - name: "{{ e.name }}"
+    group: "{{ e.group }}"
+    url: "{{ e.url }}"
+    interval: {{ e.interval | default(gatus_interval) }}
+{% if e.dns is defined %}
+    dns:
+      query-name: "{{ e.dns.query_name }}"
+      query-type: "{{ e.dns.query_type }}"
+{% endif %}
+{% if e.insecure | default(false) %}
+    client:
+      insecure: true
+{% endif %}
+    conditions:
+{% for c in e.conditions %}
+      - "{{ c }}"
+{% endfor %}
+    alerts:
+      - type: telegram
+{% endfor %}
