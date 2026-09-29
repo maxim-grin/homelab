@@ -73,8 +73,8 @@ One `module "lan_service"` with `for_each` over `local.lan_services`, addressing
 | --- | --- | --- | --- | --- | --- |
 | `pihole` | 140 | `10.0.0.140/24` | 256M | 8G | `order=1` |
 | `traefik` | 141 | `10.0.0.141/24` | 256M | 4G | `order=2` |
-| `glance` | 142 | `10.0.0.142/24` | 128M | 4G | `order=15` |
-| `gatus` | 143 | `10.0.0.143/24` | 128M | 4G | `order=15` |
+| `glance` | 142 | `10.0.0.142/24` | 256M | 4G | `order=15` |
+| `gatus` | 143 | `10.0.0.143/24` | 256M | 4G | `order=15` |
 | `orangutan` | 144 | `10.0.0.144/24` | 256M | 4G | `order=15` |
 
 Pi-hole starts before `vault-02` (`order=5`) and `nfs-01` (`order=10`):
@@ -285,9 +285,12 @@ Each step is verified before the next.
 
 ## Memory and disk
 
-About 1G of memory for all five, against the roadmap's 1.5G budget; the
+About 1.25G of memory for all five, against the roadmap's 1.5G budget; the
 roadmap is updated to match. 24G of root disk allocated, about 3–4G
 written.
+
+Gatus and Glance were raised from 128M to 256M in PR 4, when an Ansible
+module run OOM-killed the service beside it at 128M.
 
 ## Pull requests
 

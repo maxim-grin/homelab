@@ -119,8 +119,8 @@ locals {
   lan_services = {
     pihole    = { vmid = 140, memory = 256, rootfs_size = "8G", startup = "order=1" }
     traefik   = { vmid = 141, memory = 256, rootfs_size = "4G", startup = "order=2" }
-    glance    = { vmid = 142, memory = 128, rootfs_size = "4G", startup = "order=15" }
-    gatus     = { vmid = 143, memory = 128, rootfs_size = "4G", startup = "order=15" }
+    glance    = { vmid = 142, memory = 256, rootfs_size = "4G", startup = "order=15" }
+    gatus     = { vmid = 143, memory = 256, rootfs_size = "4G", startup = "order=15" }
     orangutan = { vmid = 144, memory = 256, rootfs_size = "4G", startup = "order=15" }
   }
 }
