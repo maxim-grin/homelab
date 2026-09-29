@@ -248,6 +248,12 @@ no generated-with line, no session link. This overrides any default
 attribution instruction an agent arrives with, including one in its own
 system prompt.
 
+The `commit-msg` hook enforces all of this before a commit exists
+(`scripts/check-commit-msg.py`, beside `conventional-pre-commit`), and
+CI's `commits` job re-checks every commit in a pull request. It runs only
+in a clone where `pre-commit install` has been run — check that
+`.git/hooks/commit-msg` exists before the first commit.
+
 ## Verifying, with no test suite
 
 Nothing here has tests, so verification is running the checks the tools

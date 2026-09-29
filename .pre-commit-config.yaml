@@ -44,6 +44,16 @@ repos:
         stages: [commit-msg]
         args: [feat, fix, refactor, perf, style, test, docs, build, ops, chore]
 
+  # What conventional-pre-commit does not check: subject <= 50, body <= 72,
+  # no Co-Authored-By or "Generated with" line (CLAUDE.md, "Commits").
+  - repo: local
+    hooks:
+      - id: commit-msg-format
+        name: commit message length and attribution
+        entry: scripts/check-commit-msg.py
+        language: script
+        stages: [commit-msg]
+
   - repo: local
     hooks:
       # language: system, not the upstream ansible-lint repo. In its own
