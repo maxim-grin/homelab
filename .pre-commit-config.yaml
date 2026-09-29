@@ -3,6 +3,10 @@
 # message then lands unchecked and nothing says why.
 default_install_hook_types: [pre-commit, commit-msg]
 
+# A hook that names no stages would otherwise run at every installed stage:
+# the file checks would run a second time, on no files, at commit-msg.
+default_stages: [pre-commit]
+
 # ansible/secret.yaml is ansible-vault ciphertext, not YAML. check-yaml
 # cannot parse it and end-of-file-fixer would corrupt it by appending to the
 # encrypted payload.
