@@ -121,8 +121,11 @@ order: Pi-hole, Traefik, Gatus, LAN Orangutan, Glance.
 
 Every role:
 
-- pins its version in `defaults/main.yaml` and verifies the release's
-  SHA-256 before installing (Pi-hole excepted, below)
+- pins its version in `defaults/main.yaml` and verifies a SHA-256 before
+  installing (Pi-hole excepted, below): Traefik's published checksums
+  file; GitHub's per-asset digest for Glance and LAN Orangutan, which
+  publish none; and, for Gatus, which publishes only container images,
+  the digest of the image layer holding its binary
 - runs its service as a dedicated system user under a systemd unit with
   `Restart=on-failure`
 - keeps secrets in a `0600` `EnvironmentFile` or config file, never in a
@@ -208,10 +211,13 @@ LAN Orangutan and `nmap`, scanning `10.0.0.0/24` on an interval, web UI
 on `:291`, data under `/var/lib/orangutan`. Its unit grants
 `CAP_NET_RAW` and `CAP_NET_ADMIN` for nmap's ARP scan.
 
-**Unverified:** that an unprivileged LXC can hold raw sockets for an ARP
-scan. `ping` works in one, which needs the same capability, so it should.
-The plan checks it before writing the role. If it fails, this one
-container becomes privileged.
+It runs as its own user, not root as upstream's unit does: nmap sends
+raw ARP and reads MACs as a normal user given `CAP_NET_RAW` and
+`CAP_NET_ADMIN` and `NMAP_PRIVILEGED=1`, and `CAP_NET_BIND_SERVICE`
+covers port 291. Its dashboard password is `orangutan_password`;
+without one, the first visitor would be asked to create it. The
+raw-socket check in an unprivileged LXC runs before the role is
+written; if it fails, this one container becomes privileged.
 
 ### glance — `home.hl.mgryn.cc`
 
@@ -227,9 +233,13 @@ One page:
 - **Bookmarks**: Vault UI, ArgoCD, Grafana, jobboard, the GitHub
   repository
 
-**Unverified:** that Glance's DNS widget speaks the Pi-hole v6 API, and
-that `custom-api` handles the Proxmox token header. The plan checks both
-first; Homepage is the fallback.
+Checked while planning: `dns-stats` supports `pihole-v6` with an
+application password, and `custom-api` sends arbitrary headers, so
+the Proxmox token header works. Pi-hole cannot hash an application
+password it did not generate, so the operator creates one once through
+its API and keeps both halves in `secret.yaml`: `pihole_app_password`
+for Glance, `pihole_app_pwhash` for the `pihole` role to apply, which
+keeps it valid across a rebuilt Pi-hole.
 
 ## Secrets
 
@@ -240,8 +250,10 @@ in `secret.yaml.example`:
 | --- | --- |
 | `pihole_admin_password` | Pi-hole admin login |
 | `pihole_app_password` | Glance's DNS widget |
+| `pihole_app_pwhash` | Pi-hole, the hash of that password |
 | `traefik_cloudflare_api_token` | Traefik's DNS-01 challenge |
 | `traefik_dashboard_users` | Traefik dashboard basic auth, htpasswd format |
+| `orangutan_password` | LAN Orangutan's dashboard |
 | `gatus_telegram_token`, `gatus_telegram_chat_id` | Gatus alerts |
 | `glance_proxmox_token_id`, `glance_proxmox_token_secret` | Glance's Proxmox widget |
 

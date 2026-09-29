@@ -709,6 +709,7 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 
 ### Task 3: Operator — Gatus (owner, not an agent)
 
+- [ ] `terraform plan -var-file=shared.tfvars` in `terraform/environments/shared`: **0 to add, 2 to change, 0 to destroy** — memory 128 → 256 on `module.lan_service["gatus"]` and `["glance"]`, nothing else. Then `terraform apply -var-file=shared.tfvars`. The containers keep running; Proxmox raises an LXC's memory live.
 - [ ] Telegram: create a bot with @BotFather (`/newbot`), send it a message, read the chat id from `https://api.telegram.org/bot<token>/getUpdates`.
 - [ ] On the `lan-gatus` checkout: `ansible-vault edit ansible/secret.yaml` — add `gatus_telegram_token` and `gatus_telegram_chat_id`; commit (`ops: add gatus secrets`) and push to the branch.
 - [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit traefik,gatus`: `failed=0`; a second run `changed=0`.

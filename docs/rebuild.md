@@ -586,6 +586,14 @@ from `secret.yaml`.
     issued, `curl -v https://pihole.hl.mgryn.cc/admin/` from the
     workstation shows a Let's Encrypt certificate for `*.hl.mgryn.cc`.
 
+    **Gatus** needs `gatus_telegram_token` and `gatus_telegram_chat_id`
+    in `secret.yaml` (the comments in `secret.yaml.example` say where
+    each comes from) and `~/.homelab-ca/ca.crt` on the workstation, which
+    `playbooks/vault.yaml` created. Re-run the Traefik play too, for the
+    `status.hl.mgryn.cc` route. Check: `https://status.hl.mgryn.cc` shows
+    every endpoint green, and `pct stop 140` on the host sends a Telegram
+    alert within two minutes, `pct start 140` a recovery.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
