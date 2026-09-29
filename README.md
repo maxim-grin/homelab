@@ -1,3 +1,5 @@
+[![ci](https://github.com/maxim-grin/homelab/actions/workflows/ci.yaml/badge.svg)](https://github.com/maxim-grin/homelab/actions/workflows/ci.yaml)
+
 # homelab
 
 Bare-metal Proxmox homelab: VMs provisioned with Terraform, configured with
@@ -120,7 +122,6 @@ flowchart TB
     classDef planned stroke-dasharray: 5 5,opacity:0.8
 ```
 
-
 `jobs.mgryn.cc` and `*.hl.mgryn.cc` are the two names in public DNS: both
 are DNS-only (grey cloud) Cloudflare records holding a node IP, so any
 device on the LAN resolves them without a hosts entry. Public DNS
@@ -215,12 +216,12 @@ GitHub Actions (`.github/workflows/ci.yaml`) runs on every pull request and
 every push to `main`. Nothing in it touches the cluster, Proxmox or any
 secret; it only reads. Four jobs, in parallel:
 
-| Job | What it runs |
-| --- | --- |
-| `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes) |
-| `commits` | the conventional-commit hook over every non-merge commit in the PR (PRs only) |
-| `terraform` | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev` |
-| `manifests` | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
+| Job          | What it runs                                                                                                                                                                                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes)                                                                                                                       |
+| `commits`    | the conventional-commit hook over every non-merge commit in the PR (PRs only)                                                                                                                                                                                  |
+| `terraform`  | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev`                                                                                                                                                                       |
+| `manifests`  | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
 `kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`
@@ -230,7 +231,7 @@ placeholders are checked as plain strings; nothing resolves them against Vault.
 required. That is a repository setting, not a file in git. Suggested rules
 for `main`: pull request required with 0 approvals (you cannot approve your
 own PR), the four checks required, "up to date" not required, force-push and
-deletion blocked, no bypass. Enable it *after* `main` is green, or it blocks
+deletion blocked, no bypass. Enable it _after_ `main` is green, or it blocks
 the PR that fixes it. A check name only appears in the picker once it has run
 once. From the UI: Settings → Rules → Rulesets → New branch ruleset. Or, as a
 repo admin:
