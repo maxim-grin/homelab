@@ -69,8 +69,12 @@ Application with "application repo is not permitted".
 ## Branch first
 
 ```bash
+pre-commit install               # once per clone, before any work starts
 git checkout -b <change-name>    # before the first commit, not after
 ```
+
+Every pre-commit check passes before a commit lands. Fix what a hook
+reports; never bypass it with `--no-verify`.
 
 `main` receives only finished work, and only through a pull request — never
 a local merge, never a direct push. For anything larger than a one-file fix,

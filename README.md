@@ -204,8 +204,9 @@ pre-commit install                          # wires pre-commit AND commit-msg
 ```
 
 The hooks: file hygiene, `check-yaml`, `detect-private-key`, `gitleaks`,
-`ansible-lint`, `terraform fmt`, and a conventional-commit check on the
-message. `ansible-lint` runs at profile `production` with no ignore file:
+`ansible-lint`, `terraform fmt`, and two checks on the message: its
+conventional-commit format, and `scripts/check-commit-msg.py` — subject
+≤ 50 characters, body ≤ 72, no attribution lines. `ansible-lint` runs at profile `production` with no ignore file:
 any finding fails. It needs the collections pinned in
 `ansible/requirements.yml` (`ansible-galaxy collection install -r
 ansible/requirements.yml`), and so do the playbooks themselves.
