@@ -124,6 +124,20 @@
     mode: "0644"
   notify: Restart gatus
 
+# Gatus pings unprivileged (v5.31.0+), which needs its gid inside
+# net.ipv4.ping_group_range. A Proxmox unprivileged LXC's netns starts
+# with the range disabled ("1 0"); Debian's systemd default (0
+# 2147483647) doesn't fix this either -- 2147483647 is unmapped in the
+# user namespace and gets rejected. "0 65535" is mapped and covers the
+# gatus gid.
+- name: Let Gatus ping unprivileged
+  ansible.posix.sysctl:
+    name: net.ipv4.ping_group_range
+    value: "0 65535"
+    sysctl_file: /etc/sysctl.d/60-gatus-ping.conf
+    sysctl_set: true
+    reload: true
+
 - name: Start Gatus at boot
   ansible.builtin.systemd_service:
     name: gatus
