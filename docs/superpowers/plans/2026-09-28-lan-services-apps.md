@@ -93,7 +93,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=rehearsal-ca" \
 
 # Inside the container: a backend Gatus watches, and a Telegram stub that
 # records every sendMessage body.
-docker exec lan-gatus sh -c 'apt-get install -y -qq python3 curl >/dev/null'
+docker exec lan-gatus sh -c 'apt-get install -y -qq python3 curl procps >/dev/null'
 docker exec lan-gatus sh -c 'mkdir -p /srv/backend && echo ok > /srv/backend/index.html'
 docker exec -i lan-gatus sh -c 'cat > /usr/local/bin/tg-stub.py' <<'EOF'
 import http.server, json
@@ -709,12 +709,13 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 
 ### Task 3: Operator — Gatus (owner, not an agent)
 
-- [ ] `terraform plan -var-file=shared.tfvars` in `terraform/environments/shared`: **0 to add, 2 to change, 0 to destroy** — memory 128 → 256 on `module.lan_service["gatus"]` and `["glance"]`, nothing else. Then `terraform apply -var-file=shared.tfvars`. The containers keep running; Proxmox raises an LXC's memory live.
+- [ ] `terraform plan -var-file=shared.tfvars` in `terraform/environments/shared`: **0 to add, 2 to change, 0 to destroy** — memory 128 → 256 on `module.lan_service["gatus"]` and `["glance"]`, nothing else. Any `-/+` (replace) or change outside `memory` is a stop. Then `terraform apply -var-file=shared.tfvars`. The containers keep running; Proxmox raises an LXC's memory live.
 - [ ] Telegram: create a bot with @BotFather (`/newbot`), send it a message, read the chat id from `https://api.telegram.org/bot<token>/getUpdates`.
 - [ ] On the `lan-gatus` checkout: `ansible-vault edit ansible/secret.yaml` — add `gatus_telegram_token` and `gatus_telegram_chat_id`; commit (`ops: add gatus secrets`) and push to the branch.
 - [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit traefik,gatus`: `failed=0`; a second run `changed=0`.
-- [ ] `https://status.hl.mgryn.cc` loads with a valid certificate and every endpoint green within two minutes.
-- [ ] `pct stop 140` on the host: a Telegram alert for "Pi-hole DNS" (and `pihole.hl.mgryn.cc`) within two minutes. `pct start 140`: a recovery message.
+- [ ] On the host: `pct exec 143 -- cat /sys/fs/cgroup/memory.peak` (record it in the PR; well under 256M) and `pct exec 143 -- cat /proc/sys/net/ipv4/ping_group_range` shows `0 65535`.
+- [ ] `https://status.hl.mgryn.cc` loads with a valid certificate and every endpoint green within about two minutes (two check intervals).
+- [ ] `pct stop 140` on the host: a Telegram alert for "Pi-hole DNS" (and `pihole.hl.mgryn.cc`) within about two minutes (two check intervals). `pct start 140`: a recovery message.
 - [ ] **LAN Orangutan's raw-socket check, before PR 5 is written** (the spec requires it). On the host: `pct exec 144 -- sh -c 'apt-get update -qq && apt-get install -y -qq nmap >/dev/null && nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"'` prints a number close to the device count, and, as a normal user with capabilities: `pct exec 144 -- setpriv --reuid=nobody --regid=nogroup --clear-groups --inh-caps=+net_raw,+net_admin --ambient-caps=+net_raw,+net_admin env NMAP_PRIVILEGED=1 nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"` prints a similar number. Record both numbers in the PR. If either is `0`, stop: PR 5 needs `orangutan` privileged, which is a Terraform change and a new plan decision.
 - [ ] `gh pr ready <N>`; the owner merges.
 
@@ -742,7 +743,24 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 
 ```bash
 docker network create lan-scan >/dev/null 2>&1 || true
-sed 's/--privileged/--memory 256m --memory-swap 256m --network lan-scan --privileged/' $SCRATCH/lan-container.sh > $SCRATCH/lan-container-scan.sh
+# Boots unconstrained on lan-scan and only clamps memory once systemd is
+# up, like lan-container-256.sh -- bootstrapping systemd needs more
+# headroom than 256M gives it at container-creation time.
+cat > $SCRATCH/lan-container-scan.sh <<'FIXEOF'
+#!/bin/sh
+# usage: lan-container-scan.sh <name> -- a 256M Debian 13 systemd
+# container on the lan-scan network
+docker rm -f "$1" >/dev/null 2>&1
+docker run -d --name "$1" --network lan-scan --privileged --cgroupns=host \
+  --tmpfs /run --tmpfs /run/lock -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+  debian:trixie bash -c 'apt-get update -qq && apt-get install -y -qq systemd systemd-sysv dbus >/dev/null && exec /lib/systemd/systemd' >/dev/null
+for i in $(seq 60); do
+  s=$(docker exec "$1" systemctl is-system-running 2>/dev/null)
+  case "$s" in running|degraded) echo "$1: $s"; break;; esac
+  sleep 2
+done
+docker update --memory 256m --memory-swap 256m "$1" >/dev/null
+FIXEOF
 chmod +x $SCRATCH/lan-container-scan.sh
 $SCRATCH/lan-container-scan.sh lan-orangutan
 docker rm -f lan-peer >/dev/null 2>&1; docker run -d --name lan-peer --network lan-scan debian:trixie sleep infinity >/dev/null
@@ -1024,11 +1042,12 @@ $SCRATCH/run-orangutan.sh | grep -E 'changed=|failed=|FAILED|fatal'
 sleep 60; $SCRATCH/check-orangutan.sh; echo "exit=$?"
 $SCRATCH/run-orangutan.sh | grep -E 'changed=|failed='
 docker stats --no-stream --format '{{.MemUsage}}' lan-orangutan
+docker exec lan-orangutan cat /sys/fs/cgroup/memory.peak
 docker exec lan-orangutan journalctl -u lan-orangutan --no-pager | tail -5
 docker rm -f lan-orangutan lan-peer; docker network rm lan-scan
 ```
 
-Expected: first run `failed=0`; checks all `ok`, `exit=0` — **the MAC check is the one that matters**: if the peer is listed without its MAC, the capabilities are not reaching nmap; fix the unit, do not accept an IP-only list. Second run `changed=0`. If `orangutan list` does not read the service's data (different CLI, or it needs the API), find the right way from `orangutan list --help` and the dashboard's API, change `check-orangutan.sh`, and say so in the report.
+Expected: first run `failed=0`; checks all `ok`, `exit=0` — **the MAC check is the one that matters**: if the peer is listed without its MAC, the capabilities are not reaching nmap; fix the unit, do not accept an IP-only list. Second run `changed=0`. Record `memory.peak` in the report — the apt install of nmap may be tight at 256M. If `orangutan list` does not read the service's data (different CLI, or it needs the API), find the right way from `orangutan list --help` and the dashboard's API, change `check-orangutan.sh`, and say so in the report.
 
 - [ ] **Step 7: Lint and commit**
 
@@ -1262,7 +1281,7 @@ docker exec lan-gatus sh -c 'apt-get install -y -qq python3 curl >/dev/null'
 docker exec -d lan-gatus sh -c 'mkdir -p /srv/backend && cd /srv/backend && echo ok > index.html && python3 -m http.server 9001 --bind 127.0.0.1'
 $SCRATCH/run-gatus.sh | grep -E 'changed=|failed='
 $SCRATCH/lan-container-256.sh lan-glance
-docker exec lan-glance sh -c 'apt-get install -y -qq python3 curl >/dev/null'
+docker exec lan-glance sh -c 'apt-get install -y -qq python3 curl procps >/dev/null'
 # A Proxmox stub answering /api2/json/cluster/resources, and recording the
 # Authorization header it receives.
 docker exec -i lan-glance sh -c 'cat > /usr/local/bin/pve-stub.py' <<'EOF'
@@ -1801,5 +1820,5 @@ Expected: `PARSE OK`; lint passes; no pre-commit failures.
 - [ ] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
 - [ ] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
 - [ ] **Cutover.** Record the router's current DHCP DNS setting in the PR body. Set it to `10.0.0.140` only. Renew a phone's lease (toggle Wi-Fi): it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
-- [ ] `pct stop 140`: Telegram alert within two minutes; `pct start 140`: recovery. The LAN is without DNS in between — do this when nobody minds.
+- [ ] `pct stop 140`: Telegram alert within about two minutes (two check intervals); `pct start 140`: recovery. The LAN is without DNS in between — do this when nobody minds.
 - [ ] `gh pr ready <N>`; the owner merges. Sub-project 1's "Done means" list in the spec is then met, except the sealed-Vault alert, which is proven by its condition (`[STATUS] == 200` against a 503) rather than by sealing Vault.
