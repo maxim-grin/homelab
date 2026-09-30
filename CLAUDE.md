@@ -3,7 +3,7 @@
 One Dell box running Proxmox VE 9 on a single internal SSD. Terraform
 provisions the VMs, Ansible configures them, ArgoCD delivers applications to
 a kubeadm Kubernetes cluster. See `README.md` for what runs; this file is
-about *working on* it.
+about _working on_ it.
 
 **Rebuilding after a disk failure or replacement starts at
 [docs/rebuild.md](docs/rebuild.md).** The host underneath — repositories,
@@ -46,19 +46,18 @@ terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                                         prod shares and KV ready, unused
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
 docs/operations.md  day-to-day: UIs, applying, jobboard versions
-docs/ci.md        branch-protection ruleset for the four CI checks
 ```
 
 ## How a change reaches the cluster
 
 Three different paths, and mixing them up wastes an afternoon:
 
-| Layer | Applied by | Takes effect |
-| --- | --- | --- |
-| VMs, disks, network | `terraform apply -var-file=<env>.tfvars` in `environments/dev` or `environments/shared` | immediately |
-| OS, packages, cluster | `ansible-playbook … -e @secret.yaml --ask-vault-pass` | immediately |
-| Kubernetes workloads | **PR merged to `main`**, then ArgoCD syncs | on Argo's next poll, ~3 min |
-| `argocd/base/projects.yaml` | **PR merged to `main`**, then ArgoCD syncs | on Argo's next poll, ~3 min |
+| Layer                       | Applied by                                                                              | Takes effect                |
+| --------------------------- | --------------------------------------------------------------------------------------- | --------------------------- |
+| VMs, disks, network         | `terraform apply -var-file=<env>.tfvars` in `environments/dev` or `environments/shared` | immediately                 |
+| OS, packages, cluster       | `ansible-playbook … -e @secret.yaml --ask-vault-pass`                                   | immediately                 |
+| Kubernetes workloads        | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
+| `argocd/base/projects.yaml` | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
 
 That last row is a bootstrap-only exception: `root-dev` only watches
 `argocd/environments/dev/applications/`, so the AppProject that authorises
@@ -88,7 +87,7 @@ merges; see below). Invoke them with the Skill tool; do not approximate them
 by hand.
 
 **When a supervisor agent drives subagents, the supervisor owns the plan's
-checkboxes** — ticked when a task is implemented *and* verified by review,
+checkboxes** — ticked when a task is implemented _and_ verified by review,
 never on the implementer's report alone. Implementers see only an extracted
 brief and never the plan file, so nothing else can record progress.
 
@@ -96,7 +95,7 @@ brief and never the plan file, so nothing else can record progress.
 
 **Do not merge to `main`. Push the branch and open a pull request with
 `gh`.** The repository owner reviews and merges; an agent's job ends at the
-open PR. Here the merge *is* the deploy — ArgoCD syncs `main` — so the
+open PR. Here the merge _is_ the deploy — ArgoCD syncs `main` — so the
 merge button stays with the person who will watch the cluster roll.
 
 ```bash
@@ -154,9 +153,10 @@ supersedes a record in `docs/decisions/` in the same PR.
   CI runs `validate`, not `plan`, so nothing catches a missing one. Read
   the plan summary before every apply: a `destroy` you did not intend is
   a stop, not a warning. (ADR [0013](docs/decisions/0013-terraform-renames-need-moved-blocks.md))
+
 - **`disk_size` only goes up.** Proxmox cannot shrink a disk; the attempt
-  fails with `can't unplug bootdisk 'scsi0'` *and still writes the smaller
-  value into `terraform.tfstate`*, so Terraform then believes a size the host
+  fails with `can't unplug bootdisk 'scsi0'` _and still writes the smaller
+  value into `terraform.tfstate`_, so Terraform then believes a size the host
   does not have. `terraform apply -refresh-only` is the repair. Growing needs
   `growpart` and `resize2fs` inside the guest.
 - **Resource pools are not created by Terraform**, and `terraform@pve` needs

@@ -1,9 +1,7 @@
 # Operations
 
-Day-to-day detail moved out of the [README](../README.md): how a change is
-applied, where each UI lives, how to ship a jobboard version, and what to
-check when a certificate will not issue. Rebuilding from nothing is
-[rebuild.md](rebuild.md); the checks and CI are [ci.md](ci.md).
+Day-to-day operations: how a change is applied, where each UI lives, how to ship a jobboard version, and what to
+check when a certificate will not issue. Rebuilding from nothing is [rebuild.md](rebuild.md).
 
 ## Applying a change
 
@@ -32,14 +30,14 @@ is a stop — see
 
 ## Where things are
 
-| Name | What | TLS |
-| --- | --- | --- |
-| `https://jobs.mgryn.cc` | jobboard; HTTP 308s to HTTPS | cert-manager |
-| `http://argocd.mgryn.cc` | ArgoCD UI | none |
-| `https://grafana.mgryn.cc` | Grafana; HTTP 308s to HTTPS | cert-manager |
-| `http://prometheus.mgryn.cc` | Prometheus, no authentication — Prometheus ships none | none |
-| `https://vault.mgryn.cc:8200` | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA |
-| `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus | Traefik |
+| Name                                                                                             | What                                                                                                | TLS          |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------ |
+| `https://jobs.mgryn.cc`                                                                          | jobboard; HTTP 308s to HTTPS                                                                        | cert-manager |
+| `http://argocd.mgryn.cc`                                                                         | ArgoCD UI                                                                                           | none         |
+| `https://grafana.mgryn.cc`                                                                       | Grafana; HTTP 308s to HTTPS                                                                         | cert-manager |
+| `http://prometheus.mgryn.cc`                                                                     | Prometheus, no authentication — Prometheus ships none                                               | none         |
+| `https://vault.mgryn.cc:8200`                                                                    | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA   |
+| `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus                                                 | Traefik      |
 
 The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every

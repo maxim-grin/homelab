@@ -86,20 +86,20 @@ diagram has a static address above that pool.
 
 ## What actually runs
 
-| Layer      | What                                                           | Where it is defined                                       |
-| ---------- | -------------------------------------------------------------- | --------------------------------------------------------- |
-| Hypervisor | Proxmox VE, node `pve`                                         | not in git — see `docs/rebuild.md`                        |
-| VMs        | k8s master + 2 workers, `claude-code` workstation              | `terraform/environments/dev`                              |
-| VM         | `nfs-01`, NFS for the dev cluster; its `nfs-prod` share is ready but unexported until prod has nodes | `terraform/environments/shared`  |
-| VM         | `vault-02`, the Vault VM; `kv-dev` in use, `kv-prod` ready but unused | `terraform/environments/shared`                     |
-| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`; the rest empty until their roles land | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus` |
-| OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
-| GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`             | `ansible/roles/argocd`, `argocd/environments/dev`         |
-| Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
-| TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers` |
-| Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner` |
-| Apps       | monitoring (Prometheus + Grafana); jobboard, the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/` |
-| Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time | `ansible/roles/vault`, `terraform/environments/shared` |
+| Layer      | What                                                                                                                                                                            | Where it is defined                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Hypervisor | Proxmox VE, node `pve`                                                                                                                                                          | not in git — see `docs/rebuild.md`                                                                      |
+| VMs        | k8s master + 2 workers, `claude-code` workstation                                                                                                                               | `terraform/environments/dev`                                                                            |
+| VM         | `nfs-01`, NFS for the dev cluster; its `nfs-prod` share is ready but unexported until prod has nodes                                                                            | `terraform/environments/shared`                                                                         |
+| VM         | `vault-02`, the Vault VM; `kv-dev` in use, `kv-prod` ready but unused                                                                                                           | `terraform/environments/shared`                                                                         |
+| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`; the rest empty until their roles land                | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus` |
+| OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
+| GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`                                                                                                                              | `ansible/roles/argocd`, `argocd/environments/dev`                                                       |
+| Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                                                                                   | `argocd/apps/ingress-nginx`                                                                             |
+| TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare                                                                                                                  | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers`                                          |
+| Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass                                                                                                                  | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner`                                               |
+| Apps       | monitoring (Prometheus + Grafana); jobboard, the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/`                                                                                          |
+| Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time                                                       | `ansible/roles/vault`, `terraform/environments/shared`                                                  |
 
 **Scope.** One physical machine, one SSD, and one Kubernetes cluster: `dev`.
 There is no `prod` cluster yet. `terraform/environments/prod` and `talos/`
@@ -161,7 +161,7 @@ talos/            Templates for the planned Talos prod cluster — see the
                   roadmap and ADR 0012.
 scripts/          check-manifests.sh (the CI manifests check, runnable
                   locally) and ad-hoc helpers.
-docs/             rebuild.md, operations.md, ci.md;
+docs/             rebuild.md, operations.md
                   decisions/   architecture decision records
                   superpowers/ design specs and implementation plans
 ```
@@ -206,8 +206,5 @@ Terraform `~> 1.13.0` while `modules/talos-vm` pins `3.0.2-rc10` and
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
 `kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`
 placeholders are checked as plain strings; nothing resolves them against Vault.
-
-CI only blocks a merge once branch protection requires the four checks —
-a repository setting, not a file; the ruleset is in [docs/ci.md](docs/ci.md).
 
 See `ansible/README.md` and `terraform/README.md` for the detail of each half.
