@@ -1,8 +1,10 @@
 # Proxmox Terraform Setup
 
-![img.png](../img.png)
-
-The infrastructure is devided into development and production environment. The repository follows a standard Terraform module layout:
+Three Terraform roots, one per state file. `dev` holds the kubeadm
+cluster and `claude-code`; `shared` holds what outlives any one cluster —
+`nfs-01`, `vault-02` and the LAN LXCs; `prod` is never-applied
+scaffolding for the planned Talos cluster (roadmap sub-project 2, ADR
+[0012](../docs/decisions/0012-hub-and-spoke-topology.md)). The layout:
 
 ```txt
 terraform/
@@ -19,12 +21,12 @@ terraform/
 │   ├── shared/
 │   │   ├── .terraform.lock.hcl
 │   │   ├── backend.tf.example
-│   │   ├── main.tf              # nfs-01 and vault-02, serving dev and prod
+│   │   ├── main.tf              # nfs-01, vault-02, the LAN LXCs
 │   │   ├── outputs.tf
 │   │   ├── shared.tfvars.example
 │   │   ├── variables.tf
 │   │   └── versions.tf
-│   └── prod/
+│   └── prod/                    # never applied; cannot init yet
 │       ├── .terraform.lock.hcl
 │       ├── backend.tf.example
 │       ├── main.tf
@@ -104,7 +106,7 @@ there is no bucket or credential involved in either file.
 ## Initialising an Environment
 
 ```bash
-cd terraform/environments/dev   # swap dev for prod when needed
+cd terraform/environments/dev   # or shared
 terraform init
 ```
 
@@ -132,26 +134,29 @@ terraform plan  -var-file="shared.tfvars"
 terraform apply -var-file="shared.tfvars"
 ```
 
-### Production (Prod)
+### Prod — not yet
 
-```bash
-cd terraform/environments/prod
-terraform plan  -var-file="prod.tfvars"
-terraform apply -var-file="prod.tfvars"
-```
+`environments/prod` has never been applied and cannot `terraform init`:
+it pins `telmate/proxmox` `3.0.2-rc04` and Terraform `~> 1.13.0`, while
+`modules/talos-vm` pins `3.0.2-rc10` and `~> 1.16.0`. Roadmap
+sub-project 2 fixes the pins and builds the Talos cluster; until then CI
+validates only `dev` and `shared`, and nothing here should be extended
+without saying so.
 
-> **Do not** run `terraform destroy` against the production environment.
->
 > Avoid manual changes to Terraform-managed Proxmox resources; use Terraform for drift-free automation.
+>
+> Read the plan summary before every apply: an unintended `destroy` is a
+> stop. Renaming a module or resource needs a `moved` block — ADR
+> [0013](../docs/decisions/0013-terraform-renames-need-moved-blocks.md).
 
 ---
 
 ## Module Overview
 
-- **modules/lxc** – reusable module for lightweight Proxmox containers; backs prod's never-applied containers (`tk_nas`, `pi_hole`, `traefik`, `homepage` in `environments/prod`) and nothing in dev.
+- **modules/lxc** – reusable module for lightweight Proxmox containers; backs the LAN-service LXCs (`module.lan_service`, vmids 140–144) in `environments/shared`, and prod's never-applied containers.
 - **modules/nfs-server** – `ubuntu-vm` plus three data disks (`scsi1` for `nfs-dev`, `scsi2` for `nfs-prod`, `scsi3` for `nfs-backups`); backs `nfs-01` (vmid 103) in `environments/shared`.
 - **modules/vault-vm** – `ubuntu-vm` plus one data disk for Vault's raft store; backs `vault-02` (vmid 105) in `environments/shared`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
-- **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles.
+- **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles; used only by the never-applied prod root.
 - **modules/ubuntu-k8s** – Ubuntu-based Kubernetes nodes via kubeadm.
 - Additional modules can be added under `modules/` and referenced from environment `main.tf` files.
