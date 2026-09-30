@@ -1,0 +1,87 @@
+---
+- name: Require LAN Orangutan's password
+  ansible.builtin.assert:
+    that:
+      - orangutan_password is defined
+      - orangutan_password | length >= 12
+    fail_msg: orangutan_password must be set in ansible/secret.yaml, 12 characters or more.
+    quiet: true
+
+- name: Create the orangutan system user
+  ansible.builtin.user:
+    name: orangutan
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/orangutan
+    create_home: false
+
+- name: Create LAN Orangutan's directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: orangutan
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/orangutan, owner: root, mode: "0750" }
+    - { path: /var/lib/orangutan, owner: orangutan, mode: "0700" }
+    - { path: /opt/orangutan, owner: root, mode: "0755" }
+
+# nmap is the package's only dependency. Installing it on its own keeps
+# the deb install below from resolving it in the same apt module process,
+# which the 256M container cannot hold (OOM-killed in rehearsal).
+- name: Install ca-certificates and nmap
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - nmap
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Download the package, checked against its SHA-256
+  ansible.builtin.get_url:
+    url: "{{ orangutan_deb_url }}"
+    dest: "/opt/orangutan/{{ orangutan_deb }}"
+    checksum: "sha256:{{ orangutan_deb_sha256 }}"
+    mode: "0644"
+
+# The unit goes in first: the package's postinst enables
+# lan-orangutan.service, and this file is what that name must mean.
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: lan-orangutan.service.j2
+    dest: /etc/systemd/system/lan-orangutan.service
+    mode: "0644"
+  notify: Restart lan-orangutan
+
+- name: Install the package
+  ansible.builtin.apt:
+    deb: "/opt/orangutan/{{ orangutan_deb }}"
+  notify: Restart lan-orangutan
+
+- name: Write the configuration
+  ansible.builtin.template:
+    src: config.ini.j2
+    dest: /etc/orangutan/config.ini
+    owner: root
+    group: orangutan
+    mode: "0640"
+  notify: Restart lan-orangutan
+
+- name: Write the dashboard password
+  ansible.builtin.copy:
+    content: "{{ orangutan_password }}"
+    dest: /etc/orangutan/password
+    owner: orangutan
+    group: orangutan
+    mode: "0400"
+  no_log: true
+  notify: Restart lan-orangutan
+
+- name: Start LAN Orangutan at boot
+  ansible.builtin.systemd_service:
+    name: lan-orangutan
+    state: started
+    enabled: true
+    daemon_reload: true

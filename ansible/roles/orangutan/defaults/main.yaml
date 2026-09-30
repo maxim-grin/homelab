@@ -1,0 +1,12 @@
+---
+orangutan_version: "3.3.8"
+orangutan_deb: "lan-orangutan_{{ orangutan_version }}_amd64.deb"
+orangutan_deb_url: "https://github.com/291-Group/LAN-Orangutan/releases/download/v{{ orangutan_version }}/{{ orangutan_deb }}"
+# No checksums file is published; GitHub records one per asset:
+#   gh api repos/291-Group/LAN-Orangutan/releases/tags/v<version> \
+#     --jq '.assets[] | select(.name=="<deb>") | .digest'
+orangutan_deb_sha256: "b727f9f9a33d074e41070737e2ea7750ff040b81a8c708b1d0233c900eb1f24c"
+
+orangutan_port: 291
+orangutan_networks: ["10.0.0.0/24"]
+orangutan_scan_interval: 300

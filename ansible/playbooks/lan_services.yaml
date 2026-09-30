@@ -43,3 +43,9 @@
   force_handlers: true
   roles:
     - gatus
+
+- name: LAN Orangutan
+  hosts: orangutan
+  force_handlers: true
+  roles:
+    - orangutan
