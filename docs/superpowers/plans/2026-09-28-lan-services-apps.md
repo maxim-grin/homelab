@@ -224,7 +224,7 @@ gatus_endpoints:
     group: infra
     url: "https://{{ host_ips['pve'] }}:8006"
     insecure: true
-    conditions: ["[STATUS] == 200"]
+    conditions: ["[CONNECTED] == true", "[STATUS] == 200"]
   - name: NFS
     group: infra
     url: "tcp://{{ host_ips['nfs-01'] }}:2049"
@@ -233,7 +233,7 @@ gatus_endpoints:
   - name: Vault
     group: infra
     url: https://vault.mgryn.cc:8200/v1/sys/health
-    conditions: ["[STATUS] == 200"]
+    conditions: ["[CONNECTED] == true", "[STATUS] == 200"]
   - name: Pi-hole DNS
     group: dns
     url: "{{ host_ips['pihole'] }}"
@@ -244,25 +244,25 @@ gatus_endpoints:
   - name: pihole.hl.mgryn.cc
     group: lan
     url: https://pihole.hl.mgryn.cc/admin/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   - name: proxmox.hl.mgryn.cc
     group: lan
     url: https://proxmox.hl.mgryn.cc/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   # The dashboard sits behind basic auth: 401 proves Traefik and its auth
   # both answer.
   - name: traefik.hl.mgryn.cc
     group: lan
     url: https://traefik.hl.mgryn.cc/dashboard/
-    conditions: ["[STATUS] == 401", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] == 401", "[CERTIFICATE_EXPIRATION] > 336h"]
   - name: status.hl.mgryn.cc
     group: lan
     url: https://status.hl.mgryn.cc/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   - name: jobs.mgryn.cc
     group: dev
     url: https://jobs.mgryn.cc/
-    conditions: ["[STATUS] < 400"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400"]
   - name: Router
     group: network
     url: "icmp://{{ gatus_router }}"
@@ -1092,7 +1092,7 @@ Append to `gatus_endpoints` in `ansible/roles/gatus/defaults/main.yaml`, after `
   - name: lan.hl.mgryn.cc
     group: lan
     url: https://lan.hl.mgryn.cc/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
 ```
 
 - [ ] **Step 3: README and rebuild.md**
@@ -1754,7 +1754,7 @@ Append to `gatus_endpoints`, after `lan.hl.mgryn.cc`:
   - name: home.hl.mgryn.cc
     group: lan
     url: https://home.hl.mgryn.cc/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
 ```
 
 - [ ] **Step 2: README**

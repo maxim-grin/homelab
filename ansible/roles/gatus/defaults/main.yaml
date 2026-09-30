@@ -31,13 +31,15 @@ gatus_router: 10.0.0.1
 
 # Every check. PRs 5 and 6 append their service's name. Traefik renews at
 # 30 days remaining, so the 14-day (336h) certificate check is two weeks'
-# warning that renewal has stopped.
+# warning that renewal has stopped. Every HTTP check starts with
+# [CONNECTED] == true: with no response (a name that does not resolve, a
+# refused connection) [STATUS] is 0, which "[STATUS] < 400" reads as up.
 gatus_endpoints:
   - name: Proxmox UI
     group: infra
     url: "https://{{ host_ips['pve'] }}:8006"
     insecure: true
-    conditions: ["[STATUS] == 200"]
+    conditions: ["[CONNECTED] == true", "[STATUS] == 200"]
   - name: NFS
     group: infra
     url: "tcp://{{ host_ips['nfs-01'] }}:2049"
@@ -46,7 +48,7 @@ gatus_endpoints:
   - name: Vault
     group: infra
     url: https://vault.mgryn.cc:8200/v1/sys/health
-    conditions: ["[STATUS] == 200"]
+    conditions: ["[CONNECTED] == true", "[STATUS] == 200"]
   - name: Pi-hole DNS
     group: dns
     url: "{{ host_ips['pihole'] }}"
@@ -57,17 +59,17 @@ gatus_endpoints:
   - name: pihole.hl.mgryn.cc
     group: lan
     url: https://pihole.hl.mgryn.cc/admin/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   - name: proxmox.hl.mgryn.cc
     group: lan
     url: https://proxmox.hl.mgryn.cc/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   # The dashboard sits behind basic auth: 401 proves Traefik and its auth
   # both answer.
   - name: traefik.hl.mgryn.cc
     group: lan
     url: https://traefik.hl.mgryn.cc/dashboard/
-    conditions: ["[STATUS] == 401", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] == 401", "[CERTIFICATE_EXPIRATION] > 336h"]
   # Unlike traefik.hl, security.basic here protects only the API
   # (/api/v1/...): the root path still serves Gatus's own login-form
   # shell at 200, even unauthenticated. Confirmed on v5.37.0: this
@@ -75,11 +77,11 @@ gatus_endpoints:
   - name: status.hl.mgryn.cc
     group: lan
     url: https://status.hl.mgryn.cc/
-    conditions: ["[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   - name: jobs.mgryn.cc
     group: dev
     url: https://jobs.mgryn.cc/
-    conditions: ["[STATUS] < 400"]
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400"]
   - name: Router
     group: network
     url: "icmp://{{ gatus_router }}"
