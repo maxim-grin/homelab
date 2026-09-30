@@ -337,7 +337,11 @@ Documentation lands with the change, not after the last one.
 
 - Routing cluster applications through Traefik — sub-project 3, with the
   prod hub
-- Scraping Traefik's and Gatus's `/metrics` — sub-project 3
+- Scraping Traefik's and Gatus's `/metrics` — sub-project 3. Until then
+  both are open on the LAN without authentication (Gatus's `security.basic`
+  covers only its API): `http://10.0.0.143:8080/metrics` and
+  `http://10.0.0.141:8082/metrics`. Sub-project 3 decides how Prometheus
+  reads them and how they are protected, both at once.
 - A second Pi-hole for redundancy
 - Backups of the containers — no state here is hard to recreate except
   Gatus's history, which is not worth keeping
