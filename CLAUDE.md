@@ -26,7 +26,8 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`), no test suite.
 
 Only the `dev` environment exists, plus `terraform/environments/shared` for
-`nfs-01`, which serves both environments, and `vault-02`, the Vault VM.
+`nfs-01`, `vault-02` and the LAN LXCs. Their prod halves (`nfs-prod`,
+`kv-prod`) are ready but unused until prod has nodes.
 `terraform/environments/prod` and `talos/` are scaffolding that has never been
 applied — do not extend them without saying so.
 
@@ -41,9 +42,10 @@ argocd/           base/       AppProject
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                               nfs-server, vault-vm, talos-*
                   environments/dev/     the dev machines
-                  environments/shared/  nfs-01, serving dev and prod;
-                                        vault-02, the Vault VM
+                  environments/shared/  nfs-01, vault-02 and the LAN LXCs;
+                                        prod shares and KV ready, unused
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
+docs/operations.md  day-to-day: UIs, applying, jobboard versions
 ```
 
 ## How a change reaches the cluster
