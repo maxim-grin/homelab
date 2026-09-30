@@ -1003,6 +1003,10 @@ WantedBy=multi-user.target
     daemon_reload: true
 ```
 
+> **As built:** nmap is installed with ca-certificates in the plain apt
+> task, not pulled in by `apt deb:` — with the deb task resolving nmap, apt
+> was OOM-killed at 256M in rehearsal (rc 137).
+
 `ansible/roles/orangutan/handlers/main.yaml`:
 
 ```yaml

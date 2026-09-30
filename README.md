@@ -40,13 +40,14 @@ exception and points straight at `vault-02`. There is no Cloudflare Tunnel.
 one LXC in `terraform/environments/shared`, reached as
 `home.hl.mgryn.cc` — see the
 [LAN services design](docs/superpowers/specs/2026-09-27-lan-services-design.md).
-After them, a Talos prod cluster that runs ArgoCD and monitoring for both
+After it, a Talos prod cluster that runs ArgoCD and monitoring for both
 clusters — see the
 [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md).
 
 `pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`,
-`status.hl.mgryn.cc` and `lan.hl.mgryn.cc` resolve on any LAN device through a Cloudflare
-DNS-only wildcard record, `*.hl.mgryn.cc` → `10.0.0.141`.
+`status.hl.mgryn.cc` and `lan.hl.mgryn.cc` resolve on any LAN device
+through a Cloudflare DNS-only wildcard record, `*.hl.mgryn.cc` →
+`10.0.0.141`.
 
 ## Diagram
 
