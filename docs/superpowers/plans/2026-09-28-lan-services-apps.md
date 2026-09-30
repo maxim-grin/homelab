@@ -740,7 +740,7 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 - Consumes: group `orangutan` (PR 1); `orangutan_password` from `secret.yaml`; Task 3's raw-socket result (both counts non-zero).
 - Produces: LAN Orangutan on `http://<orangutan>:291`, scanning `orangutan_networks` every `orangutan_scan_interval` seconds, data in `/var/lib/orangutan`.
 
-- [ ] **Step 1: Two containers on one network, and the checks failing**
+- [x] **Step 1: Two containers on one network, and the checks failing**
 
 ```bash
 docker network create lan-scan >/dev/null 2>&1 || true
@@ -815,7 +815,7 @@ $SCRATCH/check-orangutan.sh; echo "exit=$?"
 
 Expected: `FAIL` lines, `exit=1`.
 
-- [ ] **Step 2: Metadata and defaults**
+- [x] **Step 2: Metadata and defaults**
 
 `ansible/roles/orangutan/meta/main.yaml`:
 
@@ -850,7 +850,7 @@ orangutan_networks: ["10.0.0.0/24"]
 orangutan_scan_interval: 300
 ```
 
-- [ ] **Step 3: Templates**
+- [x] **Step 3: Templates**
 
 `ansible/roles/orangutan/templates/config.ini.j2`:
 
@@ -913,7 +913,7 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-- [ ] **Step 4: Tasks and handlers**
+- [x] **Step 4: Tasks and handlers**
 
 `ansible/roles/orangutan/tasks/main.yaml`:
 
@@ -1014,7 +1014,7 @@ WantedBy=multi-user.target
     daemon_reload: true
 ```
 
-- [ ] **Step 5: The play and the example secret**
+- [x] **Step 5: The play and the example secret**
 
 Append to `ansible/playbooks/lan_services.yaml`:
 
@@ -1036,7 +1036,7 @@ Append to `ansible/secret.yaml.example`:
 orangutan_password: "<24 random chars>"
 ```
 
-- [ ] **Step 6: Rehearse — first run, MACs, idempotence, memory**
+- [x] **Step 6: Rehearse — first run, MACs, idempotence, memory**
 
 ```bash
 $SCRATCH/run-orangutan.sh | grep -E 'changed=|failed=|FAILED|fatal'
@@ -1050,7 +1050,7 @@ docker rm -f lan-orangutan lan-peer; docker network rm lan-scan
 
 Expected: first run `failed=0`; checks all `ok`, `exit=0` — **the MAC check is the one that matters**: if the peer is listed without its MAC, the capabilities are not reaching nmap; fix the unit, do not accept an IP-only list. Second run `changed=0`. Record `memory.peak` in the report — the apt install of nmap may be tight at 256M. If `orangutan list` does not read the service's data (different CLI, or it needs the API), find the right way from `orangutan list --help` and the dashboard's API, change `check-orangutan.sh`, and say so in the report.
 
-- [ ] **Step 7: Lint and commit**
+- [x] **Step 7: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/orangutan playbooks/lan_services.yaml
@@ -1072,7 +1072,7 @@ and the dashboard password comes from secret.yaml."
 - Consumes: LAN Orangutan on `:291` (Task 4); `traefik_routes`, `gatus_endpoints`.
 - Produces: `lan.hl.mgryn.cc`.
 
-- [ ] **Step 1: Route**
+- [x] **Step 1: Route**
 
 Append to `traefik_routes`:
 
@@ -1085,7 +1085,7 @@ Append to `traefik_routes`:
 
 Add `- host_ips['orangutan'] is defined` to the Traefik assert and its `fail_msg`. Run Task 2 Step 1's render commands. Expected: routers include `lan`.
 
-- [ ] **Step 2: Gatus check**
+- [x] **Step 2: Gatus check**
 
 Append to `gatus_endpoints` in `ansible/roles/gatus/defaults/main.yaml`, after `status.hl.mgryn.cc`:
 
@@ -1096,7 +1096,7 @@ Append to `gatus_endpoints` in `ansible/roles/gatus/defaults/main.yaml`, after `
     conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
 ```
 
-- [ ] **Step 3: README and rebuild.md**
+- [x] **Step 3: README and rebuild.md**
 
 - README LXCs row: add "`orangutan` (device discovery) at `.144`" before "; the rest…", which becomes "; `glance` empty until its role lands"; append `, `ansible/roles/orangutan`` to "where defined".
 - Planned sentence: "**Planned, not yet running:** Glance, one LXC in `terraform/environments/shared`, reached as `home.hl.mgryn.cc` — see the …". Keep the link and the Talos sentence.
@@ -1112,7 +1112,7 @@ Append to `gatus_endpoints` in `ansible/roles/gatus/defaults/main.yaml`, after `
     vendors.
 ```
 
-- [ ] **Step 4: Check and commit**
+- [x] **Step 4: Check and commit**
 
 ```bash
 node $SCRATCH/mp/p.mjs
