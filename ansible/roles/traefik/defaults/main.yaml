@@ -48,3 +48,7 @@ traefik_routes:
     host: "status.{{ traefik_domain }}"
     url: "http://{{ host_ips['gatus'] }}:8080"
     insecure: false
+  - name: lan
+    host: "lan.{{ traefik_domain }}"
+    url: "http://{{ host_ips['orangutan'] }}:291"
+    insecure: false

@@ -23,7 +23,7 @@ Why things are built this way is recorded in
 | VMs        | k8s master + 2 workers, `claude-code` workstation              | `terraform/environments/dev`                                |
 | VM         | `nfs-01`, serving both dev and prod                            | `terraform/environments/shared`                              |
 | VM         | `vault-02`, the Vault VM                                        | `terraform/environments/shared`                              |
-| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`; the rest empty until their roles land | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus` |
+| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144`; `glance` empty until its role lands | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan` |
 | OS config  | kubeadm cluster, containerd, NFS server and client             | `ansible/`                                                |
 | GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`              | `ansible/roles/argocd`, `argocd/environments/dev`         |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                  | `argocd/apps/ingress-nginx`                               |
@@ -36,16 +36,16 @@ Most hostnames resolve through `/etc/hosts` on the workstation, pointing at
 a node IP since ingress-nginx answers on every node; `vault.mgryn.cc` is the
 exception and points straight at `vault-02`. There is no Cloudflare Tunnel.
 
-**Planned, not yet running:** Glance and LAN Orangutan,
-one LXC each in `terraform/environments/shared`, reached as
-`*.hl.mgryn.cc` — see the
+**Planned, not yet running:** Glance,
+one LXC in `terraform/environments/shared`, reached as
+`home.hl.mgryn.cc` — see the
 [LAN services design](docs/superpowers/specs/2026-09-27-lan-services-design.md).
 After them, a Talos prod cluster that runs ArgoCD and monitoring for both
 clusters — see the
 [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md).
 
-`pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc` and
-`status.hl.mgryn.cc` resolve on any LAN device through a Cloudflare
+`pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`,
+`status.hl.mgryn.cc` and `lan.hl.mgryn.cc` resolve on any LAN device through a Cloudflare
 DNS-only wildcard record, `*.hl.mgryn.cc` → `10.0.0.141`.
 
 ## Diagram
@@ -93,7 +93,7 @@ flowchart TB
                 traefik["Traefik .141<br/>*.hl.mgryn.cc"]
                 glance["Glance .142<br/>dashboard"]:::planned
                 gatus["Gatus .143<br/>uptime"]
-                orangutan["LAN Orangutan .144<br/>device discovery"]:::planned
+                orangutan["LAN Orangutan .144<br/>device discovery"]
             end
         end
 
@@ -116,7 +116,7 @@ flowchart TB
     lan -- "*.hl.mgryn.cc" --> traefik
     traefik -.-> glance
     traefik --> gatus
-    traefik -.-> orangutan
+    traefik --> orangutan
     traefik --> pihole
     traefik -- "DNS-01" --> letsencrypt
     gatus -- "alerts" --> telegram
