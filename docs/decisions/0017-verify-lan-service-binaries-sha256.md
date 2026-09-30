@@ -1,4 +1,4 @@
-# 0017. Every downloaded binary verified by SHA-256
+# 0017. Every LAN-service binary is verified by SHA-256
 
 **Status:** Accepted (2026-09-28)
 
@@ -29,7 +29,10 @@ planning — the Gatus image layer digest, and the Glance and LAN Orangutan
 per-asset digests were each verified against a real downloaded file before
 being committed. A version bump means finding and pinning a new digest,
 not just a new version string; get that step wrong and the role fails
-loudly at download rather than installing something unverified.
+loudly at download rather than installing something unverified. Roles
+written before the LAN services — `vault`, `kube_packages`, `workstation`,
+and the AVP binary `curl`'d in `roles/argocd` — still fetch their
+downloads with no checksum verification at all.
 
 ## Related
 

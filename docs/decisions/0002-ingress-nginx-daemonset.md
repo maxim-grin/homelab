@@ -20,8 +20,10 @@ client asks for.
 There is no single stable cluster IP for ingress — clients reach any node,
 and most hostnames resolve through `/etc/hosts` on the workstation to a
 node IP rather than through real DNS, since there is no DNS server on the
-LAN. `jobs.mgryn.cc` is the one exception, a DNS-only Cloudflare record
-pointing at a node IP so it resolves anywhere on the LAN. This constrains
+LAN. `jobs.mgryn.cc` and `*.hl.mgryn.cc` are the two exceptions: DNS-only
+Cloudflare records that resolve anywhere on the LAN — `jobs.mgryn.cc`
+straight at a node IP, `*.hl.mgryn.cc` at Traefik, not at an ingress node.
+This constrains
 every service exposed through ingress to living behind a hostname rather
 than a dedicated IP, and it means "Argo says Healthy" is not proof of
 reachability — a Deployment can be up with no ingress controller answering

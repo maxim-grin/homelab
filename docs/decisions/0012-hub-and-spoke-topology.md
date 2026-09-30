@@ -28,8 +28,9 @@ with its own design and PR.
 One ArgoCD teaches cluster registration and per-cluster overlays; the
 cost is dev cannot deploy while prod is down, and dev's current ArgoCD has
 to be retired. `terraform/environments/prod` and `talos/` remain
-scaffolding until this is actually applied — CLAUDE.md's rule not to
-extend them without saying so still stands until sub-projects 2-5 land.
+scaffolding until sub-project 2 fixes the prod root's provider and
+Terraform pins and builds the `talos-tp` template — CLAUDE.md's rule not
+to extend them without saying so stands until then.
 
 ## Related
 

@@ -1,6 +1,6 @@
 # 0011. Vault on its own VM outside the cluster
 
-**Status:** Accepted (2026-09-25)
+**Status:** Accepted (2026-09-25). Supersedes [0005](0005-vault-lxc-for-secrets.md)
 
 ## Context
 

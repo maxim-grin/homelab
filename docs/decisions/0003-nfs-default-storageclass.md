@@ -16,8 +16,10 @@ class lands there automatically.
 
 ## Consequences
 
-Every stateful app (Postgres for jobboard, Prometheus, Grafana) gets
-storage with no per-app provisioning work. The cost is a single point of
+Every stateful app (Postgres for jobboard, Prometheus, Grafana) sets
+`storageClassName: nfs-dev` (or `nfs-prod`) on its PVC explicitly; being
+the default class only means any PVC that names no class also lands
+there. The cost is a single point of
 failure: when the NFS provisioner is down, PVCs across every namespace sit
 `Pending`, and unrelated apps read as broken. The share's path,
 `/srv/nfs/k8s`, is baked into every existing PV's `nfs.path` and is

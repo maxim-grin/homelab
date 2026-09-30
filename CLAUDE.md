@@ -207,7 +207,8 @@ supersedes a record in `docs/decisions/` in the same PR.
   there. The `ComparisonError` condition does name Vault, in AVP's stderr;
   it is the health field that lies. `vault status` on `vault-02`
   (`VAULT_ADDR=https://10.0.0.133:8200`, or run on the host) is the
-  first check when an app that was fine yesterday won't sync today.
+  first check when an app that was fine yesterday won't sync today. (ADR
+  [0004](docs/decisions/0004-secrets-in-vault-via-avp.md))
 - **`vault-02` is HTTPS from a private CA, reached as `vault.mgryn.cc`.**
   The CA's key is in `~/.homelab-ca/` on the workstation that runs
   Ansible and nowhere else; losing it loses no data (re-run the role,

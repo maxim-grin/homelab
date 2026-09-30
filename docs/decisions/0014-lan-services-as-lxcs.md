@@ -24,9 +24,12 @@ pointing at Traefik.
 
 Putting them in `shared` rather than in-cluster keeps a `terraform
 destroy` of either cluster from taking LAN DNS or monitoring down with it.
-The cost is five more machines to keep patched by hand, native-installed
-rather than as containers, each with its own Ansible role. `secret.yaml`
-carries their credentials, same as every other host.
+The cost is five more machines, native-installed rather than as
+containers, each with its own Ansible role. `secret.yaml` carries their
+credentials, same as every other host. The design's ~1G memory total for
+the five LXCs did not hold: Gatus and Glance were each raised from 128M
+to 256M after a single `apt` run OOM-killed the service running beside
+one at 128M, putting the real total closer to 1.25G.
 
 ## Related
 

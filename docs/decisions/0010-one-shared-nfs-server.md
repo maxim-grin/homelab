@@ -28,9 +28,12 @@ immutable.
 dev and prod now have independent free-space pools and client lists, and
 a `terraform destroy` of dev cannot touch prod's disk. `nfs-prod` has no
 export line until prod has nodes — an export with no client list is
-exported to everyone. The migration was in-place (same vmid), so nothing
-on the cluster side changed; only the prod provisioner manifest, which
-nothing syncs yet.
+exported to everyone. The VM itself was adopted in place, same vmid and
+IP, but its data still had to move: auto-sync was disabled on the apps
+using it, their stateful workloads and the provisioner scaled to 0, the
+old export rsynced onto the new `nfs-dev` disk, `nfs-server` restarted
+onto it, and everything scaled back up. Only the PV paths and the
+server's IP stayed the same — the migration itself was not a no-op.
 
 ## Related
 

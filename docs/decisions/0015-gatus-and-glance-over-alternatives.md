@@ -14,7 +14,7 @@ dashboard.
 Gatus replaces Uptime Kuma: monitors live in YAML rather than a database,
 and it exposes a `/metrics` endpoint; it alerts to Telegram on failure and
 recovery. Glance replaces Homepage: about 30M of memory instead of about
-1G, and a single Go binary rather than a heavier stack.
+1G, and a single Go binary.
 
 ## Consequences
 
@@ -31,7 +31,6 @@ fallback; Glance itself is still planned, not deployed.
 
 ## Related
 
-[#51](https://github.com/maxim-grin/homelab/pull/51) "feat: lan services";
-`docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md` "Decisions"
-table; [#56](https://github.com/maxim-grin/homelab/pull/56) "feat: add the
-gatus role".
+[#51](https://github.com/maxim-grin/homelab/pull/51) "feat: lan services"
+(description: Gatus/Glance rationale); [#56](https://github.com/maxim-grin/homelab/pull/56)
+"feat: add the gatus role".

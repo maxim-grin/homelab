@@ -26,8 +26,7 @@ staging certificate in production.
 ## Consequences
 
 A route change reloads Traefik without restarting it; a static-config or
-unit change restarts it, which reseals nothing here but does interrupt
-active connections. `readTimeout: 0` on `:443` was needed because v3's
+unit change restarts it. `readTimeout: 0` on `:443` was needed because v3's
 default 60-second timeout cuts off ISO uploads and Proxmox consoles. The
 plan's HTTP→HTTPS redirect check (308) was wrong — rehearsal found 301.
 

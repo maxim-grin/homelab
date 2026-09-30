@@ -11,15 +11,16 @@ still letting ArgoCD apply the object that needs it.
 
 ## Decision
 
-Store real secret values in HashiCorp Vault and commit only
-`<path:kv-<env>/data/...#FIELD>` placeholders in manifests;
-argocd-vault-plugin (AVP), running as an `argocd-repo-server` sidecar,
-resolves them against Vault at sync time. Rejected: External Secrets
-Operator, and a SOPS-encrypted `vault/secrets.yaml.enc` for the seed
-(`ansible/secret.yaml`'s `vault_kv` block was chosen instead). Vault
-itself first ran as an unprivileged Proxmox LXC (record
-[0005](0005-vault-lxc-for-secrets.md)), rejecting in-cluster Helm and a
-full VM at the time.
+Store real secret values in HashiCorp Vault and commit only a `<path:...>`
+placeholder in manifests; argocd-vault-plugin (AVP), running as an
+`argocd-repo-server` sidecar, resolves them against Vault at sync time.
+Rejected: External Secrets Operator, and a SOPS-encrypted
+`vault/secrets.yaml.enc` for the seed (`ansible/secret.yaml`'s `vault_kv`
+block was chosen instead). Vault itself first ran as an unprivileged
+Proxmox LXC (record [0005](0005-vault-lxc-for-secrets.md)), rejecting
+in-cluster Helm and a full VM at the time. At this point every secret
+lived under one `secret/` path; the `kv-dev/data/...#FIELD` form, split
+by environment, came later with record [0011](0011-vault-on-its-own-vm.md).
 
 ## Consequences
 

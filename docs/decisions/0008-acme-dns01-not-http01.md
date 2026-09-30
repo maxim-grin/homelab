@@ -1,6 +1,6 @@
 # 0008. Certificates by ACME DNS-01 through Cloudflare, not HTTP-01 or Cloudflare's edge cert
 
-**Status:** Accepted (2026-09-18)
+**Status:** Accepted (2026-09-17)
 
 ## Context
 

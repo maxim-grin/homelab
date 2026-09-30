@@ -1,6 +1,6 @@
 # 0005. Vault in an LXC
 
-**Status:** Superseded by [0011](0011-vault-on-its-own-vm.md) (2026-09-25)
+**Status:** Accepted (2026-09-11), superseded by [0011](0011-vault-on-its-own-vm.md) (2026-09-25)
 
 ## Context
 
@@ -18,7 +18,8 @@ single-share unsealing (`-key-shares=1 -key-threshold=1`) and
 ## Consequences
 
 Cheapest option to stand up, and it worked as the root of trust for every
-`<path:...>` placeholder from 2026-09-11. It carried five weaknesses that
+`<path:...>` placeholder from 2026-09-14, when #10 merged the first
+placeholders into `main`. It carried five weaknesses that
 eventually forced its replacement: no backups (the `file` storage backend
 has no consistent online backup), no TLS (every secret and the root token
 crossed the LAN in clear text), no audit log, one KV namespace shared by
