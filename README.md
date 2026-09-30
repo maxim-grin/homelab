@@ -4,8 +4,8 @@
 
 A single-host Proxmox homelab run as code: Terraform provisions the VMs and
 LXCs, Ansible configures them, and ArgoCD delivers applications to a
-kubeadm Kubernetes cluster from this repository's `main`. Secrets stay in
-Vault and are resolved at sync time, TLS comes from Let's Encrypt over
+kubeadm Kubernetes cluster from this repository's `main`. Cluster secrets
+stay in Vault and are resolved at sync time, TLS comes from Let's Encrypt over
 DNS-01, and a row of small LXCs serves the LAN — DNS, a reverse proxy,
 uptime alerts.
 
@@ -112,26 +112,30 @@ reached as `*.hl.mgryn.cc`, come next — see the
 [LAN services design](docs/superpowers/specs/2026-09-27-lan-services-design.md).
 
 **Rebuilding** after a disk replacement or a total loss starts at
-[docs/rebuild.md](docs/rebuild.md). Why things are built this way is in
+[docs/rebuild.md](docs/rebuild.md), which lists what this repository does
+_not_ contain — the part that will bite. Why things are built this way is in
 [docs/decisions/](docs/decisions/), one ADR per decision. Running it day to
 day — UIs, applying changes, shipping a jobboard version — is
 [docs/operations.md](docs/operations.md).
 
 ## Names and TLS
 
-`jobs.mgryn.cc` and `*.hl.mgryn.cc` are the two names in public DNS: both
-are DNS-only (grey cloud) Cloudflare records holding a private IP, so any
-device on the LAN resolves them without a hosts entry. Public DNS
+`jobs.mgryn.cc`, `vault.mgryn.cc` and `*.hl.mgryn.cc` are the names in
+public DNS: all three are DNS-only (grey cloud) Cloudflare records holding
+a private IP, so any device on the LAN resolves them without a hosts
+entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
-`pihole`, `proxmox`, `traefik` and `status`. Other cluster names resolve
-through `/etc/hosts` on the workstation; `vault.mgryn.cc` points straight
-at `vault-02`. There is no Cloudflare Tunnel.
+`pihole`, `proxmox`, `traefik` and `status`; `vault.mgryn.cc` points
+straight at `vault-02`. The other cluster names — `argocd`, `grafana`,
+`prometheus` — resolve through `/etc/hosts` on the workstation. There is
+no Cloudflare Tunnel.
 
-Both public names are served over HTTPS with their own Let's Encrypt
-certificate, obtained by ACME DNS-01, writing a TXT record through the
-Cloudflare API — but by two different components with two different
-tokens. `jobs.mgryn.cc`'s comes from cert-manager, with a token held in
+`jobs.mgryn.cc` and `*.hl.mgryn.cc` are served over HTTPS with their own
+Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT record
+through the Cloudflare API — but by two different components with two
+different tokens. `jobs.mgryn.cc`'s (and `grafana.mgryn.cc`'s) comes from
+cert-manager, with a token held in
 Vault at `kv-dev/cert-manager/cloudflare`; `*.hl.mgryn.cc`'s comes from
 Traefik itself, with its own token in `secret.yaml`
 (`traefik_cloudflare_api_token`) — kept separate so either can be revoked

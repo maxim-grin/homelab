@@ -36,7 +36,7 @@ is a stop — see
 | --- | --- | --- |
 | `https://jobs.mgryn.cc` | jobboard; HTTP 308s to HTTPS | cert-manager |
 | `http://argocd.mgryn.cc` | ArgoCD UI | none |
-| `http://grafana.mgryn.cc` | Grafana | none |
+| `https://grafana.mgryn.cc` | Grafana; HTTP 308s to HTTPS | cert-manager |
 | `http://prometheus.mgryn.cc` | Prometheus, no authentication — Prometheus ships none | none |
 | `https://vault.mgryn.cc:8200` | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA |
 | `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus | Traefik |

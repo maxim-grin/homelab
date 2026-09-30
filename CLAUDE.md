@@ -46,6 +46,7 @@ terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                                         prod shares and KV ready, unused
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
 docs/operations.md  day-to-day: UIs, applying, jobboard versions
+docs/ci.md        branch-protection ruleset for the four CI checks
 ```
 
 ## How a change reaches the cluster
