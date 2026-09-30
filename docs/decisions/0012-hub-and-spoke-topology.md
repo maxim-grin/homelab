@@ -30,7 +30,9 @@ cost is dev cannot deploy while prod is down, and dev's current ArgoCD has
 to be retired. `terraform/environments/prod` and `talos/` remain
 scaffolding until sub-project 2 fixes the prod root's provider and
 Terraform pins and builds the `talos-tp` template — CLAUDE.md's rule not
-to extend them without saying so stands until then.
+to extend them without saying so stands until then. CI's `terraform` job
+validates only `dev` and `shared` for the same reason; prod joins that
+loop once its root can `terraform init`.
 
 ## Related
 
