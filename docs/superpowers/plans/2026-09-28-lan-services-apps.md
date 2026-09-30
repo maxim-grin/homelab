@@ -28,7 +28,7 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 - **No `Co-Authored-By` trailer and no "generated with" line** in commits or PR bodies. CLAUDE.md overrides any default attribution.
 - Addresses: `pihole` `10.0.0.140`, `traefik` `10.0.0.141`, `glance` `10.0.0.142`, `gatus` `10.0.0.143`, `orangutan` `10.0.0.144`, router `10.0.0.1`, `nfs-01` `10.0.0.131`, `vault-02` `10.0.0.133`. Roles read them from `host_ips[...]`, never literals, except the router.
 - Names: `status.hl.mgryn.cc` → Gatus `:8080`, `lan.hl.mgryn.cc` → LAN Orangutan `:291`, `home.hl.mgryn.cc` → Glance `:8080`.
-- LXC resolvers stay `10.0.0.1 1.1.1.1`, never Pi-hole — Gatus must keep resolving when Pi-hole is the thing that is down.
+- LXC resolvers are `1.1.1.1 10.0.0.1`, in that order, never Pi-hole — Gatus must keep resolving when Pi-hole is the thing that is down, and the router's rebind protection returns no address for `mgryn.cc` names pointing at private IPs, so it cannot come first (found in PR 4's operator run).
 - Every role: version pinned in `defaults/main.yaml`, SHA-256 verified before install, dedicated system user, systemd unit with `Restart=on-failure`, `force_handlers: true` on its play. Secrets live only in a root `0600` `EnvironmentFile` read by systemd — or, where the service itself must open the file (LAN Orangutan's password file), `0400` owned by the service user — never group- or world-readable, with `no_log` on the task that writes it.
 - Gatus and Glance trust the homelab CA (`~/.homelab-ca/ca.crt` on the controller) to reach `https://vault.mgryn.cc:8200`.
 - Secrets are top-level variables in `ansible/secret.yaml` with a placeholder in `ansible/secret.yaml.example`: `gatus_telegram_token`, `gatus_telegram_chat_id`, `gatus_basic_user`, `gatus_basic_password`, `gatus_basic_password_bcrypt` (PR 4); `orangutan_password` (PR 5); `pihole_app_password`, `pihole_app_pwhash`, `glance_proxmox_token_id`, `glance_proxmox_token_secret` (PR 6).
@@ -710,6 +710,7 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 ### Task 3: Operator — Gatus (owner, not an agent)
 
 - [ ] `terraform plan -var-file=shared.tfvars` in `terraform/environments/shared`: **0 to add, 2 to change, 0 to destroy** — memory 128 → 256 on `module.lan_service["gatus"]` and `["glance"]`, nothing else. Any `-/+` (replace) or change outside `memory` is a stop. Then `terraform apply -var-file=shared.tfvars`. The containers keep running; Proxmox raises an LXC's memory live.
+- [ ] `terraform plan -var-file=shared.tfvars` again after the resolver change: **0 to add, 5 to change, 0 to destroy** — `nameserver` on all five `module.lan_service[...]`, nothing else; apply. Then `pct exec 143 -- cat /etc/resolv.conf` shows `nameserver 1.1.1.1` first; if not, `pct reboot 143` (and the same for the others). `pct exec 143 -- getent hosts vault.mgryn.cc` prints `10.0.0.133`.
 - [ ] Telegram: create a bot with @BotFather (`/newbot`), send it a message, read the chat id from `https://api.telegram.org/bot<token>/getUpdates`.
 - [ ] On the `lan-gatus` checkout: `ansible-vault edit ansible/secret.yaml` — add `gatus_telegram_token`, `gatus_telegram_chat_id`, `gatus_basic_user`, `gatus_basic_password` and `gatus_basic_password_bcrypt` (`htpasswd -nbB <user> '<password>' | cut -d: -f2` makes the hash); commit (`ops: add gatus secrets`) and push to the branch.
 - [ ] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit traefik,gatus`: `failed=0`; a second run `changed=0`.
@@ -1805,9 +1806,9 @@ Add a new bullet after that one:
 - **Pi-hole is the LAN's only DNS server.** The router's DHCP hands out
   `10.0.0.140` and nothing else, so a stopped Pi-hole takes name
   resolution away from every device on the LAN — phones, TV, laptop.
-  Gatus alerts on it within two minutes, resolving through the router
-  itself, as every LAN service container does (`10.0.0.1 1.1.1.1`, never
-  Pi-hole). Restart it, or, to roll back, set the router's DHCP DNS to
+  Gatus alerts on it within about two minutes, resolving through
+  `1.1.1.1` and the router, as every LAN service container does, never
+  Pi-hole. Restart it, or, to roll back, set the router's DHCP DNS to
   the setting recorded in the Glance PR's body.
 ```
 

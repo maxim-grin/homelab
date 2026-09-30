@@ -31,7 +31,7 @@ Done means:
 | Names | `*.hl.mgryn.cc`, one DNS-only Cloudflare wildcard record → Traefik |
 | Certificates | Let's Encrypt wildcard by DNS-01, obtained by Traefik |
 | Pi-hole's role | The router's only DHCP-advertised DNS server; no public secondary |
-| LXC resolvers | Router and `1.1.1.1`, never Pi-hole |
+| LXC resolvers | `1.1.1.1`, then the router; never Pi-hole |
 | Secrets | `ansible/secret.yaml`; Traefik gets its own Cloudflare token |
 | Traefik routes | The four other services and the Proxmox UI; cluster apps wait for sub-project 3 |
 | Vault UI | Stays direct at `vault.mgryn.cc:8200` |
@@ -45,6 +45,13 @@ Done means:
 Gatus sends alerts through Telegram, which needs DNS; Traefik renews its
 certificate through Cloudflare, which needs DNS. If they resolved through
 Pi-hole, a dead Pi-hole would silence the alert about itself.
+
+`1.1.1.1` comes before the router. The router's DNS rebind protection
+answers a public name that points at a private address — `vault.mgryn.cc`,
+every `*.hl.mgryn.cc` — with an empty `NOERROR`, which a resolver takes as
+final, so with the router first none of those names resolve. Found in
+PR 4's first live run: Gatus reported `lookup vault.mgryn.cc on
+10.0.0.1:53: no such host`.
 
 ## Network
 
@@ -83,7 +90,7 @@ after a host power loss every other machine's name lookups go through it.
 All five: Debian 13 standard template, unprivileged, `nesting = true`
 (systemd in Debian 13 needs it inside an unprivileged container), pool
 `LXC`, `start_at_node_boot = true`, the existing SSH public key for
-`root`, `nameserver = "10.0.0.1 1.1.1.1"`, tags `lxc,shared,<service>`.
+`root`, `nameserver = "1.1.1.1 10.0.0.1"`, tags `lxc,shared,<service>`.
 
 No root password: `modules/lxc`'s `password` input becomes optional, and
 these containers leave it null. Access is the injected SSH key alone, and
@@ -294,7 +301,7 @@ Each step is verified before the next.
 
 | Failure | Effect | Detection and response |
 | --- | --- | --- |
-| Pi-hole down | The LAN has no DNS | Gatus alerts, resolving through the router. Restart it, or restore the router's recorded DNS |
+| Pi-hole down | The LAN has no DNS | Gatus alerts, resolving through `1.1.1.1`. Restart it, or restore the router's recorded DNS |
 | Host reboot | Services return in startup order | Pi-hole starts first and answers within seconds |
 | Traefik down | No `*.hl` names; services still answer on IP and port | Gatus alerts |
 | Certificate renewal stops | TLS errors once the certificate expires | Gatus alerts at 14 days remaining |

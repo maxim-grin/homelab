@@ -150,8 +150,11 @@ module "lan_service" {
   network_gw     = var.gateway
 
   # Never Pi-hole: Gatus alerts and Traefik's certificate renewals must
-  # keep resolving when Pi-hole is the thing that is down.
-  nameserver = "10.0.0.1 1.1.1.1"
+  # keep resolving when Pi-hole is the thing that is down. 1.1.1.1 first:
+  # the router's rebind protection answers mgryn.cc names that point at a
+  # private address with an empty NOERROR, and a resolver takes that as
+  # final, so with the router first vault.mgryn.cc and *.hl never resolve.
+  nameserver = "1.1.1.1 10.0.0.1"
 
   # systemd in Debian 13 needs nesting inside an unprivileged container.
   features_enabled = true
