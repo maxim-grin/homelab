@@ -97,11 +97,14 @@ revisions.
 | dev workers | 2 × 4G | 1 × 3G |
 | prod control plane | — | 2G |
 | prod workers | — | 2 × 4G |
-| Pi-hole, Traefik, Glance, Gatus, LAN Orangutan | — | ~1G total |
+| Pi-hole, Traefik, Glance, Gatus, LAN Orangutan | — | about 1.25G total |
 | **Total** | **~30G** | **~29G** |
 
 Prod gets two workers on purpose: drains, PodDisruptionBudgets,
 anti-affinity and rolling updates teach nothing on one node.
+
+Gatus and Glance went from 128M to 256M in PR 4, once rehearsal showed
+128M left no headroom for an Ansible module run alongside the service.
 
 Only 7G is free today, and prod plus the LXCs need about 11G, so dev
 shrinks in two steps — part of it before prod exists (sub-project 0),

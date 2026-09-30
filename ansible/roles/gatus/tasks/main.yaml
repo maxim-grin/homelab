@@ -1,0 +1,152 @@
+---
+- name: Require Gatus's secrets and addresses
+  ansible.builtin.assert:
+    that:
+      - gatus_telegram_token is defined
+      - gatus_telegram_token | length > 0
+      - gatus_telegram_chat_id is defined
+      - gatus_telegram_chat_id | string | length > 0
+      - gatus_basic_user is defined
+      - gatus_basic_user | length > 0
+      - gatus_basic_password_bcrypt is defined
+      - gatus_basic_password_bcrypt | length > 0
+      - gatus_basic_password_bcrypt is match('\$2')
+      - host_ips['pve'] is defined
+      - host_ips['nfs-01'] is defined
+      - host_ips['pihole'] is defined
+    fail_msg: >-
+      gatus_telegram_token, gatus_telegram_chat_id, gatus_basic_user,
+      gatus_basic_password_bcrypt (a bcrypt hash) and host_ips for pve,
+      nfs-01 and pihole must be set in ansible/secret.yaml.
+    quiet: true
+
+- name: Create the gatus system user
+  ansible.builtin.user:
+    name: gatus
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/gatus
+    create_home: false
+
+- name: Create Gatus's directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: gatus
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/gatus, owner: root, mode: "0750" }
+    - { path: /var/lib/gatus, owner: gatus, mode: "0700" }
+    - { path: "/opt/gatus/{{ gatus_version }}", owner: root, mode: "0755" }
+
+- name: Install ca-certificates
+  ansible.builtin.apt:
+    name: ca-certificates
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# vault.mgryn.cc is signed by the homelab's private CA.
+- name: Trust the homelab CA
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.file', gatus_ca_cert_src) }}\n"
+    dest: /usr/local/share/ca-certificates/homelab-ca.crt
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Update the CA trust store
+    - Restart gatus
+
+- name: Check for this version's binary
+  ansible.builtin.stat:
+    path: "/opt/gatus/{{ gatus_version }}/gatus"
+  register: gatus_binary
+
+# Only when the binary is missing, so a run with ghcr.io unreachable
+# still succeeds once Gatus is installed.
+- name: Fetch the Gatus binary layer
+  when: not gatus_binary.stat.exists
+  block:
+    - name: Get an anonymous ghcr.io pull token
+      ansible.builtin.uri:
+        url: "https://ghcr.io/token?scope=repository:{{ gatus_image }}:pull"
+        return_content: true
+      register: gatus_registry_token
+      no_log: true
+
+    # ghcr.io redirects blob downloads to a CDN host; get_url follows the
+    # redirect and forwards the Authorization header there too -- fine
+    # here, since it is only an anonymous pull token for a public image.
+    - name: Download the layer, checked against its digest
+      ansible.builtin.get_url:
+        url: "https://ghcr.io/v2/{{ gatus_image }}/blobs/{{ gatus_layer_digest }}"
+        dest: "/opt/gatus/gatus-{{ gatus_version }}-layer.tar.gz"
+        checksum: "{{ gatus_layer_digest }}"
+        headers:
+          Authorization: "Bearer {{ gatus_registry_token.json.token }}"
+        mode: "0644"
+      no_log: true
+
+    - name: Unpack the binary
+      ansible.builtin.unarchive:
+        src: "/opt/gatus/gatus-{{ gatus_version }}-layer.tar.gz"
+        dest: "/opt/gatus/{{ gatus_version }}"
+        remote_src: true
+        include: [gatus]
+        creates: "/opt/gatus/{{ gatus_version }}/gatus"
+
+- name: Point /usr/local/bin/gatus at this version
+  ansible.builtin.file:
+    src: "/opt/gatus/{{ gatus_version }}/gatus"
+    dest: /usr/local/bin/gatus
+    state: link
+  notify: Restart gatus
+
+- name: Write the configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/gatus/config.yaml
+    owner: root
+    group: gatus
+    mode: "0640"
+  notify: Restart gatus
+
+- name: Write the Telegram secrets
+  ansible.builtin.template:
+    src: gatus.env.j2
+    dest: /etc/gatus/gatus.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart gatus
+
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: gatus.service.j2
+    dest: /etc/systemd/system/gatus.service
+    mode: "0644"
+  notify: Restart gatus
+
+# Gatus pings unprivileged (v5.31.0+), which needs its gid inside
+# net.ipv4.ping_group_range. A Proxmox unprivileged LXC's netns starts
+# with the range disabled ("1 0"); Debian's systemd default (0
+# 2147483647) doesn't fix this either -- 2147483647 is unmapped in the
+# user namespace and gets rejected. "0 65535" is mapped and covers the
+# gatus gid.
+- name: Let Gatus ping unprivileged
+  ansible.posix.sysctl:
+    name: net.ipv4.ping_group_range
+    value: "0 65535"
+    sysctl_file: /etc/sysctl.d/60-gatus-ping.conf
+    sysctl_set: true
+    reload: true
+
+- name: Start Gatus at boot
+  ansible.builtin.systemd_service:
+    name: gatus
+    state: started
+    enabled: true
+    daemon_reload: true

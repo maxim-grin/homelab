@@ -34,3 +34,12 @@
   force_handlers: true
   roles:
     - traefik
+
+- name: Gatus
+  hosts: gatus
+  # A later task failing on a run that already rewrote the config, env
+  # file or unit must not leave the old process running -- the restart
+  # handler has to fire regardless.
+  force_handlers: true
+  roles:
+    - gatus

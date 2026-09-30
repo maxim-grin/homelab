@@ -31,7 +31,7 @@ Done means:
 | Names | `*.hl.mgryn.cc`, one DNS-only Cloudflare wildcard record → Traefik |
 | Certificates | Let's Encrypt wildcard by DNS-01, obtained by Traefik |
 | Pi-hole's role | The router's only DHCP-advertised DNS server; no public secondary |
-| LXC resolvers | Router and `1.1.1.1`, never Pi-hole |
+| LXC resolvers | `1.1.1.1`, then the router; never Pi-hole |
 | Secrets | `ansible/secret.yaml`; Traefik gets its own Cloudflare token |
 | Traefik routes | The four other services and the Proxmox UI; cluster apps wait for sub-project 3 |
 | Vault UI | Stays direct at `vault.mgryn.cc:8200` |
@@ -45,6 +45,13 @@ Done means:
 Gatus sends alerts through Telegram, which needs DNS; Traefik renews its
 certificate through Cloudflare, which needs DNS. If they resolved through
 Pi-hole, a dead Pi-hole would silence the alert about itself.
+
+`1.1.1.1` comes before the router. The router's DNS rebind protection
+answers a public name that points at a private address — `vault.mgryn.cc`,
+every `*.hl.mgryn.cc` — with an empty `NOERROR`, which a resolver takes as
+final, so with the router first none of those names resolve. Found in
+PR 4's first live run: Gatus reported `lookup vault.mgryn.cc on
+10.0.0.1:53: no such host`.
 
 ## Network
 
@@ -73,8 +80,8 @@ One `module "lan_service"` with `for_each` over `local.lan_services`, addressing
 | --- | --- | --- | --- | --- | --- |
 | `pihole` | 140 | `10.0.0.140/24` | 256M | 8G | `order=1` |
 | `traefik` | 141 | `10.0.0.141/24` | 256M | 4G | `order=2` |
-| `glance` | 142 | `10.0.0.142/24` | 128M | 4G | `order=15` |
-| `gatus` | 143 | `10.0.0.143/24` | 128M | 4G | `order=15` |
+| `glance` | 142 | `10.0.0.142/24` | 256M | 4G | `order=15` |
+| `gatus` | 143 | `10.0.0.143/24` | 256M | 4G | `order=15` |
 | `orangutan` | 144 | `10.0.0.144/24` | 256M | 4G | `order=15` |
 
 Pi-hole starts before `vault-02` (`order=5`) and `nfs-01` (`order=10`):
@@ -83,7 +90,7 @@ after a host power loss every other machine's name lookups go through it.
 All five: Debian 13 standard template, unprivileged, `nesting = true`
 (systemd in Debian 13 needs it inside an unprivileged container), pool
 `LXC`, `start_at_node_boot = true`, the existing SSH public key for
-`root`, `nameserver = "10.0.0.1 1.1.1.1"`, tags `lxc,shared,<service>`.
+`root`, `nameserver = "1.1.1.1 10.0.0.1"`, tags `lxc,shared,<service>`.
 
 No root password: `modules/lxc`'s `password` input becomes optional, and
 these containers leave it null. Access is the injected SSH key alone, and
@@ -121,8 +128,11 @@ order: Pi-hole, Traefik, Gatus, LAN Orangutan, Glance.
 
 Every role:
 
-- pins its version in `defaults/main.yaml` and verifies the release's
-  SHA-256 before installing (Pi-hole excepted, below)
+- pins its version in `defaults/main.yaml` and verifies a SHA-256 before
+  installing (Pi-hole excepted, below): Traefik's published checksums
+  file; GitHub's per-asset digest for Glance and LAN Orangutan, which
+  publish none; and, for Gatus, which publishes only container images,
+  the digest of the image layer holding its binary
 - runs its service as a dedicated system user under a systemd unit with
   `Restart=on-failure`
 - keeps secrets in a `0600` `EnvironmentFile` or config file, never in a
@@ -202,16 +212,23 @@ Alerts go to Telegram (`gatus_telegram_token`, `gatus_telegram_chat_id`)
 on failure and on recovery. History is stored in SQLite under
 `/var/lib/gatus`. `metrics: true` exposes `/metrics`.
 
+Its own basic auth (`security.basic`) protects its API; the UI shows its
+own login form and gates the data behind the same credentials, which
+Glance's Gatus widget (PR 6) also authenticates with.
+
 ### orangutan — `lan.hl.mgryn.cc`
 
 LAN Orangutan and `nmap`, scanning `10.0.0.0/24` on an interval, web UI
 on `:291`, data under `/var/lib/orangutan`. Its unit grants
 `CAP_NET_RAW` and `CAP_NET_ADMIN` for nmap's ARP scan.
 
-**Unverified:** that an unprivileged LXC can hold raw sockets for an ARP
-scan. `ping` works in one, which needs the same capability, so it should.
-The plan checks it before writing the role. If it fails, this one
-container becomes privileged.
+It runs as its own user, not root as upstream's unit does: nmap sends
+raw ARP and reads MACs as a normal user given `CAP_NET_RAW` and
+`CAP_NET_ADMIN` and `NMAP_PRIVILEGED=1`, and `CAP_NET_BIND_SERVICE`
+covers port 291. Its dashboard password is `orangutan_password`;
+without one, the first visitor would be asked to create it. The
+raw-socket check in an unprivileged LXC runs before the role is
+written; if it fails, this one container becomes privileged.
 
 ### glance — `home.hl.mgryn.cc`
 
@@ -227,9 +244,13 @@ One page:
 - **Bookmarks**: Vault UI, ArgoCD, Grafana, jobboard, the GitHub
   repository
 
-**Unverified:** that Glance's DNS widget speaks the Pi-hole v6 API, and
-that `custom-api` handles the Proxmox token header. The plan checks both
-first; Homepage is the fallback.
+Checked while planning: `dns-stats` supports `pihole-v6` with an
+application password, and `custom-api` sends arbitrary headers, so
+the Proxmox token header works. Pi-hole cannot hash an application
+password it did not generate, so the operator creates one once through
+its API and keeps both halves in `secret.yaml`: `pihole_app_password`
+for Glance, `pihole_app_pwhash` for the `pihole` role to apply, which
+keeps it valid across a rebuilt Pi-hole.
 
 ## Secrets
 
@@ -240,9 +261,13 @@ in `secret.yaml.example`:
 | --- | --- |
 | `pihole_admin_password` | Pi-hole admin login |
 | `pihole_app_password` | Glance's DNS widget |
+| `pihole_app_pwhash` | Pi-hole, the hash of that password |
 | `traefik_cloudflare_api_token` | Traefik's DNS-01 challenge |
 | `traefik_dashboard_users` | Traefik dashboard basic auth, htpasswd format |
+| `orangutan_password` | LAN Orangutan's dashboard |
 | `gatus_telegram_token`, `gatus_telegram_chat_id` | Gatus alerts |
+| `gatus_basic_user`, `gatus_basic_password` | Glance's Gatus widget |
+| `gatus_basic_password_bcrypt` | Gatus's own `security.basic` |
 | `glance_proxmox_token_id`, `glance_proxmox_token_secret` | Glance's Proxmox widget |
 
 Plus `host_ips` entries for the five hosts and for `pve`, the Proxmox
@@ -276,7 +301,7 @@ Each step is verified before the next.
 
 | Failure | Effect | Detection and response |
 | --- | --- | --- |
-| Pi-hole down | The LAN has no DNS | Gatus alerts, resolving through the router. Restart it, or restore the router's recorded DNS |
+| Pi-hole down | The LAN has no DNS | Gatus alerts, resolving through `1.1.1.1`. Restart it, or restore the router's recorded DNS |
 | Host reboot | Services return in startup order | Pi-hole starts first and answers within seconds |
 | Traefik down | No `*.hl` names; services still answer on IP and port | Gatus alerts |
 | Certificate renewal stops | TLS errors once the certificate expires | Gatus alerts at 14 days remaining |
@@ -285,9 +310,12 @@ Each step is verified before the next.
 
 ## Memory and disk
 
-About 1G of memory for all five, against the roadmap's 1.5G budget; the
+About 1.25G of memory for all five, against the roadmap's 1.5G budget; the
 roadmap is updated to match. 24G of root disk allocated, about 3–4G
 written.
+
+Gatus and Glance were raised from 128M to 256M in PR 4, when an Ansible
+module run OOM-killed the service beside it at 128M.
 
 ## Pull requests
 
@@ -309,7 +337,11 @@ Documentation lands with the change, not after the last one.
 
 - Routing cluster applications through Traefik — sub-project 3, with the
   prod hub
-- Scraping Traefik's and Gatus's `/metrics` — sub-project 3
+- Scraping Traefik's and Gatus's `/metrics` — sub-project 3. Until then
+  both are open on the LAN without authentication (Gatus's `security.basic`
+  covers only its API): `http://10.0.0.143:8080/metrics` and
+  `http://10.0.0.141:8082/metrics`. Sub-project 3 decides how Prometheus
+  reads them and how they are protected, both at once.
 - A second Pi-hole for redundancy
 - Backups of the containers — no state here is hard to recreate except
   Gatus's history, which is not worth keeping
