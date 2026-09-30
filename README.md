@@ -12,6 +12,9 @@ second host and no `prod` cluster; the `prod/` directories are scaffolding not y
 [docs/rebuild.md](docs/rebuild.md).** It lists what this repository does
 _not_ contain, which is the part that will bite.
 
+Why things are built this way is recorded in
+[docs/decisions/](docs/decisions/), one ADR per decision.
+
 ## What actually runs
 
 | Layer      | What                                                           | Where it is defined                                       |
@@ -140,12 +143,9 @@ comes from Traefik itself, with its own token in `secret.yaml`
 (`traefik_cloudflare_api_token`) — kept separate so either can be revoked
 without touching the other. Renewal is automatic, 30 days before expiry.
 
-DNS-01 rather than HTTP-01 because nothing here is reachable from the public
-internet, and DNS-01 proves domain control by writing a record rather than
-by answering a request. Nothing is exposed to add TLS.
-
-Cloudflare's own certificate for `mgryn.cc` cannot be used: it terminates at
-Cloudflare's edge, and traffic to a private address never goes there.
+DNS-01 rather than HTTP-01, and not Cloudflare's own edge certificate for
+`mgryn.cc` — see [ADR 0008](docs/decisions/0008-acme-dns01-not-http01.md)
+for why.
 
 Two issuers exist — `letsencrypt-prod` and `letsencrypt-staging`. If
 issuance breaks, point the Ingress annotation at staging while debugging.
@@ -170,8 +170,9 @@ newTag: "0.2.0"
 
 commit, and merge it through a pull request. The pod spec genuinely changes,
 so ArgoCD rolls it on the next poll — no `kubectl rollout restart`. Rolling
-back is the same edit with the previous number, and it works, which it could
-not when the tag was `:latest` and a revert changed nothing.
+back is the same edit with the previous number — see
+[ADR 0007](docs/decisions/0007-pin-image-tags-not-latest.md) for why that
+did not use to work.
 
 The app repository publishes `ghcr.io/maxim-grin/jobboard:<version>` only when
 a `v<version>` git tag is pushed there. Naming a version here that has not been
@@ -206,8 +207,10 @@ pre-commit install                          # wires pre-commit AND commit-msg
 The hooks: file hygiene, `check-yaml`, `detect-private-key`, `gitleaks`,
 `ansible-lint`, `terraform fmt`, and two checks on the message: its
 conventional-commit format, and `scripts/check-commit-msg.py` — subject
-≤ 50 characters, body ≤ 72, no attribution lines. `ansible-lint` runs at profile `production` with no ignore file:
-any finding fails. It needs the collections pinned in
+≤ 50 characters, body ≤ 72, no attribution lines. `ansible-lint` runs at
+profile `production` with no ignore file, so any finding fails — see
+[ADR 0009](docs/decisions/0009-ci-reads-only-lint-blocks.md) for why. It
+needs the collections pinned in
 `ansible/requirements.yml` (`ansible-galaxy collection install -r
 ansible/requirements.yml`), and so do the playbooks themselves.
 

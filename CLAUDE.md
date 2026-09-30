@@ -126,6 +126,9 @@ GitHub merges with a merge commit (`Merge pull request #N from …`) and
 deletes the head branch. Afterwards, locally: `git checkout main && git pull
 && git branch -d <change-name>`.
 
+A change that makes or reverses an architectural decision adds or
+supersedes a record in `docs/decisions/` in the same PR.
+
 ## Load-bearing and non-obvious
 
 - **`ubuntu-cid-tp` must exist before any `terraform apply`.** Every VM is a
@@ -147,7 +150,7 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
 
   CI runs `validate`, not `plan`, so nothing catches a missing one. Read
   the plan summary before every apply: a `destroy` you did not intend is
-  a stop, not a warning.
+  a stop, not a warning. (ADR [0013](docs/decisions/0013-terraform-renames-need-moved-blocks.md))
 - **`disk_size` only goes up.** Proxmox cannot shrink a disk; the attempt
   fails with `can't unplug bootdisk 'scsi0'` *and still writes the smaller
   value into `terraform.tfstate`*, so Terraform then believes a size the host
@@ -159,6 +162,7 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
 - **`nfs-dev` is the default StorageClass.** Every PVC without an explicit
   class lands on the NFS server VM. When that provisioner is down, PVCs sit
   `Pending` and the apps above them read as broken for unrelated reasons.
+  (ADR [0003](docs/decisions/0003-nfs-default-storageclass.md))
 - **The `nfs-dev` share's path is `/srv/nfs/k8s`, not `/srv/nfs/dev`.**
   Every dev PV has `nfs.path: /srv/nfs/k8s/...` baked in, the field is
   immutable, and `nfs-dev` deletes a volume's data when its PVC is deleted.
@@ -167,7 +171,8 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   mount over a non-empty directory, and `nfs-server` will not start until
   all three disks are mounted. `nfs-prod` has no export line until prod
   has nodes — an
-  export with no client list is exported to everyone.
+  export with no client list is exported to everyone. (ADR
+  [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
   is bare metal with no LoadBalancer and no MetalLB. There is no DNS server
   here, so most hostnames resolve via `/etc/hosts` on the workstation.
@@ -175,14 +180,15 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   record pointing at a node IP, so it resolves on any device on the LAN.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
   Traefik on `10.0.0.141`, which terminates TLS for the LAN services and
-  the Proxmox UI.
+  the Proxmox UI. (ADR [0002](docs/decisions/0002-ingress-nginx-daemonset.md))
 - **`jobs.mgryn.cc`'s certificate comes from cert-manager, not Cloudflare.**
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME
   DNS-01 with a Cloudflare API token from Vault
   (`kv-dev/cert-manager/cloudflare`) and renews on its own. Debug a failed
   issuance by pointing the Ingress annotation at `letsencrypt-staging` --
-  production limits 5 failed validations per hostname per hour.
+  production limits 5 failed validations per hostname per hour. (ADR
+  [0008](docs/decisions/0008-acme-dns01-not-http01.md))
 - **`secret.yaml` is committed encrypted; its password is not.** That file is
   the only record of every host address and vmid. Losing the password loses
   them. Keep it in a password manager.
@@ -215,11 +221,12 @@ deletes the head branch. Afterwards, locally: `git checkout main && git pull
   not a lost disk. **If Vault cannot write `/var/log/vault/audit.log` it
   refuses every request**: a full root disk looks like a healthy Vault
   answering nothing. A restart seals it; a certificate renewal only
-  reloads it.
+  reloads it. (ADR [0011](docs/decisions/0011-vault-on-its-own-vm.md))
 - **`<path:kv-<env>/data/...#FIELD>` is the only form a secret value takes in
   a committed manifest.** The placeholder is committed; AVP resolves it
   against Vault at sync time. The value behind it is never committed,
-  anywhere, under any name.
+  anywhere, under any name. (ADR
+  [0004](docs/decisions/0004-secrets-in-vault-via-avp.md))
 
 ## Secrets
 
