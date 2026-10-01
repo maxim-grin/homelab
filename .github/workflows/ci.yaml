@@ -118,13 +118,13 @@ jobs:
       # can work here; validate needs no variables and no credentials.
       - name: terraform init and validate
         run: |
-          for env in dev shared; do
+          for env in dev shared prod; do
             terraform -chdir=terraform/environments/$env init -backend=false -input=false
             terraform -chdir=terraform/environments/$env validate
           done
       - name: tflint
         run: |
-          for env in dev shared; do
+          for env in dev shared prod; do
             tflint --chdir=terraform/environments/$env --config="${GITHUB_WORKSPACE}/.tflint.hcl"
           done
 
