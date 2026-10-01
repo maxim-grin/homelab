@@ -6,6 +6,14 @@ underneath them — repositories, users, the API token, resource pools and
 the VM template every machine clones — is set up by hand, and the template
 blocks every `terraform apply` until it exists.
 
+**What has been exercised, and what has not.** On 2026-09-27 an
+unintended apply (#47) rebuilt all three dev VMs from the blank template;
+the cluster was recreated by the playbooks in "Rebuild order" and the
+jobboard database restored from its old volume on `nfs-01` — see
+"Rebuilding dev only". A full run from a fresh Proxmox install on a new
+disk has not been done; the host-preparation steps below are recorded
+from the original setup, not re-tested.
+
 ## What git does not contain
 
 ### 1. Proxmox host preparation
