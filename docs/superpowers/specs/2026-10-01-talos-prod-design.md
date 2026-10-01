@@ -4,7 +4,8 @@ Roadmap sub-project 2 ([roadmap](2026-09-26-homelab-roadmap-design.md),
 [ADR 0012](../../decisions/0012-hub-and-spoke-topology.md)): build the prod
 Kubernetes cluster on Talos, from nothing, in `terraform/environments/prod`.
 One control plane and two workers, brought up by one `terraform apply` from
-the owner's Mac. Done when `kubectl get nodes` shows three Ready nodes.
+the operator's workstation. Done when `kubectl get nodes` shows three Ready
+nodes.
 
 ## Problem
 
@@ -126,7 +127,7 @@ versions are variables; the Talos version must match the image in
 ### Secrets handling
 
 `kubeconfig` and `talosconfig` are `sensitive` outputs. Nothing writes them
-to disk (no `local_file`). The owner fetches them:
+to disk (no `local_file`). The operator fetches them:
 
 ```bash
 terraform output -raw kubeconfig > ~/.kube/talos-prod
@@ -152,7 +153,7 @@ that replaces the old note saying `talos-tp` can be ignored:
    (`nocloud`, `qemu-guest-agent`, the pinned Talos version), download the
    disk image, `qm create`, `qm importdisk`, attach the disk, add a
    cloud-init drive and serial console, `agent=1`, `qm template`.
-3. **Bring-up.** `terraform apply -var-file=prod.tfvars` from the Mac,
+3. **Bring-up.** `terraform apply -var-file=prod.tfvars` from the operator's workstation,
    `terraform output -raw kubeconfig`, `kubectl get nodes`.
 4. **Caveats.** The state holds the PKI, so a lost state rebuilds the
    cluster. Resizing a node reboots it; do one at a time.
@@ -195,7 +196,7 @@ cutover.
 
 CI runs `validate` and `tflint` on prod, which proves it inits and parses,
 nothing more. `terraform plan` is not in CI, and this PR has no state to plan
-against. The real check is the owner's apply: the PR description lists the
+against. The real check is the operator's apply: the PR description lists the
 command sequence, and the cluster is done when `kubectl get nodes` shows
 three Ready nodes. No renames are at risk yet because prod has never been
 applied; after the first apply, every rename needs a `moved` block
