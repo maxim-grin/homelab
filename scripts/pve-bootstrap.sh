@@ -26,6 +26,7 @@ POOLS="${POOLS:-VM Ubuntu-K8s LXC Talos-K8s}"
 APT_SOURCES_DIR="${APT_SOURCES_DIR:-/etc/apt/sources.list.d}"
 CACHE_DIR="${CACHE_DIR:-/var/lib/vz/template/cache}"
 ISO_DIR="${ISO_DIR:-/var/lib/vz/template/iso}"
+STORAGE="${STORAGE:-local-lvm}"
 
 TF_USER="terraform@pve"
 TF_ROLE="TerraformProv"
@@ -255,6 +256,97 @@ step_lxc_template() {
     note_created "lxc template $name"
   fi
   TFVARS+=("debian_lxc_template = \"local:vztmpl/$name\"")
+}
+
+# Print the volume `qm importdisk` left as unused0 on vmid $1 (the value up to
+# the first comma). Under --dry-run nothing was imported, so assume the name
+# Proxmox gives the first disk.
+unused_volume() {
+  local id="$1" cfg vol
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "$STORAGE:vm-$id-disk-0"
+    return 0
+  fi
+  cfg="$(qm config "$id")"
+  vol="$(printf '%s\n' "$cfg" | sed -n 's/^unused0: *//p' | head -n 1)"
+  vol="${vol%%,*}"
+  [ -n "$vol" ] || die "no unused disk on vmid $id after importdisk"
+  echo "$vol"
+}
+
+# Return 0 to skip (exists and is a template), 1 to build, die otherwise.
+template_present() {
+  local id="$1" varname="$2"
+  vm_exists "$id" || return 1
+  vm_is_template "$id" \
+    || die "vmid $id exists but is not a template; remove it or pick another $varname"
+  return 0
+}
+
+step_ubuntu_template() {
+  local id="$UBUNTU_TEMPLATE_VMID" rel="$UBUNTU_RELEASE" vol
+  local image="$rel-server-cloudimg-amd64.img"
+  local base="https://cloud-images.ubuntu.com/$rel/current"
+  local img="$CACHE_DIR/$image" sums="$CACHE_DIR/SHA256SUMS" line
+
+  if template_present "$id" UBUNTU_TEMPLATE_VMID; then
+    note_skipped "ubuntu template $id"
+    TFVARS+=("clone_template_ubuntu = \"ubuntu-cid-tp\"")
+    return 0
+  fi
+
+  run apt-get install -y libguestfs-tools
+  run mkdir -p "$CACHE_DIR"
+  run wget -q -O "$img" "$base/$image"
+  run wget -q -O "$sums" "$base/SHA256SUMS"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "+ verify $image against SHA256SUMS"
+  else
+    line="$(grep -F " *$image" "$sums" || true)"
+    if [ -z "$line" ] || ! (cd "$CACHE_DIR" && printf '%s\n' "$line" | sha256sum -c - > /dev/null 2>&1); then
+      rm -f "$img" "$sums"
+      die "checksum mismatch for $image; downloaded files deleted"
+    fi
+  fi
+
+  run virt-customize -a "$img" --install qemu-guest-agent
+  run qm create "$id" --memory 2048 --cores 2 --name ubuntu-cid-tp
+  run qm importdisk "$id" "$img" "$STORAGE"
+  vol="$(unused_volume "$id")"
+  run qm set "$id" --scsihw virtio-scsi-pci --scsi0 "$vol"
+  run qm set "$id" --ide2 "$STORAGE:cloudinit"
+  run qm set "$id" --boot c --bootdisk scsi0
+  run qm set "$id" --serial0 socket --vga serial0
+  run qm template "$id"
+  run rm -f "$img" "$sums"
+  note_created "ubuntu template $id (ubuntu-cid-tp)"
+  TFVARS+=("clone_template_ubuntu = \"ubuntu-cid-tp\"")
+}
+
+step_talos_template() {
+  local id="$TALOS_TEMPLATE_VMID" vol
+  local xzfile="$ISO_DIR/talos-nocloud.raw.xz" raw="$ISO_DIR/talos-nocloud.raw"
+
+  if template_present "$id" TALOS_TEMPLATE_VMID; then
+    note_skipped "talos template $id"
+    return 0
+  fi
+
+  run mkdir -p "$ISO_DIR"
+  run wget -q -O "$xzfile" \
+    "https://factory.talos.dev/image/$TALOS_SCHEMATIC/$TALOS_VERSION/nocloud-amd64.raw.xz"
+  echo "note: Image Factory publishes no checksum for this image (the schematic id is content-addressed); no checksum verified."
+  run xz -d "$xzfile"
+  run qm create "$id" --name talos-tp --memory 2048 --cores 2 --cpu x86-64-v2-AES \
+    --machine q35 --ostype l26 --scsihw virtio-scsi-single \
+    --net0 virtio,bridge=vmbr0 --serial0 socket --agent enabled=1
+  run qm importdisk "$id" "$raw" "$STORAGE"
+  vol="$(unused_volume "$id")"
+  run qm set "$id" --scsi0 "$vol,discard=on,iothread=1,ssd=1" --boot order=scsi0 \
+    --ide2 "$STORAGE:cloudinit"
+  run qm template "$id"
+  run rm -f "$raw"
+  note_created "talos template $id (talos-tp)"
 }
 
 # ---- summary and main ------------------------------------------------------
