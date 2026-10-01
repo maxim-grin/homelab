@@ -86,6 +86,14 @@ finishing-a-development-branch for its pre-merge checks (stop before it
 merges; see below). Invoke them with the Skill tool; do not approximate them
 by hand.
 
+**Plans record decisions, not finished code.** A plan says what each
+task must do, which files it touches, in what order, and how to check
+it: the verification command and what its output should be. The
+implementer writes the code. Exact values — versions, digests, names,
+paths — stay verbatim in the plan, because a guessed one fails
+silently. This overrides the writing-plans skill's default of a
+complete code block in every step.
+
 **When a supervisor agent drives subagents, the supervisor owns the plan's
 checkboxes** — ticked when a task is implemented _and_ verified by review,
 never on the implementer's report alone. Implementers see only an extracted
