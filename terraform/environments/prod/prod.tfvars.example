@@ -1,0 +1,21 @@
+# Copy to prod.tfvars and fill in. prod.tfvars is gitignored (*.tfvars) and
+# has no backup anywhere. It carries the Proxmox API token.
+#
+# Prerequisites, none of which Terraform creates (docs/rebuild.md):
+#   - the Talos-K8s resource pool, with TerraformProv granted on it
+#   - the talos-tp template, built from the Image Factory nocloud image
+
+pm_target_node      = "pve"
+pm_api_url          = "https://<PROXMOX_IP>:8006/api2/json"
+pm_api_token_id     = "root@pam!terraform"
+pm_api_token_secret = "<UUID>"
+
+# The LAN's gateway. Node addresses sit above the router's DHCP pool
+# (.2-.99), in the block the README diagram reserves for Talos.
+gateway = "10.0.0.1"
+
+talos_nodes = {
+  cp1 = { role = "controlplane", vmid = 3101, ip = "10.0.0.110", memory = 2048 }
+  w1  = { role = "worker", vmid = 3201, ip = "10.0.0.111", memory = 2048 }
+  w2  = { role = "worker", vmid = 3202, ip = "10.0.0.112", memory = 2048 }
+}
