@@ -4,7 +4,11 @@ mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
 mkdir -p "$S/users" "$S/roles" "$S/pools" "$S/tokens"
 case "${1:-} ${2:-}" in
   "user add") touch "$S/users/$3" ;;
-  "role add" | "role modify") echo "${*:4}" > "$S/roles/$3" ;;
+  "role add" | "role modify")
+    case "${*:4}" in
+      *VM.Monitor*) echo "400 Parameter verification failed: invalid privilege 'VM.Monitor'" >&2; exit 2 ;;
+    esac
+    echo "${*:4}" > "$S/roles/$3" ;;
   "pool add") touch "$S/pools/$3" ;;
   "user token")
     if [ "${3:-}" = add ]; then

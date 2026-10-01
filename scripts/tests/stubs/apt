@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 S="${S:?stub state dir not set}"
 mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+if [ "${STUB_APT_FAIL:-}" = 1 ] && [ "${1:-}" = update ]; then exit 100; fi
 exit 0

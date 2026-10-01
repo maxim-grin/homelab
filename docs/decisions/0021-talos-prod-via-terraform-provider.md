@@ -43,7 +43,8 @@ new template. Nodes start at 2G, Talos's documented minimum, leaning on swap;
 growing them is a tfvars change plus a restart per node, and shrinking
 `claude-code` (sub-project 4) is the first lever if 2G proves too small. The
 Proxmox host steps (pool, ACL, template) stay manual in `docs/rebuild.md`; a
-script for them is a follow-up.
+script for them is a follow-up; see
+[0022](0022-host-bootstrapped-by-script.md).
 
 ## Related
 

@@ -42,6 +42,12 @@ run_script() {
   RC=$?
 }
 
+# Same as run_script, but the script runs under bash -x.
+run_script_x() {
+  OUT="$(printf 'secretpw\nsecretpw\n' | bash -x "$SCRIPT" "$@" 2>&1)"
+  RC=$?
+}
+
 reset_calls() { : > "$S/calls.log"; }
 
 fail() { printf '    %s\n' "$*" >&2; exit 1; }
@@ -109,6 +115,26 @@ test_repos_first_run() {
   assert_calls_contain 'apt update'
 }
 
+test_repos_ceph_disabled() {
+  printf 'Types: deb\nURIs: https://enterprise.proxmox.com/debian/ceph-squid\n' \
+    > "$APT_SOURCES_DIR/ceph.sources"
+  run_script repos
+  assert_rc 0
+  grep -q '^Enabled: false$' "$APT_SOURCES_DIR/ceph.sources" || fail "ceph enterprise not disabled"
+  ! grep -q 'Enabled' "$APT_SOURCES_DIR/pve-no-subscription.sources" || fail "no-subscription file disabled"
+}
+
+test_repos_apt_update_fails() {
+  export STUB_APT_FAIL=1
+  run_script repos
+  assert_rc 0
+  assert_out_contains "warning: apt update failed; continuing"
+  reset_calls
+  run_script repos
+  assert_rc 0
+  assert_calls_lack 'apt update'
+}
+
 test_repos_second_run() {
   run_script repos
   assert_rc 0
@@ -139,6 +165,23 @@ test_no_password_leak() {
   assert_out_lacks "secretpw"
   [ -f "$S/chpasswd.log" ] || fail "chpasswd was not called"
   ! grep -q 'secretpw' "$S/chpasswd.log" || fail "password in chpasswd.log"
+}
+
+test_no_trace_leak() {
+  run_script_x users
+  assert_rc 0
+  assert_out_lacks "secretpw"
+  assert_calls_lack 'secretpw'
+  [ -f "$S/chpasswd.log" ] || fail "chpasswd was not called"
+}
+
+test_role_privs_valid() {
+  run_script users
+  assert_rc 0
+  [ -f "$S/roles/TerraformProv" ] || fail "role TerraformProv not created"
+  assert_calls_contain 'Sys\.Audit'
+  assert_calls_contain 'VM\.GuestAgent\.Audit'
+  assert_calls_lack 'VM\.Monitor'
 }
 
 test_token_exists() {
@@ -201,12 +244,19 @@ test_talos_template_first_run() {
   run_script talos-template
   assert_rc 0
   assert_calls_contain 'wget .*factory\.talos\.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1\.14\.2/nocloud-amd64\.raw\.xz'
-  assert_calls_contain 'xz -d'
+  assert_calls_contain "xz -df $ISO_DIR/talos-nocloud\\.raw\\.xz"
   assert_calls_contain 'qm create 5001 --name talos-tp --memory 2048 --cores 2 --cpu x86-64-v2-AES --machine q35 --ostype l26 --scsihw virtio-scsi-single --net0 virtio,bridge=vmbr0 --serial0 socket --agent enabled=1'
   assert_calls_contain 'qm set 5001 --scsi0 local-lvm:vm-5001-disk-0,discard=on,iothread=1,ssd=1 --boot order=scsi0 --ide2 local-lvm:cloudinit'
   assert_calls_contain 'qm template 5001'
   assert_out_contains 'no checksum'
   [ -z "$(ls "$ISO_DIR")" ] || fail "image left in ISO_DIR"
+}
+
+test_talos_rerun_after_partial_failure() {
+  echo leftover > "$ISO_DIR/talos-nocloud.raw"
+  run_script talos-template
+  assert_rc 0
+  assert_calls_contain 'qm template 5001'
 }
 
 test_templates_second_run() {
@@ -231,10 +281,12 @@ test_vmid_not_template() {
   assert_rc_nonzero
   assert_calls_lack 'qm create'
   assert_out_contains 'not a template'
+  assert_out_contains 'qm destroy 5000'
   run_script talos-template
   assert_rc_nonzero
   assert_calls_lack 'qm create'
   assert_out_contains 'not a template'
+  assert_out_contains 'qm destroy 5001'
 }
 
 test_bad_checksum() {
@@ -302,6 +354,8 @@ test_pins_drift() {
   RC=$?
   assert_rc_nonzero
   assert_out_contains "talos_version"
+  assert_out_contains "v9.9.9"
+  assert_out_contains "differs"
 }
 
 # ---- runner ----------------------------------------------------------------

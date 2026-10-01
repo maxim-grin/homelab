@@ -3,8 +3,9 @@
 # `terraform apply` assumes: package repositories, the operator and Terraform
 # users, the TerraformProv role and API token, resource pools with their ACLs,
 # the Debian LXC template, and the VM templates every machine clones. Every
-# step checks what exists first, so a second run changes nothing. Values that
-# belong in tfvars are printed at the end. Secrets are never written to a file
+# step checks what exists first, so a re-run creates nothing: it only sets the
+# TerraformProv privilege list again (reported "changed"), and every other
+# step reports "skipped". Values that belong in tfvars are printed at the end. Secrets are never written to a file
 # or logged: the operator password is read from the terminal and piped to
 # chpasswd, and the API token secret is shown once by Proxmox and left to you.
 #
@@ -13,6 +14,7 @@
 # Steps (default: all, in this order):
 #   repos  users  pools  lxc-template  ubuntu-template  talos-template
 set -euo pipefail
+set +x # never trace: the operator password passes through this script
 
 # ---- settings (override from the environment) ------------------------------
 
@@ -33,7 +35,7 @@ TF_ROLE="TerraformProv"
 TF_TOKEN="terraform"
 TF_PRIVS="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit \
 VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network \
-VM.Config.Options VM.Monitor VM.Audit VM.PowerMgmt \
+VM.Config.Options Sys.Audit VM.GuestAgent.Audit VM.Audit VM.PowerMgmt \
 Datastore.AllocateSpace Datastore.Audit"
 
 ALL_STEPS=(repos users pools lxc-template ubuntu-template talos-template)
@@ -66,7 +68,11 @@ note_skipped() { SKIPPED+=("$1"); }
 
 vm_exists() { qm config "$1" > /dev/null 2>&1; }
 
-vm_is_template() { qm config "$1" 2> /dev/null | grep -q '^template: 1'; }
+vm_is_template() {
+  local cfg
+  cfg="$(qm config "$1" 2> /dev/null)" || return 1
+  grep -q '^template: 1' <<< "$cfg"
+}
 
 # True when one line of the ACL list holds PATH, USER and ROLE as fields.
 has_acl() {
@@ -112,25 +118,29 @@ preflight() {
 # ---- steps -----------------------------------------------------------------
 
 step_repos() {
-  local ent="$APT_SOURCES_DIR/pve-enterprise.sources"
   local nosub="$APT_SOURCES_DIR/pve-no-subscription.sources"
-  local changed=0
+  local changed=0 f
 
-  if [ -f "$ent" ] && ! grep -q '^Enabled: false$' "$ent"; then
-    if [ "$DRY_RUN" -eq 1 ]; then
-      echo "+ set 'Enabled: false' in $ent"
-    else
-      sed -i -e '/^Enabled:/d' "$ent"
-      # keep the field inside the stanza: drop trailing blank lines first
-      sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$ent"
-      [ -z "$(tail -c1 "$ent")" ] || echo >> "$ent"
-      echo "Enabled: false" >> "$ent"
+  # Proxmox and Ceph enterprise repos both 401 without a subscription.
+  for f in "$APT_SOURCES_DIR"/*.sources; do
+    [ -f "$f" ] || continue
+    grep -q 'enterprise\.proxmox\.com' "$f" || continue
+    if grep -q '^Enabled: false$' "$f"; then
+      note_skipped "enterprise repository $(basename "$f")"
+      continue
     fi
-    note_changed "disabled pve-enterprise repository"
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "+ set 'Enabled: false' in $f"
+    else
+      sed -i -e '/^Enabled:/d' "$f"
+      # keep the field inside the stanza: drop trailing blank lines first
+      sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$f"
+      [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
+      echo "Enabled: false" >> "$f"
+    fi
+    note_changed "disabled enterprise repository $(basename "$f")"
     changed=1
-  else
-    note_skipped "pve-enterprise repository"
-  fi
+  done
 
   if [ ! -f "$nosub" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -151,7 +161,11 @@ SRC
   fi
 
   if [ "$changed" -eq 1 ]; then
-    run apt update
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "+ apt update"
+    else
+      apt update || echo "warning: apt update failed; continuing" >&2
+    fi
   fi
 }
 
@@ -245,12 +259,13 @@ step_pools() {
 }
 
 step_lxc_template() {
-  local name
+  local name have
   run pveam update
   name="$(pveam available --section system | awk '{print $2}' \
     | grep '^debian-13-standard_' | sort -V | tail -n 1 || true)"
   [ -n "$name" ] || die "no debian-13-standard template in pveam available"
-  if pveam list local | grep -qF "$name"; then
+  have="$(pveam list local)"
+  if grep -qF "$name" <<< "$have"; then
     note_skipped "lxc template $name"
   else
     run pveam download local "$name"
@@ -280,7 +295,9 @@ template_present() {
   local id="$1" varname="$2"
   vm_exists "$id" || return 1
   vm_is_template "$id" \
-    || die "vmid $id exists but is not a template; remove it or pick another $varname"
+    || die "vmid $id exists but is not a template; remove it or pick another $varname
+to remove it:
+qm destroy $id"
   return 0
 }
 
@@ -337,7 +354,7 @@ step_talos_template() {
   run wget -q -O "$xzfile" \
     "https://factory.talos.dev/image/$TALOS_SCHEMATIC/$TALOS_VERSION/nocloud-amd64.raw.xz"
   echo "note: Image Factory publishes no checksum for this image (the schematic id is content-addressed); no checksum verified."
-  run xz -d "$xzfile"
+  run xz -df "$xzfile"
   run qm create "$id" --name talos-tp --memory 2048 --cores 2 --cpu x86-64-v2-AES \
     --machine q35 --ostype l26 --scsihw virtio-scsi-single \
     --net0 virtio,bridge=vmbr0 --serial0 socket --agent enabled=1

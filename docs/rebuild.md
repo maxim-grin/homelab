@@ -56,10 +56,12 @@ What to expect from a run:
 
 What the steps do, and why:
 
-**Repositories (`repos`).** The enterprise repo 403s without a subscription,
-so the script sets `Enabled: false` in its `.sources` file and adds the
+**Repositories (`repos`).** The enterprise repos (Proxmox and Ceph) fail
+without a subscription, so the script sets `Enabled: false` in every
+`.sources` file that points at `enterprise.proxmox.com` and adds the
 no-subscription one (Proxmox 9 uses deb822 `.sources` files, suite
-`trixie`), then runs `apt update`.
+`trixie`), then runs `apt update`. A failing `apt update` only prints a
+warning; the run continues.
 
 **Admin user (`users`)**, for SSH and the web UI: a Linux user in the
 `sudo` group, the matching `<user>@pam` Proxmox user, and the

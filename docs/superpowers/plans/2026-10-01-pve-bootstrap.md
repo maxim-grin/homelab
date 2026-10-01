@@ -23,7 +23,7 @@
   - pools `VM Ubuntu-K8s LXC Talos-K8s`
   - role `TerraformProv`; user `terraform@pve`; token id `terraform` created with `--privsep 0`
   - storage `local-lvm`; node `pve`
-  - role privileges, verbatim: `VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Monitor VM.Audit VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit`
+  - role privileges, verbatim: `VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options Sys.Audit VM.GuestAgent.Audit VM.Audit VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit`
 - Settings overridable from the environment: `TALOS_VERSION`, `TALOS_SCHEMATIC`, `UBUNTU_RELEASE`, `UBUNTU_TEMPLATE_VMID`, `TALOS_TEMPLATE_VMID`, `POOLS`, `STORAGE`, `ADMIN_USER`, and for testability `APT_SOURCES_DIR` (default `/etc/apt/sources.list.d`), `CACHE_DIR` (default `/var/lib/vz/template/cache`), `ISO_DIR` (default `/var/lib/vz/template/iso`).
 - Never destroy or overwrite an existing VM or template: refuse and print the manual line.
 - Commits: Conventional Commits, subject at most 50 characters, imperative, lowercase, types `feat fix refactor docs chore ops` only (no `ci`), body wrapped at 72, **no `Co-Authored-By`, no generated-with footer**, never `--no-verify`.

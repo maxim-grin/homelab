@@ -88,8 +88,9 @@ Each step is a function: check, act, verify. A second run issues no creating
 command.
 
 **`repos`.** Write `pve-no-subscription.sources` if missing; set
-`Enabled: false` in `pve-enterprise.sources`; run `apt update` only if
-either changed.
+`Enabled: false` in every `*.sources` file that points at
+`enterprise.proxmox.com` (the Proxmox and Ceph enterprise repos); run
+`apt update` only if either changed. A failing `apt update` only warns.
 
 **`users`.**
 - The admin user (`ADMIN_USER`, or prompted for): create the Linux user, add it
