@@ -157,7 +157,8 @@ terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, nfs-server,
                   environments/shared/  nfs-01, vault-02, the LAN LXCs
                   environments/prod/    the Talos prod cluster
 scripts/          check-manifests.sh (the CI manifests check, runnable
-                  locally) and ad-hoc helpers.
+                  locally), pve-bootstrap.sh (bootstraps a fresh Proxmox
+                  host), check-talos-pins.sh and ad-hoc helpers.
 docs/             rebuild.md, operations.md
                   decisions/   architecture decision records
                   superpowers/ design specs and implementation plans
@@ -186,7 +187,7 @@ ansible/requirements.yml`), and so do the playbooks themselves.
 
 GitHub Actions (`.github/workflows/ci.yaml`) runs on every pull request and
 every push to `main`. Nothing in it touches the cluster, Proxmox or any
-secret; it only reads. Four jobs, in parallel:
+secret; it only reads. Five jobs, in parallel:
 
 | Job          | What it runs                                                                                                                                                                                                                                                   |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -194,6 +195,7 @@ secret; it only reads. Four jobs, in parallel:
 | `commits`    | the conventional-commit hook over every non-merge commit in the PR (PRs only)                                                                                                                                                                                  |
 | `terraform`  | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev`, `terraform/environments/shared` and `terraform/environments/prod`                                                                                                                                   |
 | `manifests`  | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
+| `scripts`    | `shellcheck` on the bootstrap script, its tests and the pin check; `scripts/check-talos-pins.sh` (the script's Talos version and schematic equal the prod root's defaults); `scripts/tests/pve-bootstrap.test.sh` (the script against stubbed `pveum`, `qm` and `pveam`) |
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
 `kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`

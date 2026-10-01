@@ -95,8 +95,8 @@ either changed.
 - The admin user (`ADMIN_USER`, or prompted for): create the Linux user, add it
   to `sudo`, create `<user>@pam`, grant `Administrator` on `/`. The passwords
   are read with `read -s` and piped in, never passed on a command line.
-- `terraform@pve`: created with a random password that is never shown, since
-  only the token is used.
+- `terraform@pve`: created with no password, since only its
+  token is used.
 - `TerraformProv`: created with the privilege list from `rebuild.md`, or
   modified so its privileges match if it already exists. Granted on `/`.
 - Token `terraform@pve!terraform`: created with `--privsep 0`, because a
@@ -133,7 +133,7 @@ template names.
 
 No step writes a file containing a secret. `set +x` is forced. The only
 secret the operator carries away is the token secret, printed once. The
-script never echoes a password it generated.
+script never echoes a password.
 
 ### Layout
 
