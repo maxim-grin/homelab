@@ -150,7 +150,8 @@ nodes` shows three Ready nodes.
 
 **3. Prod platform hub.** ArgoCD in prod, AVP reading `kv-prod`,
 `nfs-prod` export and StorageClass, cert-manager, ingress,
-kube-prometheus-stack with Grafana.
+kube-prometheus-stack with Grafana, and Prometheus alerting rules
+and SLOs for both clusters (including the pool `data%` alert above).
 
 **4. Dev becomes a spoke.** Register dev with prod's ArgoCD,
 ApplicationSets for dev's workloads, retire dev's ArgoCD, Prometheus
