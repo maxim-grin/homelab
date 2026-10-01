@@ -45,7 +45,11 @@ Done means:
 - **Built in:** GitHub Actions (already pinned by SHA with a `# vX` comment,
   which Renovate maintains), Terraform providers and `required_version`
   constraints, `ansible/requirements.yml`, the jobboard image in its
-  kustomization.
+  kustomization, and the hook revisions in `.pre-commit-config.yaml`
+  (the `pre-commit` manager is opt-in, so `renovate.json5` enables it).
+  The gitleaks hook's depName is `gitleaks/gitleaks`, the same as the CI
+  pin, so the gated entry covers it: a gitleaks bump waits for the
+  dashboard tick for both, and the hook rev has no hash to push.
 - **Helm charts in Application CRs:** the built-in `argocd` manager,
   pointed at `argocd/environments/**`, reads `targetRevision` for
   cert-manager and ingress-nginx.
@@ -53,8 +57,12 @@ Done means:
   Each pin carries a `# renovate: datasource=… depName=…` comment on the
   line above it, Renovate's usual convention. The comments are added to
   the pins that are on `main` when this lands. Pins added by pull
-  requests still open at that time (Glance, the CI `*_SHA256` values) get
+  requests still open at that time (the CI `*_SHA256` values) get
   theirs from whichever pull request merges second, or a follow-up.
+  The Glance pin is not annotated yet: a follow-up adds
+  `# renovate: datasource=github-releases depName=glanceapp/glance extractVersion=^v(?<version>.+)$`
+  above `glance_version` after PR #65 merges; until then the gated
+  `glanceapp/glance` entry is inert.
 - **Not tracked:** `vault_version` (an apt package revision, not a
   release), the unpinned `ubi-minimal:latest` image, the `setup-python`
   version, which would be noise, the Argo CD `quay.io/argoproj/argocd`

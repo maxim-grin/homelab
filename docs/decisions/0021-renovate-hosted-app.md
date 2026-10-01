@@ -41,8 +41,16 @@ entries in `renovate.json5` when roadmap sub-project 2 is done.
   branch by hand; the commands are in `docs/operations.md`.
 - The hosted app holds write access to this repository through its
   install.
-- Pins on pull requests open at the time of writing (Glance, #65) get
-  their `# renovate:` comment from that PR.
+- The Glance pin is not annotated yet. A follow-up adds
+  `# renovate: datasource=github-releases depName=glanceapp/glance extractVersion=^v(?<version>.+)$`
+  above `glance_version` after PR #65 merges; until then the gated
+  `glanceapp/glance` entry is inert.
+- The `pre-commit` manager is opt-in and enabled, so hook revisions in
+  `.pre-commit-config.yaml` are tracked. The gitleaks hook shares the
+  `gitleaks/gitleaks` depName with the CI pin and is gated with it.
+- A merge is a deploy for the Helm chart pins in the Application CRs
+  and for the jobboard image in
+  `argocd/apps/jobboard/dev/kustomization.yaml`.
 - The `argocd_version` pin is the Argo CD Helm chart. The companion
   `quay.io/argoproj/argocd` image tag in the same defaults file is not
   tracked and must be bumped by hand to match when the chart's app

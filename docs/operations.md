@@ -72,22 +72,30 @@ self-correcting.
 ## Updating a pinned version
 
 Renovate opens a pull request weekly (Mondays before 07:00 UTC, three
-at most). Pins with no companion hash open on their own. Pins with one
--- the CI tools, `gatus`, `orangutan` and `traefik` (and `glance` once
-PR #65 lands) -- wait: tick the box in the **Dependency Dashboard**
-issue to open the PR, then push the new hash to its branch.
+at most). Pins with no companion hash open on their own. Pins with one — the
+four CI tools with a hash (`gitleaks`, `kustomize`, `kubeconform`,
+`yq`), `gatus`, `orangutan` (and `glance` once PR #65 lands) — wait:
+tick the box in the **Dependency Dashboard** issue to open the PR, then
+push the new hash to its branch. `traefik` is gated too but needs
+nothing pushed: tick, then merge once CI is green.
+
+Once you push a hash commit to a Renovate branch, Renovate treats it as
+edited: it will not rebase it or bump it to a newer patch, and the
+"rebase" checkbox would discard your hash. To take a newer version,
+close the PR and tick the dashboard box again.
 
 Skipping the hash fails loudly: CI stops at `sha256sum --strict` for
 the tools, and the Ansible run stops at the download for the roles.
 
 Squash-merge a Renovate PR with a short Conventional subject
 (`chore: bump gitleaks to 8.31.0`); other PRs keep merge commits. A
-merge is still a deploy for the Helm chart pins in the Application CRs.
+merge is still a deploy for the Helm chart pins in the Application CRs
+and for the jobboard image in `argocd/apps/jobboard/dev/kustomization.yaml`.
 
 | Pin                                                  | Where the hash lives                                                                                                                                 | Command                                                                                                               |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | CI tools (`gitleaks`, `kustomize`, `kubeconform`, `yq`) | `*_SHA256` in the `env` block of `.github/workflows/ci.yaml`                                                                                      | `gh api repos/<owner>/<repo>/releases/tags/<tag> --jq '.assets[] \| select(.name=="<asset>") \| .digest'`; asset names are in the workflow's install steps |
-| `orangutan` (and `glance` after #65)                 | `orangutan_deb_sha256` in `ansible/roles/orangutan/defaults/main.yaml`                                                                              | the same `gh api` command; it is also in that file's comment                                                          |
+| `orangutan` (`glance` after #65: `glance_archive_sha256` in `ansible/roles/glance/defaults/main.yaml`) | `orangutan_deb_sha256` in `ansible/roles/orangutan/defaults/main.yaml`                                                                              | the same `gh api` command; it is also in that file's comment                                                          |
 | `gatus`                                              | `gatus_layer_digest` in `ansible/roles/gatus/defaults/main.yaml`                                                                                    | the `curl` and `jq` steps in the comment at the top of that file; a registry layer digest, not a release asset        |
 | `traefik`                                            | Traefik's published checksums file, read by the role                                                                                                | nothing to push                                                                                                       |
 | Actions, providers, Helm charts, `pre-commit`, `ansible-lint`, `terraform`, `tflint`, `helm` | none                                                                                                                | none                                                                                                                  |
