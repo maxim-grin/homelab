@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"
+echo "wget $*" >> "$S/calls.log"
+out=""; url=""; prev=""
+for a in "$@"; do
+  [ "$prev" = -O ] && out="$a"
+  case "$a" in http*) url="$a" ;; esac
+  prev="$a"
+done
+[ -n "$out" ] || out="$(basename "$url")"
+case "$url" in
+  *SHA256SUMS)
+    sum="$(printf 'FAKEIMG' | sha256sum | cut -d' ' -f1)"
+    [ "${STUB_BAD_SUM:-}" = 1 ] && sum="$(printf '%064d' 0)"
+    echo "$sum *noble-server-cloudimg-amd64.img" > "$out" ;;
+  *) printf 'FAKEIMG' > "$out" ;;
+esac

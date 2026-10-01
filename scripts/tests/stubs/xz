@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"
+echo "xz $*" >> "$S/calls.log"
+for a in "$@"; do f="$a"; done
+cp "$f" "${f%.xz}"; rm -f "$f"

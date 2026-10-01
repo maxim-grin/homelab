@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+[ "${1:-} ${2:-}" = "group sudo" ] && exit 0
+exit 2

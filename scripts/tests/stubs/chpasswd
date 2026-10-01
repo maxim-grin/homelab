@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"
+echo chpasswd >> "$S/calls.log"
+while IFS= read -r line; do echo "${line%%:*}" >> "$S/chpasswd.log"; done
+exit 0
