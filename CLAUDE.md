@@ -203,7 +203,7 @@ supersedes a record in `docs/decisions/` in the same PR.
 - **Prod's cluster secrets live in `terraform.tfstate`.** The Talos PKI and
   the kubeconfig are in `environments/prod/terraform.tfstate` on the
   operator's workstation and nowhere else; `kubeconfig` and `talosconfig`
-  are sensitive outputs that nothing writes to disk. Losing the state means
+  are sensitive outputs that Terraform never writes to disk. Losing the state means
   rebuilding the cluster. (ADR
   [0021](docs/decisions/0021-talos-prod-via-terraform-provider.md))
 - **A sealed Vault looks healthy.** After any `vault-02` reboot, Vault comes

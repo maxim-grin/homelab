@@ -22,7 +22,8 @@ The `siderolabs/talos` provider (`0.12.0`) generates the secrets and machine
 configs, applies them to the nodes' static addresses, bootstraps the control
 plane and fetches the kubeconfig. The cluster's secrets exist only in
 `terraform.tfstate`; `kubeconfig` and `talosconfig` are sensitive outputs and
-no file is ever written. The cluster is one control plane and two workers, no
+Terraform writes no file for them (the operator redirects them outside the
+repository when needed). The cluster is one control plane and two workers, no
 VIP, starting at 2G each (6G).
 
 Rejected: `talosctl gen config` with SOPS-encrypted files committed (a key to

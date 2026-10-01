@@ -243,10 +243,10 @@ qm template 5001
 rm talos-nocloud.raw
 ```
 
-The template needs the same ACL the Ubuntu template has, so that
-`terraform@pve` can clone it. Confirm with `qm config 5001`: `agent:
-enabled=1`, `scsi0` on `local-lvm`, `ide2` a cloudinit drive, and no `ipconfig0`
-on the template itself.
+`terraform@pve` can already clone it because the `TerraformProv` role is
+granted on `/` (section 1), so no per-template ACL is needed. Confirm with
+`qm config 5001`: `agent: enabled=1`, `scsi0` on `local-lvm`, `ide2` a
+cloudinit drive, and no `ipconfig0` on the template itself.
 
 ### 3. Proxmox host assumptions Terraform makes
 

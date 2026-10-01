@@ -94,6 +94,26 @@ run "rejects_bad_ip" {
   expect_failures = [var.talos_nodes]
 }
 
+run "rejects_hostname_ip" {
+  command = plan
+  variables {
+    talos_nodes = {
+      cp1 = { role = "controlplane", vmid = 3101, ip = "cp1.lan", memory = 2048 }
+    }
+  }
+  expect_failures = [var.talos_nodes]
+}
+
+run "rejects_cidr_ip" {
+  command = plan
+  variables {
+    talos_nodes = {
+      cp1 = { role = "controlplane", vmid = 3101, ip = "10.0.0.110/24", memory = 2048 }
+    }
+  }
+  expect_failures = [var.talos_nodes]
+}
+
 run "rejects_unknown_role" {
   command = plan
   variables {
