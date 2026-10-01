@@ -198,11 +198,6 @@ supersedes a record in `docs/decisions/` in the same PR.
 - **`*.tfvars` is gitignored and has no backup anywhere.** `dev.tfvars`
   and `shared.tfvars` carry the Proxmox API token and the cloud-init
   password.
-- **Generated output stays out of git.** `talos/_out/` once carried a
-  talosconfig with its private key into a public repository because the
-  ignore rule said `talos/secrets.yaml` and the file was at
-  `talos/_out/secrets.yaml`. Check `git check-ignore -v <path>` rather than
-  assuming a rule matches.
 - **A sealed Vault looks healthy.** After any `vault-02` reboot, Vault comes
   back sealed. AVP then renders nothing, and every Application whose
   manifests carry a `<path:...>` placeholder goes `Unknown` on sync status —
