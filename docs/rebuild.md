@@ -224,8 +224,8 @@ written into `dev.tfvars`.
 ### 4. Files that live only on the workstation
 
 None of these are in git, by design. They survive an SSD replacement because
-they are on the laptop, not the server — but they do not survive losing the
-laptop, and they are what the rebuild needs.
+they are on the operator's workstation, not the server — but they do not
+survive losing the workstation, and they are what the rebuild needs.
 
 | File                                         | Contains                                                             | If lost                                                                                                                  |
 | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
