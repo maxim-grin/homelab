@@ -63,6 +63,14 @@ assert_out_lacks() {
 
 # ---- cases -----------------------------------------------------------------
 
+test_default_dirs() {
+  # grep the settings block: the tests override these dirs, so only the
+  # source text can prove the defaults
+  grep -Fq 'APT_SOURCES_DIR="${APT_SOURCES_DIR:-/etc/apt/sources.list.d}"' "$SCRIPT" || fail "APT_SOURCES_DIR default wrong"
+  grep -Fq 'CACHE_DIR="${CACHE_DIR:-/var/lib/vz/template/cache}"' "$SCRIPT" || fail "CACHE_DIR default wrong"
+  grep -Fq 'ISO_DIR="${ISO_DIR:-/var/lib/vz/template/iso}"' "$SCRIPT" || fail "ISO_DIR default wrong"
+}
+
 test_unknown_step() {
   run_script nosuchstep
   assert_rc_nonzero

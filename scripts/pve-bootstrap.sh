@@ -24,7 +24,7 @@ TALOS_TEMPLATE_VMID="${TALOS_TEMPLATE_VMID:-5001}"
 ADMIN_USER="${ADMIN_USER:-}"
 POOLS="${POOLS:-VM Ubuntu-K8s LXC Talos-K8s}"
 APT_SOURCES_DIR="${APT_SOURCES_DIR:-/etc/apt/sources.list.d}"
-CACHE_DIR="${CACHE_DIR:-/var/cache/pve-bootstrap}"
+CACHE_DIR="${CACHE_DIR:-/var/lib/vz/template/cache}"
 ISO_DIR="${ISO_DIR:-/var/lib/vz/template/iso}"
 
 TF_USER="terraform@pve"
