@@ -169,7 +169,8 @@ into a host bootstrap script without rewriting them.
   paragraph drops "there is no prod cluster yet"; the Mermaid `talos` node
   loses `:::planned`, validated with the parser; the "never-applied
   scaffolding" lines go. The `terraform/README.md` Talos module mentions go.
-- **ADR 0020:** Talos via the `siderolabs/talos` provider with secrets in
+- **ADR 0021** (0020 is taken by the Glance branch's Pi-hole record; take
+  the next free number if that changes): Talos via the `siderolabs/talos` provider with secrets in
   Terraform state; records the pinned versions, the `nocloud` image and
   extension list, and the starting sizes. Fact-checked before merge. ADR
   0012's "not yet built" status gets a pointer to it.
@@ -185,7 +186,7 @@ reviewable first. Commits, in order:
 3. `chore:` delete the old Talos modules, `talos/` and the old prod files
 4. `feat:` the `talos-node` module, the prod root and the tfvars example
 5. `ci:` add `prod` to the Terraform loops
-6. `docs:` `rebuild.md`, README, ADR 0020
+6. `docs:` `rebuild.md`, README, ADR 0021
 
 The Glance session edits the same README table, diagram, `rebuild.md` and
 probably CLAUDE.md; whichever PR merges second merges `main` in and resolves
