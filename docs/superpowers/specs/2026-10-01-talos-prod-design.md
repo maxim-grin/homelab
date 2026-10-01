@@ -9,8 +9,8 @@ nodes.
 
 ## Problem
 
-`terraform/environments/prod` and `talos/` came with the repository from its
-original author and have never been applied. They do not work:
+`terraform/environments/prod` and `talos/` are unusable in their current
+state:
 
 - The prod root pins `telmate/proxmox` `3.0.2-rc04` and Terraform `~> 1.13.0`;
   `modules/talos-vm` pins `3.0.2-rc10` and `~> 1.16.0`. Prod cannot
@@ -27,7 +27,7 @@ original author and have never been applied. They do not work:
 | Question | Decision |
 | --- | --- |
 | Existing scaffolding | Deleted, not extended: `modules/talos-k8s`, `modules/talos-vm`, `talos/`, and the prod root's `main.tf`, `outputs.tf`, `prod.tfvars.example` |
-| CLAUDE.md's "do not extend prod or `talos/`" rule | Removed in the first commit. It guarded never-applied scaffolding; with real work starting it has no purpose |
+| CLAUDE.md's "do not extend prod or `talos/`" rule | Removed in the first commit. It guarded unusable scaffolding; with real work starting it has no purpose |
 | Config generation | The `siderolabs/talos` Terraform provider generates secrets and machine configs, applies them, bootstraps and fetches the kubeconfig |
 | Where the secrets live | `terraform.tfstate` (local, gitignored) and nowhere else. Never a file in the repo |
 | Node image | Image Factory `nocloud` disk image with the `qemu-guest-agent` extension, imported by hand into `talos-tp` |
