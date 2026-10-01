@@ -17,7 +17,9 @@ One standalone bash script, `scripts/pve-bootstrap.sh`, runs on the new
 host as root with nothing but the file itself. It is a list of named steps
 (`repos`, `users`, `pools`, `lxc-template`, `ubuntu-template`,
 `talos-template`), each of which checks what exists before changing it, so
-a second run changes nothing. Every mutating command goes through one
+a second run creates nothing: it only sets the `TerraformProv`
+privilege list again (reported as changed), and every other step reports
+skipped. Every mutating command goes through one
 `run` wrapper, which is what makes `--dry-run` print instead of act.
 
 Secrets are never written to a file or logged: the admin password is read

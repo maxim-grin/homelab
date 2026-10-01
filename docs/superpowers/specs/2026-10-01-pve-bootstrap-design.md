@@ -161,7 +161,9 @@ No test can reach a real Proxmox host here, so there are three layers.
 Layers 2 and 3 run in a new CI job `scripts`. The real check is the
 operator's run on `pve`, which the PR description lists, and it is a
 drill: the script is idempotent, so running it on the live host should
-report "skipped" for every step and change nothing.
+report "skipped" for every step except the `TerraformProv`
+privilege list, which it sets again and reports as "changed"; nothing is
+created.
 
 ## Documentation
 
