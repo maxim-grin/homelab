@@ -372,7 +372,8 @@ from `secret.yaml`.
    `TerraformProv` role, issue an API token, and create the `VM`,
    `Ubuntu-K8s` and `LXC` pools (the `LXC` pool holds the LAN service
    containers; grant `TerraformProv` on `/pool/LXC` as on the others, or
-   placement fails). Put the token in `dev.tfvars`.
+   placement fails), and the `glance@pve` read-only token (step 15). Put
+   the Terraform token in `dev.tfvars`.
 
    Download the Debian 13 LXC template the LAN services use, and put its
    name in `shared.tfvars` as `debian_lxc_template`:
@@ -618,6 +619,28 @@ from `secret.yaml`.
     `/etc/orangutan/config.ini`, so run the CLI as `runuser -u orangutan --
     env ORANGUTAN_DATA_DIR=/var/lib/orangutan orangutan list --config
     /etc/orangutan/config.ini`.
+
+    **Glance** needs, before its play:
+
+    - a read-only Proxmox token: on the host, `pveum user add glance@pve`,
+      `pveum acl modify / --users glance@pve --roles PVEAuditor`,
+      `pveum user token add glance@pve glance --privsep 0`; the id
+      `glance@pve!glance` and the secret it prints once go into
+      `secret.yaml` as `glance_proxmox_token_id` and
+      `glance_proxmox_token_secret`;
+    - Pi-hole's application password, kept from before the rebuild — both
+      `pihole_app_password` and `pihole_app_pwhash` are in `secret.yaml`,
+      and the Pi-hole play applies the hash. Only if they were lost:
+      log in to Pi-hole's API with the admin password, `GET /api/auth/app`,
+      keep `.app.password` and `.app.hash`, and re-run the Pi-hole play.
+
+    Re-run the Pi-hole, Traefik and Gatus plays too. Check:
+    `https://home.hl.mgryn.cc` shows every VM and container, Pi-hole's
+    statistics and Gatus's endpoints.
+
+    **Cutover** — last, once Gatus is watching Pi-hole: note the router's
+    current DHCP DNS setting, then set it to `10.0.0.140` alone. Rollback
+    is the noted setting.
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.

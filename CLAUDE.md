@@ -177,13 +177,21 @@ supersedes a record in `docs/decisions/` in the same PR.
   export with no client list is exported to everyone. (ADR
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
-  is bare metal with no LoadBalancer and no MetalLB. There is no DNS server
-  here, so most hostnames resolve via `/etc/hosts` on the workstation.
+  is bare metal with no LoadBalancer and no MetalLB. LAN clients resolve
+  through Pi-hole; the cluster's own names (`argocd.`, `grafana.`,
+  `prometheus.mgryn.cc`) still resolve via `/etc/hosts` on the workstation.
   `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
   Traefik on `10.0.0.141`, which terminates TLS for the LAN services and
   the Proxmox UI. (ADR [0002](docs/decisions/0002-ingress-nginx-daemonset.md))
+- **Pi-hole is the LAN's only DNS server.** The router's DHCP hands out
+  `10.0.0.140` and nothing else, so a stopped Pi-hole takes name
+  resolution away from every device on the LAN — phones, TV, laptop.
+  Gatus alerts on it within about two minutes, resolving through
+  `1.1.1.1` and the router, as every LAN service container does, never
+  Pi-hole. Restart it, or, to roll back, set the router's DHCP DNS to
+  the setting recorded in the Glance PR's body.
 - **`jobs.mgryn.cc`'s certificate comes from cert-manager, not Cloudflare.**
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME

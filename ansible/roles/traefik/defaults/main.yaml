@@ -52,3 +52,7 @@ traefik_routes:
     host: "lan.{{ traefik_domain }}"
     url: "http://{{ host_ips['orangutan'] }}:291"
     insecure: false
+  - name: home
+    host: "home.{{ traefik_domain }}"
+    url: "http://{{ host_ips['glance'] }}:8080"
+    insecure: false
