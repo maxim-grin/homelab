@@ -28,8 +28,6 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 Only the `dev` environment exists, plus `terraform/environments/shared` for
 `nfs-01`, `vault-02` and the LAN LXCs. Their prod halves (`nfs-prod`,
 `kv-prod`) are ready but unused until prod has nodes.
-`terraform/environments/prod` and `talos/` are scaffolding that has never been
-applied — do not extend them without saying so.
 
 ## Layout
 
