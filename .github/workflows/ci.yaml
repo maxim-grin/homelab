@@ -87,7 +87,11 @@ jobs:
   # PR. Not on push to main: GitHub's "Merge pull request #N" commits would
   # fail the convention.
   commits:
-    if: github.event_name == 'pull_request'
+    # Renovate's titles ("chore(deps): update … to …") run past the
+    # 50-character subject limit, and this job checks the commits on the
+    # branch, not the message the owner types when squash-merging. The
+    # human rules still apply to every other pull request.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'renovate[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
