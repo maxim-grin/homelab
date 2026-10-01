@@ -609,6 +609,16 @@ from `secret.yaml`.
     Pi-hole sends two (Pi-hole DNS and `pihole.hl.mgryn.cc`), a Traefik
     outage one per `*.hl` name — each followed by its own recovery.
 
+    **LAN Orangutan** needs `orangutan_password` in `secret.yaml`.
+    Re-run the Traefik and Gatus plays too, for `lan.hl.mgryn.cc` and its
+    check. Check: `https://lan.hl.mgryn.cc` asks for that password and,
+    within five minutes, lists the LAN's devices with MAC addresses and
+    vendors. The package also leaves its own unused
+    `/etc/lan-orangutan/config.ini`; the service reads
+    `/etc/orangutan/config.ini`, so run the CLI as `runuser -u orangutan --
+    env ORANGUTAN_DATA_DIR=/var/lib/orangutan orangutan list --config
+    /etc/orangutan/config.ini`.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 

@@ -1,0 +1,27 @@
+# Managed by Ansible (roles/orangutan). The password is not here: it is
+# read from ORANGUTAN_PASSWORD_FILE, set in the unit.
+[server]
+port = {{ orangutan_port }}
+bind_address = 0.0.0.0
+session_hours = 168
+allow_insecure = false
+enable_api = true
+
+[scanning]
+continuous_scan = true
+scan_interval = {{ orangutan_scan_interval }}
+min_scan_interval = 30
+enable_port_scan = false
+enable_service_detection = false
+networks = {{ orangutan_networks | join(', ') }}
+only_configured_networks = true
+
+[storage]
+data_dir = /var/lib/orangutan
+
+[tailscale]
+enable = false
+auto_detect = false
+
+[ui]
+theme = auto

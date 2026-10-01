@@ -11,9 +11,10 @@
       - host_ips['pve'] is defined
       - host_ips['pihole'] is defined
       - host_ips['gatus'] is defined
+      - host_ips['orangutan'] is defined
     fail_msg: >-
       traefik_cloudflare_api_token, traefik_dashboard_users (a list), host_ips['pve'],
-      host_ips['pihole'] and host_ips['gatus'] must be set in ansible/secret.yaml.
+      host_ips['pihole'], host_ips['gatus'] and host_ips['orangutan'] must be set in ansible/secret.yaml.
     quiet: true
 
 - name: Require a known cert resolver

@@ -1,0 +1,24 @@
+# Managed by Ansible (roles/orangutan). Overrides the package's unit,
+# which runs as root.
+[Unit]
+Description=LAN Orangutan network discovery
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=orangutan
+Group=orangutan
+Environment=ORANGUTAN_PASSWORD_FILE=/etc/orangutan/password
+Environment=ORANGUTAN_DATA_DIR=/var/lib/orangutan
+# nmap sends raw ARP and reads MAC addresses only when it believes it is
+# root; NMAP_PRIVILEGED tells it the capabilities below are enough.
+Environment=NMAP_PRIVILEGED=1
+ExecStart=/usr/local/bin/orangutan serve --config /etc/orangutan/config.ini
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

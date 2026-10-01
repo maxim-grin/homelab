@@ -48,7 +48,7 @@ flowchart TB
                 traefik["Traefik .141<br/>*.hl.mgryn.cc"]
                 glance["Glance .142<br/>dashboard"]:::planned
                 gatus["Gatus .143<br/>uptime"]
-                orangutan["LAN Orangutan .144<br/>device discovery"]:::planned
+                orangutan["LAN Orangutan .144<br/>device discovery"]
             end
         end
 
@@ -71,7 +71,7 @@ flowchart TB
     lan -- "*.hl.mgryn.cc" --> traefik
     traefik -.-> glance
     traefik --> gatus
-    traefik -.-> orangutan
+    traefik --> orangutan
     traefik --> pihole
     traefik -- "DNS-01" --> letsencrypt
     gatus -- "alerts" --> telegram
@@ -92,7 +92,7 @@ diagram has a static address above that pool.
 | VMs        | k8s master + 2 workers, `claude-code` workstation                                                                                                                               | `terraform/environments/dev`                                                                            |
 | VM         | `nfs-01`, NFS for the dev cluster; its `nfs-prod` share is ready but unexported until prod has nodes                                                                            | `terraform/environments/shared`                                                                         |
 | VM         | `vault-02`, the Vault VM; `kv-dev` in use, `kv-prod` ready but unused                                                                                                           | `terraform/environments/shared`                                                                         |
-| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`; the rest empty until their roles land                | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus` |
+| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144`; `glance` empty until its role lands | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan` |
 | OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
 | GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`                                                                                                                              | `ansible/roles/argocd`, `argocd/environments/dev`                                                       |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                                                                                   | `argocd/apps/ingress-nginx`                                                                             |
@@ -107,8 +107,8 @@ hold the planned one: a Talos cluster that becomes the hub running ArgoCD
 and monitoring for both clusters, built by sub-project 2 of the
 [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
 ([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)). Until then
-they are never-applied scaffolding. Glance and LAN Orangutan, one LXC each
-reached as `*.hl.mgryn.cc`, come next — see the
+they are never-applied scaffolding. Glance, one LXC reached as
+`home.hl.mgryn.cc`, comes next — see the
 [LAN services design](docs/superpowers/specs/2026-09-27-lan-services-design.md).
 
 **Rebuilding** after a disk replacement or a total loss starts at
@@ -126,7 +126,7 @@ a private IP, so any device on the LAN resolves them without a hosts
 entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
-`pihole`, `proxmox`, `traefik` and `status`; `vault.mgryn.cc` points
+`pihole`, `proxmox`, `traefik`, `status` and `lan`; `vault.mgryn.cc` points
 straight at `vault-02`. The other cluster names — `argocd`, `grafana`,
 `prometheus` — resolve through `/etc/hosts` on the workstation. There is
 no Cloudflare Tunnel.

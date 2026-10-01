@@ -37,7 +37,7 @@ is a stop — see
 | `https://grafana.mgryn.cc`                                                                       | Grafana; HTTP 308s to HTTPS                                                                         | cert-manager |
 | `http://prometheus.mgryn.cc`                                                                     | Prometheus, no authentication — Prometheus ships none                                               | none         |
 | `https://vault.mgryn.cc:8200`                                                                    | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA   |
-| `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus                                                 | Traefik      |
+| `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc`, `lan.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus, LAN Orangutan                                               | Traefik      |
 
 The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every
