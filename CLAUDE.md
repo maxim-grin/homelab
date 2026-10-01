@@ -191,7 +191,8 @@ supersedes a record in `docs/decisions/` in the same PR.
   Gatus alerts on it within about two minutes, resolving through
   `1.1.1.1` and the router, as every LAN service container does, never
   Pi-hole. Restart it, or, to roll back, set the router's DHCP DNS to
-  the setting recorded in the Glance PR's body.
+  the setting recorded in `docs/operations.md`. (ADR
+  [0020](docs/decisions/0020-pihole-sole-lan-dns.md))
 - **`jobs.mgryn.cc`'s certificate comes from cert-manager, not Cloudflare.**
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME

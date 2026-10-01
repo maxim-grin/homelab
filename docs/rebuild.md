@@ -638,9 +638,10 @@ from `secret.yaml`.
     `https://home.hl.mgryn.cc` shows every VM and container, Pi-hole's
     statistics and Gatus's endpoints.
 
-    **Cutover** — last, once Gatus is watching Pi-hole: note the router's
-    current DHCP DNS setting, then set it to `10.0.0.140` alone. Rollback
-    is the noted setting.
+    **Cutover** — last, once Gatus is watching Pi-hole: record the router's
+    current DHCP DNS setting under "DNS cutover rollback" in
+    `docs/operations.md`, then set it to `10.0.0.140` alone. Rollback is
+    that recorded setting.
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.

@@ -85,3 +85,15 @@ kubectl -n jobboard get order,challenge
 Traefik's `*.hl.mgryn.cc` certificate is Traefik's own ACME client, not
 cert-manager; debug it with `-e traefik_cert_resolver=letsencrypt-staging`
 (see `ansible/roles/traefik/defaults/main.yaml`).
+
+## DNS cutover rollback
+
+The router's DHCP hands out `10.0.0.140` (Pi-hole) as the only DNS
+server (record [0020](decisions/0020-pihole-sole-lan-dns.md)). If
+Pi-hole cannot be restarted, put the router back the way it was.
+
+Router DHCP DNS before the cutover: _record it here when the cutover is
+done_
+
+To roll back, set the router's DHCP DNS to that value, then renew leases
+on the devices that matter (or wait out the lease time).
