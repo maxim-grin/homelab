@@ -38,6 +38,14 @@ repos:
     hooks:
       - id: gitleaks
 
+  # Limited to the Proxmox bootstrap tooling: the older scripts/ files predate
+  # this hook and are not shellcheck-clean.
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        files: ^scripts/(pve-bootstrap\.sh|check-talos-pins\.sh|tests/.*)$
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
     hooks:

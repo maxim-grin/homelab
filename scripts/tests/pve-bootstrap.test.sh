@@ -66,8 +66,11 @@ assert_out_lacks() {
 test_default_dirs() {
   # grep the settings block: the tests override these dirs, so only the
   # source text can prove the defaults
+  # shellcheck disable=SC2016 # the ${...} is literal text to find in the script
   grep -Fq 'APT_SOURCES_DIR="${APT_SOURCES_DIR:-/etc/apt/sources.list.d}"' "$SCRIPT" || fail "APT_SOURCES_DIR default wrong"
+  # shellcheck disable=SC2016 # the ${...} is literal text to find in the script
   grep -Fq 'CACHE_DIR="${CACHE_DIR:-/var/lib/vz/template/cache}"' "$SCRIPT" || fail "CACHE_DIR default wrong"
+  # shellcheck disable=SC2016 # the ${...} is literal text to find in the script
   grep -Fq 'ISO_DIR="${ISO_DIR:-/var/lib/vz/template/iso}"' "$SCRIPT" || fail "ISO_DIR default wrong"
 }
 
@@ -283,6 +286,22 @@ test_node_name_warning() {
   run_script repos
   assert_rc 0
   assert_out_contains "node is 'pve2'"
+}
+
+test_pins_match() {
+  OUT="$(bash "$HERE/../check-talos-pins.sh" 2>&1)"
+  RC=$?
+  assert_rc 0
+  assert_out_contains "talos pins match"
+}
+
+test_pins_drift() {
+  local copy="$TMP_ROOT/drifted.sh"
+  sed 's/v1\.14\.2/v9.9.9/' "$SCRIPT" > "$copy"
+  OUT="$(bash "$HERE/../check-talos-pins.sh" "$copy" 2>&1)"
+  RC=$?
+  assert_rc_nonzero
+  assert_out_contains "talos_version"
 }
 
 # ---- runner ----------------------------------------------------------------

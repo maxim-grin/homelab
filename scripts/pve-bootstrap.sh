@@ -92,8 +92,9 @@ ensure_acl() {
 }
 
 join_by_comma() {
-  local IFS=,
-  echo "$*" | sed 's/,/, /g'
+  local IFS=, joined
+  joined="$*"
+  echo "${joined//,/, }"
 }
 
 # ---- preflight -------------------------------------------------------------
