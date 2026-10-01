@@ -1168,7 +1168,7 @@ Listed first so the owner can do it while the code is written.
 - Consumes: `pihole_app_pwhash`, `pihole_app_password` from `secret.yaml`; `tasks/ftl_setting.yaml`, which takes `pihole_setting: {key, value}`.
 - Produces: Pi-hole accepting `pihole_app_password` at `/api/auth` — Glance's `dns-stats` widget (Task 9) logs in with it. Optional: without `pihole_app_pwhash` the role behaves as today.
 
-- [ ] **Step 1: A rehearsal hash, and the login failing**
+- [x] **Step 1: A rehearsal hash, and the login failing**
 
 ```bash
 $SCRATCH/lan-container.sh lan-pihole
@@ -1191,7 +1191,7 @@ $SCRATCH/check-pihole-app.sh; echo "exit=$?"
 
 Expected: `app password valid: False`, `exit=1` — the hash was generated but never applied.
 
-- [ ] **Step 2: Apply it through `ftl_setting`**
+- [x] **Step 2: Apply it through `ftl_setting`**
 
 In `ansible/roles/pihole/tasks/main.yaml`, change the "Apply FTL settings" task's `loop:` to append the application password when it is defined:
 
@@ -1233,7 +1233,7 @@ pihole_app_password: "<44 chars from /api/auth/app .app.password>"
 pihole_app_pwhash: "$BALLOON-SHA256$v=1$s=1024,t=32$<salt>$<hash>"
 ```
 
-- [ ] **Step 3: Rehearse — applied, idempotent, survives a rebuilt container**
+- [x] **Step 3: Rehearse — applied, idempotent, survives a rebuilt container**
 
 ```bash
 $SCRATCH/run-pihole.sh -e @$SCRATCH/pihole-app.yaml | grep -E 'changed=|failed=|app_pwhash'
@@ -1249,7 +1249,7 @@ $SCRATCH/check-pihole.sh; echo "exit=$?"
 
 Expected: first run `failed=0`; `valid: True`, `exit=0`; second run `changed=0`; the `-v` run prints `0` (the hash never appears in output); the fresh container `failed=0`, `valid: True`, and the existing Pi-hole checks still `exit=0`. Leave `lan-pihole` running for Task 9.
 
-- [ ] **Step 4: Lint and commit**
+- [x] **Step 4: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/pihole
@@ -1277,7 +1277,7 @@ and its hash are created once through its API and both kept."
 - Consumes: group `glance` (PR 1); `host_ips['pve']`, `host_ips['pihole']`, `host_ips['gatus']`; `pihole_app_password` (Task 8); `glance_proxmox_token_id`, `glance_proxmox_token_secret` (Task 7); Gatus's `/api/v1/endpoints/statuses` (PR 4); the homelab CA.
 - Produces: Glance on `http://<glance>:8080`.
 
-- [ ] **Step 1: Backends, a Proxmox stub, and the checks failing**
+- [x] **Step 1: Backends, a Proxmox stub, and the checks failing**
 
 ```bash
 # Gatus, for its statuses API: re-use Task 1's rehearsal (it only needs to answer).
@@ -1356,7 +1356,7 @@ $SCRATCH/check-glance.sh; echo "exit=$?"
 
 Expected: `FAIL` lines, `exit=1`. (If `/api/pages/home/content/` is not where v0.8.6 renders widgets, find the path from the page's HTML — it fetches its content after load — fix the check, and say so in the report.)
 
-- [ ] **Step 2: Metadata and defaults**
+- [x] **Step 2: Metadata and defaults**
 
 `ansible/roles/glance/meta/main.yaml`:
 
@@ -1411,7 +1411,7 @@ glance_bookmarks:
   - { title: GitHub, url: "https://github.com/maxim-grin/homelab" }
 ```
 
-- [ ] **Step 3: Templates**
+- [x] **Step 3: Templates**
 
 `ansible/roles/glance/templates/glance.yml.j2` — the widget templates are Go templates, so they sit inside `{% raw %}`:
 
@@ -1530,7 +1530,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-- [ ] **Step 4: Tasks and handlers**
+- [x] **Step 4: Tasks and handlers**
 
 `ansible/roles/glance/tasks/main.yaml`:
 
@@ -1669,7 +1669,7 @@ WantedBy=multi-user.target
     daemon_reload: true
 ```
 
-- [ ] **Step 5: The play and the example secrets**
+- [x] **Step 5: The play and the example secrets**
 
 Append to `ansible/playbooks/lan_services.yaml`:
 
@@ -1692,7 +1692,7 @@ glance_proxmox_token_id: "glance@pve!glance"
 glance_proxmox_token_secret: "<uuid printed once by pveum user token add>"
 ```
 
-- [ ] **Step 6: Rehearse — first run, widgets, idempotence**
+- [x] **Step 6: Rehearse — first run, widgets, idempotence**
 
 ```bash
 $SCRATCH/run-glance.sh | grep -E 'changed=|failed=|FAILED|fatal'
@@ -1704,7 +1704,7 @@ docker stats --no-stream --format '{{.MemUsage}}' lan-glance
 
 Expected: first run `failed=0`; checks all `ok`, `exit=0` — the dns-stats line proves the application password logs in to a real Pi-hole v6; second run `changed=0`; the stub saw `PVEAPIToken=glance@pve!glance=` (the header reached Proxmox's shape); memory well under 256MiB.
 
-- [ ] **Step 7: Rehearse — one backend down leaves the page up**
+- [x] **Step 7: Rehearse — one backend down leaves the page up**
 
 ```bash
 docker stop lan-gatus >/dev/null
@@ -1718,7 +1718,7 @@ docker rm -f lan-glance lan-gatus lan-pihole
 
 Expected: `200`; a non-zero count (dns-stats still renders); `active`. The Gatus and Proxmox widgets show their own error, not a blank page.
 
-- [ ] **Step 8: Lint and commit**
+- [x] **Step 8: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/glance playbooks/lan_services.yaml
