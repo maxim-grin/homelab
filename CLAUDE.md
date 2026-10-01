@@ -126,7 +126,9 @@ honestly. A plan's operator steps that said "merge and push `main`" now mean
 
 GitHub merges with a merge commit (`Merge pull request #N from …`) and
 deletes the head branch. Afterwards, locally: `git checkout main && git pull
-&& git branch -d <change-name>`.
+&& git branch -d <change-name>`. Pull requests from `renovate[bot]` are
+the exception: squash-merge them with a short Conventional subject (ADR
+[0021](docs/decisions/0021-renovate-hosted-app.md)).
 
 A change that makes or reverses an architectural decision adds or
 supersedes a record in `docs/decisions/` in the same PR.

@@ -56,8 +56,10 @@ Done means:
   requests still open at that time (Glance, the CI `*_SHA256` values) get
   theirs from whichever pull request merges second, or a follow-up.
 - **Not tracked:** `vault_version` (an apt package revision, not a
-  release), the unpinned `ubi-minimal:latest` image, and the `setup-python`
-  version, which would be noise.
+  release), the unpinned `ubi-minimal:latest` image, the `setup-python`
+  version, which would be noise, the Argo CD `quay.io/argoproj/argocd`
+  image tag in the same role's defaults, which is bumped by hand to
+  match the chart, and the `ubuntu` runner image in `runs-on`.
 
 ## Excluded until sub-project 2
 
