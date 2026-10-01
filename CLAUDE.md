@@ -25,9 +25,12 @@ with `kubernetes.core`, kubeadm, ArgoCD app-of-apps, kustomize for plain
 manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`), no test suite.
 
-Only the `dev` environment exists, plus `terraform/environments/shared` for
-`nfs-01`, `vault-02` and the LAN LXCs. Their prod halves (`nfs-prod`,
-`kv-prod`) are ready but unused until prod has nodes.
+`dev` is the kubeadm cluster. `terraform/environments/prod` is the Talos
+cluster: three nodes through the `siderolabs/talos` provider, applied from
+the operator's workstation, no workloads until sub-project 3.
+`terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs.
+Their prod halves (`nfs-prod`, `kv-prod`) stay unused until the hub platform
+lands.
 
 ## Layout
 
@@ -38,8 +41,9 @@ argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays, or Helm values
                   environments/dev/applications/  Application CRs, synced by root-dev
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
-                              nfs-server, vault-vm, talos-*
+                              nfs-server, vault-vm, talos-node
                   environments/dev/     the dev machines
+                  environments/prod/    the Talos prod cluster
                   environments/shared/  nfs-01, vault-02 and the LAN LXCs;
                                         prod shares and KV ready, unused
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
@@ -52,7 +56,7 @@ Three different paths, and mixing them up wastes an afternoon:
 
 | Layer                       | Applied by                                                                              | Takes effect                |
 | --------------------------- | --------------------------------------------------------------------------------------- | --------------------------- |
-| VMs, disks, network         | `terraform apply -var-file=<env>.tfvars` in `environments/dev` or `environments/shared` | immediately                 |
+| VMs, disks, network         | `terraform apply -var-file=<env>.tfvars` in `environments/dev`, `shared` or `prod` | immediately                 |
 | OS, packages, cluster       | `ansible-playbook … -e @secret.yaml --ask-vault-pass`                                   | immediately                 |
 | Kubernetes workloads        | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
 | `argocd/base/projects.yaml` | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
@@ -193,9 +197,15 @@ supersedes a record in `docs/decisions/` in the same PR.
 - **`secret.yaml` is committed encrypted; its password is not.** That file is
   the only record of every host address and vmid. Losing the password loses
   them. Keep it in a password manager.
-- **`*.tfvars` is gitignored and has no backup anywhere.** `dev.tfvars`
-  and `shared.tfvars` carry the Proxmox API token and the cloud-init
-  password.
+- **`*.tfvars` is gitignored and has no backup anywhere.** `dev.tfvars`,
+  `shared.tfvars` and `prod.tfvars` carry the Proxmox API token and the
+  cloud-init password.
+- **Prod's cluster secrets live in `terraform.tfstate`.** The Talos PKI and
+  the kubeconfig are in `environments/prod/terraform.tfstate` on the
+  operator's workstation and nowhere else; `kubeconfig` and `talosconfig`
+  are sensitive outputs that nothing writes to disk. Losing the state means
+  rebuilding the cluster. (ADR
+  [0021](docs/decisions/0021-talos-prod-via-terraform-provider.md))
 - **A sealed Vault looks healthy.** After any `vault-02` reboot, Vault comes
   back sealed. AVP then renders nothing, and every Application whose
   manifests carry a `<path:...>` placeholder goes `Unknown` on sync status —
