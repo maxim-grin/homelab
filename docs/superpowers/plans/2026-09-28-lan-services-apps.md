@@ -1740,7 +1740,7 @@ latest results, a monitor of every service, and bookmarks."
 - Consumes: Glance on `:8080` (Task 9).
 - Produces: `home.hl.mgryn.cc`; the documented cutover.
 
-- [ ] **Step 1: Route and check**
+- [x] **Step 1: Route and check**
 
 Append to `traefik_routes`:
 
@@ -1762,7 +1762,7 @@ Append to `gatus_endpoints`, after `lan.hl.mgryn.cc`:
     conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
 ```
 
-- [ ] **Step 2: README**
+- [x] **Step 2: README**
 
 - LXCs row: every service now runs — description "`pihole` (DNS, ad blocking) `.140`, `traefik` (`*.hl.mgryn.cc`) `.141`, `glance` (dashboard) `.142`, `gatus` (uptime, Telegram alerts) `.143`, `orangutan` (device discovery) `.144`"; append `, `ansible/roles/glance`` to "where defined".
 - Replace the "**Planned, not yet running:** Glance, …" sentence with "**Planned, not yet running:** a Talos prod cluster that runs ArgoCD and monitoring for both clusters — see the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)." (Drop the now-duplicate Talos sentence after it.)
@@ -1770,7 +1770,7 @@ Append to `gatus_endpoints`, after `lan.hl.mgryn.cc`:
 - Replace the sentence beginning "Most hostnames resolve through `/etc/hosts` on the workstation" with: "Every LAN device resolves through Pi-hole (`10.0.0.140`), which the router's DHCP hands out. The cluster names `argocd.`, `grafana.` and `prometheus.mgryn.cc` still resolve through `/etc/hosts` on the workstation, pointing at a node IP since ingress-nginx answers on every node."
 - Diagram: drop `:::planned` from `glance[...]`; `traefik -.-> glance` → `traefik --> glance`; `lan -. "DNS" .-> pihole` → `lan -- "DNS" --> pihole`.
 
-- [ ] **Step 3: rebuild.md**
+- [x] **Step 3: rebuild.md**
 
 Append to step 15, after the LAN Orangutan paragraph:
 
@@ -1800,7 +1800,7 @@ Append to step 15, after the LAN Orangutan paragraph:
 
 In "## Rebuild order", step 2 (Prepare the host) gains: "and the `glance@pve` read-only token (step 15)".
 
-- [ ] **Step 4: CLAUDE.md**
+- [x] **Step 4: CLAUDE.md**
 
 In the "**ingress-nginx is a DaemonSet on host ports 80/443**" bullet, replace "There is no DNS server here, so most hostnames resolve via `/etc/hosts` on the workstation." with "LAN clients resolve through Pi-hole; the cluster's own names (`argocd.`, `grafana.`, `prometheus.mgryn.cc`) still resolve via `/etc/hosts` on the workstation."
 
@@ -1816,7 +1816,7 @@ Add a new bullet after that one:
   the setting recorded in the Glance PR's body.
 ```
 
-- [ ] **Step 5: Check and commit**
+- [x] **Step 5: Check and commit**
 
 ```bash
 node $SCRATCH/mp/p.mjs
@@ -1834,7 +1834,7 @@ Expected: `PARSE OK`; lint passes; no pre-commit failures.
 ### Task 11: Operator — Glance and the cutover (owner, not an agent)
 
 - [ ] Task 7 done: `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `pihole_app_password`, `pihole_app_pwhash` in `secret.yaml` on the `lan-glance` checkout; commit and push.
-- [ ] `ansible-playbook ... --limit pihole,traefik,gatus,glance`: `failed=0`; a second run `changed=0`.
+- [ ] `ansible-playbook ... --limit pihole,glance`, then `--limit traefik,gatus` (Glance first, so Gatus never checks a missing backend): `failed=0` each; a second run of both `changed=0`.
 - [ ] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
 - [ ] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
 - [ ] **Cutover.** Record the router's current DHCP DNS setting in the PR body. Set it to `10.0.0.140` only. Renew a phone's lease (toggle Wi-Fi): it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
