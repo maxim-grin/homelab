@@ -24,6 +24,14 @@ env:
   KUBECONFORM_VERSION: "0.8.0"
   YQ_VERSION: "4.53.6"
   GITLEAKS_VERSION: "8.30.0"
+  # SHA-256 of each release asset downloaded below, from GitHub's per-asset
+  # digest (ADR 0017). For a new version:
+  #   gh api repos/<owner>/<repo>/releases/tags/<tag> \
+  #     --jq '.assets[] | select(.name=="<asset>") | .digest'
+  GITLEAKS_SHA256: "79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e"
+  KUSTOMIZE_SHA256: "029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d"
+  KUBECONFORM_SHA256: "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883"
+  YQ_SHA256: "c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385"
 
 jobs:
   # The repo's own hooks, unchanged: file hygiene, check-yaml, private-key
@@ -58,8 +66,10 @@ jobs:
       - name: Install gitleaks
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C "$HOME/.local/bin" gitleaks
+          tmp="$(mktemp -d)"
+          curl -fsSL -o "$tmp/gitleaks.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $tmp/gitleaks.tgz" | sha256sum --strict -c -
+          tar -xz -f "$tmp/gitleaks.tgz" -C "$HOME/.local/bin" gitleaks
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Scan history for secrets
         run: gitleaks git --redact --no-banner --verbose
@@ -143,12 +153,18 @@ jobs:
           bin="$HOME/.local/bin"
           mkdir -p "$bin"
           gh="https://github.com"
-          curl -fsSL "${gh}/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
-            | tar -xz -C "$bin" kustomize
-          curl -fsSL "${gh}/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
-            | tar -xz -C "$bin" kubeconform
-          curl -fsSL -o "$bin/yq" "${gh}/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
-          chmod +x "$bin/yq"
+          tmp="$(mktemp -d)"
+          curl -fsSL -o "$tmp/kustomize.tgz" "${gh}/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$tmp/kubeconform.tgz" "${gh}/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          curl -fsSL -o "$tmp/yq" "${gh}/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+          {
+            echo "${KUSTOMIZE_SHA256}  $tmp/kustomize.tgz"
+            echo "${KUBECONFORM_SHA256}  $tmp/kubeconform.tgz"
+            echo "${YQ_SHA256}  $tmp/yq"
+          } | sha256sum --strict -c -
+          tar -xz -f "$tmp/kustomize.tgz" -C "$bin" kustomize
+          tar -xz -f "$tmp/kubeconform.tgz" -C "$bin" kubeconform
+          install -m 0755 "$tmp/yq" "$bin/yq"
           echo "$bin" >> "$GITHUB_PATH"
       - name: Render and schema-check manifests
         run: scripts/check-manifests.sh
