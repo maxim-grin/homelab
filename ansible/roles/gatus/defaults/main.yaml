@@ -1,4 +1,5 @@
 ---
+# renovate: datasource=github-releases depName=TwiN/gatus extractVersion=^v(?<version>.+)$
 gatus_version: "5.37.0"
 
 # Gatus publishes container images, not binaries. The linux/amd64 image

@@ -1,4 +1,5 @@
 ---
+# renovate: datasource=github-releases depName=291-Group/LAN-Orangutan extractVersion=^v(?<version>.+)$
 orangutan_version: "3.3.8"
 orangutan_deb: "lan-orangutan_{{ orangutan_version }}_amd64.deb"
 orangutan_deb_url: "https://github.com/291-Group/LAN-Orangutan/releases/download/v{{ orangutan_version }}/{{ orangutan_deb }}"

@@ -1,4 +1,5 @@
 ---
+# renovate: datasource=github-releases depName=traefik/traefik extractVersion=^v(?<version>.+)$
 traefik_version: "3.7.13"
 traefik_release_url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}"
 traefik_archive: "traefik_v{{ traefik_version }}_linux_amd64.tar.gz"
