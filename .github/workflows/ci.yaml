@@ -15,14 +15,23 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  # renovate: datasource=pypi depName=pre-commit
   PRE_COMMIT_VERSION: "4.6.2"
+  # renovate: datasource=pypi depName=ansible-lint
   ANSIBLE_LINT_VERSION: "26.8.0"
+  # renovate: datasource=github-releases depName=hashicorp/terraform extractVersion=^v(?<version>.+)$
   TERRAFORM_VERSION: "1.16.2"
+  # renovate: datasource=github-releases depName=terraform-linters/tflint
   TFLINT_VERSION: "v0.64.0"
+  # renovate: datasource=github-releases depName=helm/helm
   HELM_VERSION: "v3.22.0"
+  # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)$
   KUSTOMIZE_VERSION: "5.8.1"
+  # renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$
   KUBECONFORM_VERSION: "0.8.0"
+  # renovate: datasource=github-releases depName=mikefarah/yq extractVersion=^v(?<version>.+)$
   YQ_VERSION: "4.53.6"
+  # renovate: datasource=github-releases depName=gitleaks/gitleaks extractVersion=^v(?<version>.+)$
   GITLEAKS_VERSION: "8.30.0"
   # SHA-256 of each release asset downloaded below, from GitHub's per-asset
   # digest (ADR 0017). For a new version:
@@ -78,7 +87,11 @@ jobs:
   # PR. Not on push to main: GitHub's "Merge pull request #N" commits would
   # fail the convention.
   commits:
-    if: github.event_name == 'pull_request'
+    # Renovate's titles ("chore(deps): update … to …") run past the
+    # 50-character subject limit, and this job checks the commits on the
+    # branch, not the message the owner types when squash-merging. The
+    # human rules still apply to every other pull request.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'renovate[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

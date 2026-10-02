@@ -145,7 +145,9 @@ pins (`3.0.2-rc04` conflicts with `modules/talos-vm`'s `3.0.2-rc10`),
 build the `talos-tp` template and `Talos-K8s` pool, replace the
 old LXC modules in `environments/prod/main.tf`, and generate Talos
 machine configs without committing their secrets. Done when `kubectl get
-nodes` shows three Ready nodes.
+nodes` shows three Ready nodes. Renovate covers
+`terraform/environments/prod` too: the `ignorePaths` entries in
+`renovate.json5` were removed when this was done (ADR 0023).
 
 **3. Prod platform hub.** ArgoCD in prod, AVP reading `kv-prod`,
 `nfs-prod` export and StorageClass, cert-manager, ingress,

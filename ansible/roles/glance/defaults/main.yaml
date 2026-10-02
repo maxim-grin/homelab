@@ -1,4 +1,5 @@
 ---
+# renovate: datasource=github-releases depName=glanceapp/glance extractVersion=^v(?<version>.+)$
 glance_version: "0.8.6"
 glance_archive_url: "https://github.com/glanceapp/glance/releases/download/v{{ glance_version }}/glance-linux-amd64.tar.gz"
 # No checksums file is published; GitHub records one per asset:

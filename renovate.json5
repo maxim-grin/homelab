@@ -1,0 +1,49 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+  timezone: "UTC",
+  schedule: ["before 7am on monday"],
+  prConcurrentLimit: 3,
+  labels: ["deps"],
+  semanticCommits: "enabled",
+  // Opt-in manager: tracks the hook revs in .pre-commit-config.yaml.
+  "pre-commit": { enabled: true },
+  argocd: {
+    managerFilePatterns: ["/^argocd/environments/.+\\.ya?ml$/"],
+  },
+  customManagers: [
+    {
+      customType: "regex",
+      managerFilePatterns: [
+        "/^\\.github/workflows/ci\\.yaml$/",
+        "/^ansible/roles/[^/]+/defaults/main\\.ya?ml$/",
+      ],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) (?:registryUrl=(?<registryUrl>\\S+) )?depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\n\\s*\\w+: \"?(?<currentValue>[^\"\\s]+)\"?",
+      ],
+    },
+  ],
+  packageRules: [
+    {
+      // A version with a companion SHA-256 or digest (ADR 0017) cannot
+      // pass as a bare bump: no PR until the owner ticks it in the
+      // Dependency Dashboard and pushes the new hash.
+      matchDepNames: [
+        "gitleaks/gitleaks",
+        "kubernetes-sigs/kustomize",
+        "yannh/kubeconform",
+        "mikefarah/yq",
+        "traefik/traefik",
+        "TwiN/gatus",
+        "291-Group/LAN-Orangutan",
+        "glanceapp/glance",
+      ],
+      dependencyDashboardApproval: true,
+    },
+    {
+      // Noise, not pins we chose: the `runs-on` image and setup-python.
+      matchDepNames: ["python", "ubuntu"],
+      enabled: false,
+    },
+  ],
+}

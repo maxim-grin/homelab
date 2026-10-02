@@ -35,3 +35,4 @@ Context or Decision.
 | [0020](0020-pihole-opt-in-per-device.md) | Pi-hole is opt-in per device | Accepted | 2026-10-02 |
 | [0021](0021-talos-prod-via-terraform-provider.md) | Talos prod cluster through the Terraform provider, secrets in state | Accepted | 2026-10-01 |
 | [0022](0022-host-bootstrapped-by-script.md) | Proxmox host bootstrapped by one idempotent script | Accepted | 2026-10-01 |
+| [0023](0023-renovate-hosted-app.md) | Renovate, as the hosted app, proposes pin updates | Accepted | 2026-10-01 |
