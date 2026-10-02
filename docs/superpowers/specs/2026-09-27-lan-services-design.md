@@ -30,7 +30,7 @@ Done means:
 | --- | --- |
 | Names | `*.hl.mgryn.cc`, one DNS-only Cloudflare wildcard record → Traefik |
 | Certificates | Let's Encrypt wildcard by DNS-01, obtained by Traefik |
-| Pi-hole's role | The router's only DHCP-advertised DNS server; no public secondary |
+| Pi-hole's role | DNS for the devices pointed at it by hand; the router cannot advertise a DNS server (record 0020) |
 | LXC resolvers | `1.1.1.1`, then the router; never Pi-hole |
 | Secrets | `ansible/secret.yaml`; Traefik gets its own Cloudflare token |
 | Traefik routes | The four other services and the Proxmox UI; cluster apps wait for sub-project 3 |
@@ -293,9 +293,10 @@ Each step is verified before the next.
    recovery.
 5. **LAN Orangutan.** Lists roughly the twenty devices a ping sweep finds.
 6. **Glance.** The Proxmox panel lists every VM and container.
-7. **Cutover.** Record the router's current DNS setting, then set its
-   DHCP DNS server to `10.0.0.140`. A client that renews its lease shows
-   up in Pi-hole's query log by name. Rollback is the recorded setting.
+7. **Pi-hole for clients.** The router cannot hand out a DNS server, so
+   set `10.0.0.140` as the only DNS server on each device that should use
+   it. It then shows up in Pi-hole's query log by name. Rollback is
+   setting the device's DNS back to automatic.
 
 ## Failure modes
 
@@ -331,7 +332,7 @@ Documentation lands with the change, not after the last one.
 3. Traefik role (step 3)
 4. Gatus role (step 4)
 5. LAN Orangutan role, after the raw-socket check (step 5)
-6. Glance role, and the cutover (step 7) with its `CLAUDE.md` entry
+6. Glance role, and Pi-hole for clients (step 7) with its `CLAUDE.md` entry
 
 ## Out of scope
 

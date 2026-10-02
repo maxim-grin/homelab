@@ -18,7 +18,7 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 - **Glance and LAN Orangutan publish no checksums file**, but GitHub records a SHA-256 for every release asset. `glance-linux-amd64.tar.gz` v0.8.6 is `d27fb887eece24859f6ed3881ebb28c9d0a4fe6ae01acfa31bb39543fbf69784` (one file, `glance`). `lan-orangutan_3.3.8_amd64.deb` is `b727f9f9a33d074e41070737e2ea7750ff040b81a8c708b1d0233c900eb1f24c` (`Depends: nmap`; ships `/usr/local/bin/orangutan`, a `/lib/systemd/system/lan-orangutan.service` running as root, and a postinst that enables it). Both digests were checked against downloaded files.
 - **Gatus ICMP** works unprivileged when Gatus is not root (v5.31.0+), so its unit needs no capabilities, but needs `net.ipv4.ping_group_range` to include its gid, which an unprivileged Proxmox LXC leaves disabled — the role sets it. Its Telegram provider takes `api-url`, which the rehearsal points at a local stub. Config accepts `${ENV}` substitution.
 - **LAN Orangutan** reads `ORANGUTAN_PASSWORD_FILE`, `--config <ini>`, and `data_dir`. With no password set it serves a first-visit "create a password" page to whoever arrives first — so the role sets one. Upstream runs it as root because nmap reads MACs only when it believes it is root; `NMAP_PRIVILEGED=1` plus ambient `CAP_NET_RAW`/`CAP_NET_ADMIN` is nmap's documented way to get the same as a normal user. Port 291 also needs `CAP_NET_BIND_SERVICE`.
-- **Glance** `dns-stats` supports `service: pihole-v6` with the admin *or* an application password. `custom-api` sends arbitrary `headers`, so `Authorization: PVEAPIToken=...` works; `.JSON.Array ""` iterates a top-level array (Gatus's statuses API). Config accepts `${ENV}`, and Glance reloads its config file on change; environment changes need a restart. `glance -config <file> config:validate` exists.
+- **Glance** `dns-stats` supports `service: pihole-v6` with the admin _or_ an application password. `custom-api` sends arbitrary `headers`, so `Authorization: PVEAPIToken=...` works; `.JSON.Array ""` iterates a top-level array (Gatus's statuses API). Config accepts `${ENV}`, and Glance reloads its config file on change; environment changes need a restart. `glance -config <file> config:validate` exists.
 - **Pi-hole v6 application passwords** cannot be hashed from the CLI (`pihole-FTL` has no hash command). The API creates one with its hash: `GET /api/auth/app` (authenticated) returns `{"app":{"password":…,"hash":…}}`. Setting `pihole-FTL --config webserver.api.app_pwhash '<hash>'` makes that password log in (`/api/auth` → `valid: true`), verified on a rehearsal Pi-hole. So the operator creates it once and keeps **both** in `secret.yaml`: the password for Glance, the hash for Pi-hole — which makes a rebuilt Pi-hole accept the same password.
 
 ## Global Constraints
@@ -54,6 +54,7 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 ### Task 1: The gatus role
 
 **Files:**
+
 - Create: `ansible/roles/gatus/meta/main.yaml`
 - Create: `ansible/roles/gatus/defaults/main.yaml`
 - Create: `ansible/roles/gatus/tasks/main.yaml`
@@ -65,6 +66,7 @@ These replace the spec's "Unverified" notes and shape the tasks below.
 - Modify: `ansible/secret.yaml.example` (append two secrets)
 
 **Interfaces:**
+
 - Consumes: group `gatus` (inventory, PR 1); `host_ips['pve']`, `host_ips['nfs-01']`, `host_ips['pihole']`; `gatus_telegram_token`, `gatus_telegram_chat_id` from `secret.yaml`; the CA at `~/.homelab-ca/ca.crt` on the controller.
 - Produces: Gatus on `http://<gatus>:8080` with `/api/v1/endpoints/statuses` and `/metrics`. `gatus_endpoints`, a list of `{name, group, url, conditions}` with optional `dns: {query_name, query_type}`, `insecure`, `interval`, which PRs 5 and 6 append to. `gatus_interval` (default `1m`).
 
@@ -244,21 +246,41 @@ gatus_endpoints:
   - name: pihole.hl.mgryn.cc
     group: lan
     url: https://pihole.hl.mgryn.cc/admin/
-    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions:
+      [
+        "[CONNECTED] == true",
+        "[STATUS] < 400",
+        "[CERTIFICATE_EXPIRATION] > 336h",
+      ]
   - name: proxmox.hl.mgryn.cc
     group: lan
     url: https://proxmox.hl.mgryn.cc/
-    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions:
+      [
+        "[CONNECTED] == true",
+        "[STATUS] < 400",
+        "[CERTIFICATE_EXPIRATION] > 336h",
+      ]
   # The dashboard sits behind basic auth: 401 proves Traefik and its auth
   # both answer.
   - name: traefik.hl.mgryn.cc
     group: lan
     url: https://traefik.hl.mgryn.cc/dashboard/
-    conditions: ["[CONNECTED] == true", "[STATUS] == 401", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions:
+      [
+        "[CONNECTED] == true",
+        "[STATUS] == 401",
+        "[CERTIFICATE_EXPIRATION] > 336h",
+      ]
   - name: status.hl.mgryn.cc
     group: lan
     url: https://status.hl.mgryn.cc/
-    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+    conditions:
+      [
+        "[CONNECTED] == true",
+        "[STATUS] < 400",
+        "[CERTIFICATE_EXPIRATION] > 336h",
+      ]
   - name: jobs.mgryn.cc
     group: dev
     url: https://jobs.mgryn.cc/
@@ -504,7 +526,6 @@ WantedBy=multi-user.target
 Append to `ansible/playbooks/lan_services.yaml`:
 
 ```yaml
-
 - name: Gatus
   hosts: gatus
   # A later task failing on a run that already rewrote the config, env
@@ -518,7 +539,6 @@ Append to `ansible/playbooks/lan_services.yaml`:
 Append to `ansible/secret.yaml.example`:
 
 ```yaml
-
 # Gatus alerts through a Telegram bot: @BotFather -> /newbot gives the
 # token. Send the bot a message, then
 #   curl -s https://api.telegram.org/bot<token>/getUpdates
@@ -574,6 +594,7 @@ failure and recovery. Trusts the homelab CA for vault.mgryn.cc."
 ### Task 2: Route, spec and documentation for Gatus
 
 **Files:**
+
 - Modify: `ansible/roles/traefik/defaults/main.yaml` (append to `traefik_routes`)
 - Modify: `ansible/roles/traefik/tasks/main.yaml` (the assert)
 - Modify: `docs/superpowers/specs/2026-09-27-lan-services-design.md` (decisions from planning)
@@ -581,6 +602,7 @@ failure and recovery. Trusts the homelab CA for vault.mgryn.cc."
 - Modify: `docs/rebuild.md` (step 15)
 
 **Interfaces:**
+
 - Consumes: `traefik_routes` entries `{name, host, url, insecure}` (PR 3); Gatus on `:8080` (Task 1).
 - Produces: `status.hl.mgryn.cc`.
 
@@ -611,10 +633,10 @@ Expected: routers `dashboard`, `pihole`, `proxmox` — no `status`.
 Append to `traefik_routes` in `ansible/roles/traefik/defaults/main.yaml`:
 
 ```yaml
-  - name: status
-    host: "status.{{ traefik_domain }}"
-    url: "http://{{ host_ips['gatus'] }}:8080"
-    insecure: false
+- name: status
+  host: "status.{{ traefik_domain }}"
+  url: "http://{{ host_ips['gatus'] }}:8080"
+  insecure: false
 ```
 
 In `ansible/roles/traefik/tasks/main.yaml`, add `- host_ips['gatus'] is defined` to the first assert's `that:` list and name `host_ips['gatus']` in its `fail_msg`.
@@ -718,7 +740,7 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 - [x] `https://status.hl.mgryn.cc` asks for the Gatus login; after it, a valid certificate and every endpoint green within about two minutes (two check intervals).
 - [x] `pct stop 140` on the host: a Telegram alert for "Pi-hole DNS" (and `pihole.hl.mgryn.cc`) within about two minutes (two check intervals). `pct start 140`: a recovery message.
 - [x] **LAN Orangutan's raw-socket check, before PR 5 is written** (the spec requires it). On the host: `pct exec 144 -- sh -c 'apt-get update -qq && apt-get install -y -qq nmap >/dev/null && nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"'` prints a number close to the device count, and, as a normal user with capabilities: `pct exec 144 -- setpriv --reuid=nobody --regid=nogroup --clear-groups --inh-caps=+net_raw,+net_admin --ambient-caps=+net_raw,+net_admin env NMAP_PRIVILEGED=1 nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"` prints a similar number. Record both numbers in the PR. If either is `0`, stop: PR 5 needs `orangutan` privileged, which is a Terraform change and a new plan decision.
-- [ ] `gh pr ready <N>`; the owner merges.
+- [x] `gh pr ready <N>`; the owner merges.
 
 ---
 
@@ -727,6 +749,7 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 ### Task 4: The orangutan role
 
 **Files:**
+
 - Create: `ansible/roles/orangutan/meta/main.yaml`
 - Create: `ansible/roles/orangutan/defaults/main.yaml`
 - Create: `ansible/roles/orangutan/tasks/main.yaml`
@@ -737,6 +760,7 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 - Modify: `ansible/secret.yaml.example` (append `orangutan_password`)
 
 **Interfaces:**
+
 - Consumes: group `orangutan` (PR 1); `orangutan_password` from `secret.yaml`; Task 3's raw-socket result (both counts non-zero).
 - Produces: LAN Orangutan on `http://<orangutan>:291`, scanning `orangutan_networks` every `orangutan_scan_interval` seconds, data in `/var/lib/orangutan`.
 
@@ -1023,7 +1047,6 @@ WantedBy=multi-user.target
 Append to `ansible/playbooks/lan_services.yaml`:
 
 ```yaml
-
 - name: LAN Orangutan
   hosts: orangutan
   force_handlers: true
@@ -1034,7 +1057,6 @@ Append to `ansible/playbooks/lan_services.yaml`:
 Append to `ansible/secret.yaml.example`:
 
 ```yaml
-
 # LAN Orangutan's dashboard at https://lan.hl.mgryn.cc, 12+ characters.
 # Without it the first visitor would be asked to create one.
 orangutan_password: "<24 random chars>"
@@ -1068,11 +1090,13 @@ and the dashboard password comes from secret.yaml."
 ### Task 5: Route, Gatus check and documentation for LAN Orangutan
 
 **Files:**
+
 - Modify: `ansible/roles/traefik/defaults/main.yaml`, `ansible/roles/traefik/tasks/main.yaml`
 - Modify: `ansible/roles/gatus/defaults/main.yaml` (append an endpoint)
 - Modify: `README.md`, `docs/rebuild.md`
 
 **Interfaces:**
+
 - Consumes: LAN Orangutan on `:291` (Task 4); `traefik_routes`, `gatus_endpoints`.
 - Produces: `lan.hl.mgryn.cc`.
 
@@ -1081,10 +1105,10 @@ and the dashboard password comes from secret.yaml."
 Append to `traefik_routes`:
 
 ```yaml
-  - name: lan
-    host: "lan.{{ traefik_domain }}"
-    url: "http://{{ host_ips['orangutan'] }}:291"
-    insecure: false
+- name: lan
+  host: "lan.{{ traefik_domain }}"
+  url: "http://{{ host_ips['orangutan'] }}:291"
+  insecure: false
 ```
 
 Add `- host_ips['orangutan'] is defined` to the Traefik assert and its `fail_msg`. Run Task 2 Step 1's render commands. Expected: routers include `lan`.
@@ -1094,10 +1118,11 @@ Add `- host_ips['orangutan'] is defined` to the Traefik assert and its `fail_msg
 Append to `gatus_endpoints` in `ansible/roles/gatus/defaults/main.yaml`, after `status.hl.mgryn.cc`:
 
 ```yaml
-  - name: lan.hl.mgryn.cc
-    group: lan
-    url: https://lan.hl.mgryn.cc/
-    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+- name: lan.hl.mgryn.cc
+  group: lan
+  url: https://lan.hl.mgryn.cc/
+  conditions:
+    ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
 ```
 
 - [x] **Step 3: README and rebuild.md**
@@ -1131,22 +1156,24 @@ Expected: `PARSE OK`; lint passes; no pre-commit failures.
 
 ### Task 6: Operator — LAN Orangutan (owner, not an agent)
 
-- [ ] On the `lan-orangutan` checkout: add `orangutan_password` to `secret.yaml`; commit and push.
-- [ ] `ansible-playbook ... --limit traefik,gatus,orangutan`: `failed=0`; a second run `changed=0`.
-- [ ] `https://lan.hl.mgryn.cc` asks for the password; after it, within five minutes, the device list shows roughly the twenty devices Task 3's count found, with MACs and vendors.
-- [ ] `https://status.hl.mgryn.cc` shows `lan.hl.mgryn.cc` green.
-- [ ] `gh pr ready <N>`; the owner merges.
+- [x] On the `lan-orangutan` checkout: add `orangutan_password` to `secret.yaml`; commit and push.
+- [x] `ansible-playbook ... --limit traefik,gatus,orangutan`: `failed=0`; a second run `changed=0`.
+- [x] `https://lan.hl.mgryn.cc` asks for the password; after it, within five minutes, the device list shows roughly the twenty devices Task 3's count found, with MACs and vendors.
+- [x] `https://status.hl.mgryn.cc` shows `lan.hl.mgryn.cc` green.
+- [x] `gh pr ready <N>`; the owner merges.
 
 ---
 
-## PR 6 — Glance and the cutover (branch `lan-glance`)
+## PR 6 — Glance and opt-in Pi-hole (branch `lan-glance`)
+
+> **Changed during execution:** the router's admin page has no DHCP DNS setting, no upstream DNS field and no way to turn its DHCP off, so the LAN-wide DNS cutover this PR was planned to end with is not possible. Pi-hole is opt-in per device instead (ADR [0020](../../decisions/0020-pihole-opt-in-per-device.md)). Task 10's steps below are kept as they were executed; the wording about the router handing out Pi-hole, and the "only DNS server" CLAUDE.md bullet, were replaced in the PR by the opt-in wording.
 
 ### Task 7: Operator — Glance's prerequisites (owner, before Task 8 runs on real hosts; the agent tasks do not need it)
 
 Listed first so the owner can do it while the code is written.
 
-- [ ] On `pve`: `pveum user add glance@pve --comment "Glance dashboard, read-only"`, `pveum acl modify / --users glance@pve --roles PVEAuditor`, `pveum user token add glance@pve glance --privsep 0` — record the token secret it prints once. The token id is `glance@pve!glance`.
-- [ ] Pi-hole application password, from the Mac:
+- [x] On `pve`: `pveum user add glance@pve --comment "Glance dashboard, read-only"`, `pveum acl modify / --users glance@pve --roles PVEAuditor`, `pveum user token add glance@pve glance --privsep 0` — record the token secret it prints once. The token id is `glance@pve!glance`.
+- [x] Pi-hole application password, from the Mac:
 
   ```bash
   SID=$(curl -s -X POST https://pihole.hl.mgryn.cc/api/auth \
@@ -1160,15 +1187,17 @@ Listed first so the owner can do it while the code is written.
 ### Task 8: Pi-hole applies the application password
 
 **Files:**
+
 - Modify: `ansible/roles/pihole/tasks/main.yaml` (the "Apply FTL settings" loop)
 - Modify: `ansible/roles/pihole/tasks/ftl_setting.yaml` (`no_log` for secret values)
 - Modify: `ansible/secret.yaml.example` (append two secrets)
 
 **Interfaces:**
+
 - Consumes: `pihole_app_pwhash`, `pihole_app_password` from `secret.yaml`; `tasks/ftl_setting.yaml`, which takes `pihole_setting: {key, value}`.
 - Produces: Pi-hole accepting `pihole_app_password` at `/api/auth` — Glance's `dns-stats` widget (Task 9) logs in with it. Optional: without `pihole_app_pwhash` the role behaves as today.
 
-- [ ] **Step 1: A rehearsal hash, and the login failing**
+- [x] **Step 1: A rehearsal hash, and the login failing**
 
 ```bash
 $SCRATCH/lan-container.sh lan-pihole
@@ -1191,7 +1220,7 @@ $SCRATCH/check-pihole-app.sh; echo "exit=$?"
 
 Expected: `app password valid: False`, `exit=1` — the hash was generated but never applied.
 
-- [ ] **Step 2: Apply it through `ftl_setting`**
+- [x] **Step 2: Apply it through `ftl_setting`**
 
 In `ansible/roles/pihole/tasks/main.yaml`, change the "Apply FTL settings" task's `loop:` to append the application password when it is defined:
 
@@ -1218,13 +1247,12 @@ Keep every other key of that task as it is today (read it first; if it carries `
 In `ansible/roles/pihole/tasks/ftl_setting.yaml`, add to each of its three tasks:
 
 ```yaml
-  no_log: "{{ pihole_setting.secret | default(false) }}"
+no_log: "{{ pihole_setting.secret | default(false) }}"
 ```
 
 Append to `ansible/secret.yaml.example`:
 
 ```yaml
-
 # Pi-hole application password for Glance's DNS widget, created once
 # through Pi-hole's API (docs/rebuild.md step 15): the password for
 # Glance, its hash for Pi-hole. Keeping the hash here lets a rebuilt
@@ -1233,7 +1261,7 @@ pihole_app_password: "<44 chars from /api/auth/app .app.password>"
 pihole_app_pwhash: "$BALLOON-SHA256$v=1$s=1024,t=32$<salt>$<hash>"
 ```
 
-- [ ] **Step 3: Rehearse — applied, idempotent, survives a rebuilt container**
+- [x] **Step 3: Rehearse — applied, idempotent, survives a rebuilt container**
 
 ```bash
 $SCRATCH/run-pihole.sh -e @$SCRATCH/pihole-app.yaml | grep -E 'changed=|failed=|app_pwhash'
@@ -1249,7 +1277,7 @@ $SCRATCH/check-pihole.sh; echo "exit=$?"
 
 Expected: first run `failed=0`; `valid: True`, `exit=0`; second run `changed=0`; the `-v` run prints `0` (the hash never appears in output); the fresh container `failed=0`, `valid: True`, and the existing Pi-hole checks still `exit=0`. Leave `lan-pihole` running for Task 9.
 
-- [ ] **Step 4: Lint and commit**
+- [x] **Step 4: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/pihole
@@ -1263,6 +1291,7 @@ and its hash are created once through its API and both kept."
 ### Task 9: The glance role
 
 **Files:**
+
 - Create: `ansible/roles/glance/meta/main.yaml`
 - Create: `ansible/roles/glance/defaults/main.yaml`
 - Create: `ansible/roles/glance/tasks/main.yaml`
@@ -1274,10 +1303,11 @@ and its hash are created once through its API and both kept."
 - Modify: `ansible/secret.yaml.example` (append two secrets)
 
 **Interfaces:**
+
 - Consumes: group `glance` (PR 1); `host_ips['pve']`, `host_ips['pihole']`, `host_ips['gatus']`; `pihole_app_password` (Task 8); `glance_proxmox_token_id`, `glance_proxmox_token_secret` (Task 7); Gatus's `/api/v1/endpoints/statuses` (PR 4); the homelab CA.
 - Produces: Glance on `http://<glance>:8080`.
 
-- [ ] **Step 1: Backends, a Proxmox stub, and the checks failing**
+- [x] **Step 1: Backends, a Proxmox stub, and the checks failing**
 
 ```bash
 # Gatus, for its statuses API: re-use Task 1's rehearsal (it only needs to answer).
@@ -1356,7 +1386,7 @@ $SCRATCH/check-glance.sh; echo "exit=$?"
 
 Expected: `FAIL` lines, `exit=1`. (If `/api/pages/home/content/` is not where v0.8.6 renders widgets, find the path from the page's HTML — it fetches its content after load — fix the check, and say so in the report.)
 
-- [ ] **Step 2: Metadata and defaults**
+- [x] **Step 2: Metadata and defaults**
 
 `ansible/roles/glance/meta/main.yaml`:
 
@@ -1396,7 +1426,11 @@ glance_gatus_url: "http://{{ host_ips['gatus'] }}:8080"
 glance_sites:
   - { title: Pi-hole, url: "https://pihole.hl.mgryn.cc/admin/" }
   - { title: Proxmox, url: "https://proxmox.hl.mgryn.cc/" }
-  - { title: Traefik, url: "https://traefik.hl.mgryn.cc/dashboard/", alt_status_codes: [401] }
+  - {
+      title: Traefik,
+      url: "https://traefik.hl.mgryn.cc/dashboard/",
+      alt_status_codes: [401],
+    }
   - { title: Gatus, url: "https://status.hl.mgryn.cc/" }
   - { title: LAN Orangutan, url: "https://lan.hl.mgryn.cc/" }
   - { title: Glance, url: "https://home.hl.mgryn.cc/" }
@@ -1411,7 +1445,7 @@ glance_bookmarks:
   - { title: GitHub, url: "https://github.com/maxim-grin/homelab" }
 ```
 
-- [ ] **Step 3: Templates**
+- [x] **Step 3: Templates**
 
 `ansible/roles/glance/templates/glance.yml.j2` — the widget templates are Go templates, so they sit inside `{% raw %}`:
 
@@ -1530,7 +1564,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-- [ ] **Step 4: Tasks and handlers**
+- [x] **Step 4: Tasks and handlers**
 
 `ansible/roles/glance/tasks/main.yaml`:
 
@@ -1669,12 +1703,11 @@ WantedBy=multi-user.target
     daemon_reload: true
 ```
 
-- [ ] **Step 5: The play and the example secrets**
+- [x] **Step 5: The play and the example secrets**
 
 Append to `ansible/playbooks/lan_services.yaml`:
 
 ```yaml
-
 - name: Glance
   hosts: glance
   force_handlers: true
@@ -1685,14 +1718,13 @@ Append to `ansible/playbooks/lan_services.yaml`:
 Append to `ansible/secret.yaml.example`:
 
 ```yaml
-
 # Glance's Proxmox widget: a read-only token, user glance@pve with
 # PVEAuditor on /, no privilege separation (docs/rebuild.md step 15).
 glance_proxmox_token_id: "glance@pve!glance"
 glance_proxmox_token_secret: "<uuid printed once by pveum user token add>"
 ```
 
-- [ ] **Step 6: Rehearse — first run, widgets, idempotence**
+- [x] **Step 6: Rehearse — first run, widgets, idempotence**
 
 ```bash
 $SCRATCH/run-glance.sh | grep -E 'changed=|failed=|FAILED|fatal'
@@ -1704,7 +1736,7 @@ docker stats --no-stream --format '{{.MemUsage}}' lan-glance
 
 Expected: first run `failed=0`; checks all `ok`, `exit=0` — the dns-stats line proves the application password logs in to a real Pi-hole v6; second run `changed=0`; the stub saw `PVEAPIToken=glance@pve!glance=` (the header reached Proxmox's shape); memory well under 256MiB.
 
-- [ ] **Step 7: Rehearse — one backend down leaves the page up**
+- [x] **Step 7: Rehearse — one backend down leaves the page up**
 
 ```bash
 docker stop lan-gatus >/dev/null
@@ -1718,7 +1750,7 @@ docker rm -f lan-glance lan-gatus lan-pihole
 
 Expected: `200`; a non-zero count (dns-stats still renders); `active`. The Gatus and Proxmox widgets show their own error, not a blank page.
 
-- [ ] **Step 8: Lint and commit**
+- [x] **Step 8: Lint and commit**
 
 ```bash
 cd /home/ubuntu/homelab/ansible && ansible-lint roles/glance playbooks/lan_services.yaml
@@ -1729,26 +1761,28 @@ every VM and container from Proxmox through a read-only token, Gatus's
 latest results, a monitor of every service, and bookmarks."
 ```
 
-### Task 10: Route, Gatus check, cutover and documentation for Glance
+### Task 10: Route, Gatus check and documentation for Glance
 
 **Files:**
+
 - Modify: `ansible/roles/traefik/defaults/main.yaml`, `ansible/roles/traefik/tasks/main.yaml`
 - Modify: `ansible/roles/gatus/defaults/main.yaml`
 - Modify: `README.md`, `docs/rebuild.md`, `CLAUDE.md`
 
 **Interfaces:**
-- Consumes: Glance on `:8080` (Task 9).
-- Produces: `home.hl.mgryn.cc`; the documented cutover.
 
-- [ ] **Step 1: Route and check**
+- Consumes: Glance on `:8080` (Task 9).
+- Produces: `home.hl.mgryn.cc`; the documented Pi-hole setup for clients.
+
+- [x] **Step 1: Route and check**
 
 Append to `traefik_routes`:
 
 ```yaml
-  - name: home
-    host: "home.{{ traefik_domain }}"
-    url: "http://{{ host_ips['glance'] }}:8080"
-    insecure: false
+- name: home
+  host: "home.{{ traefik_domain }}"
+  url: "http://{{ host_ips['glance'] }}:8080"
+  insecure: false
 ```
 
 Add `- host_ips['glance'] is defined` to the Traefik assert and its `fail_msg`. Run Task 2 Step 1's render commands; expected routers include `home`.
@@ -1756,13 +1790,14 @@ Add `- host_ips['glance'] is defined` to the Traefik assert and its `fail_msg`. 
 Append to `gatus_endpoints`, after `lan.hl.mgryn.cc`:
 
 ```yaml
-  - name: home.hl.mgryn.cc
-    group: lan
-    url: https://home.hl.mgryn.cc/
-    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+- name: home.hl.mgryn.cc
+  group: lan
+  url: https://home.hl.mgryn.cc/
+  conditions:
+    ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
 ```
 
-- [ ] **Step 2: README**
+- [x] **Step 2: README**
 
 - LXCs row: every service now runs — description "`pihole` (DNS, ad blocking) `.140`, `traefik` (`*.hl.mgryn.cc`) `.141`, `glance` (dashboard) `.142`, `gatus` (uptime, Telegram alerts) `.143`, `orangutan` (device discovery) `.144`"; append `, `ansible/roles/glance`` to "where defined".
 - Replace the "**Planned, not yet running:** Glance, …" sentence with "**Planned, not yet running:** a Talos prod cluster that runs ArgoCD and monitoring for both clusters — see the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)." (Drop the now-duplicate Talos sentence after it.)
@@ -1770,7 +1805,7 @@ Append to `gatus_endpoints`, after `lan.hl.mgryn.cc`:
 - Replace the sentence beginning "Most hostnames resolve through `/etc/hosts` on the workstation" with: "Every LAN device resolves through Pi-hole (`10.0.0.140`), which the router's DHCP hands out. The cluster names `argocd.`, `grafana.` and `prometheus.mgryn.cc` still resolve through `/etc/hosts` on the workstation, pointing at a node IP since ingress-nginx answers on every node."
 - Diagram: drop `:::planned` from `glance[...]`; `traefik -.-> glance` → `traefik --> glance`; `lan -. "DNS" .-> pihole` → `lan -- "DNS" --> pihole`.
 
-- [ ] **Step 3: rebuild.md**
+- [x] **Step 3: rebuild.md**
 
 Append to step 15, after the LAN Orangutan paragraph:
 
@@ -1800,7 +1835,7 @@ Append to step 15, after the LAN Orangutan paragraph:
 
 In "## Rebuild order", step 2 (Prepare the host) gains: "and the `glance@pve` read-only token (step 15)".
 
-- [ ] **Step 4: CLAUDE.md**
+- [x] **Step 4: CLAUDE.md**
 
 In the "**ingress-nginx is a DaemonSet on host ports 80/443**" bullet, replace "There is no DNS server here, so most hostnames resolve via `/etc/hosts` on the workstation." with "LAN clients resolve through Pi-hole; the cluster's own names (`argocd.`, `grafana.`, `prometheus.mgryn.cc`) still resolve via `/etc/hosts` on the workstation."
 
@@ -1816,7 +1851,7 @@ Add a new bullet after that one:
   the setting recorded in the Glance PR's body.
 ```
 
-- [ ] **Step 5: Check and commit**
+- [x] **Step 5: Check and commit**
 
 ```bash
 node $SCRATCH/mp/p.mjs
@@ -1831,12 +1866,12 @@ says Pi-hole is now the LAN's only DNS server."
 
 Expected: `PARSE OK`; lint passes; no pre-commit failures.
 
-### Task 11: Operator — Glance and the cutover (owner, not an agent)
+### Task 11: Operator — Glance and Pi-hole for clients (owner, not an agent)
 
-- [ ] Task 7 done: `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `pihole_app_password`, `pihole_app_pwhash` in `secret.yaml` on the `lan-glance` checkout; commit and push.
-- [ ] `ansible-playbook ... --limit pihole,traefik,gatus,glance`: `failed=0`; a second run `changed=0`.
-- [ ] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
-- [ ] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
-- [ ] **Cutover.** Record the router's current DHCP DNS setting in the PR body. Set it to `10.0.0.140` only. Renew a phone's lease (toggle Wi-Fi): it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
-- [ ] `pct stop 140`: Telegram alert within about two minutes (two check intervals); `pct start 140`: recovery. The LAN is without DNS in between — do this when nobody minds.
-- [ ] `gh pr ready <N>`; the owner merges. Sub-project 1's "Done means" list in the spec is then met, except the sealed-Vault alert, which is proven by its condition (`[STATUS] == 200` against a 503) rather than by sealing Vault.
+- [x] Task 7 done: `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `pihole_app_password`, `pihole_app_pwhash` in `secret.yaml` on the `lan-glance` checkout; commit and push.
+- [x] `ansible-playbook ... --limit pihole,glance`, then `--limit traefik,gatus` (Glance first, so Gatus never checks a missing backend): `failed=0` each; a second run of both `changed=0`.
+- [x] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
+- [x] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
+- [x] **Pi-hole for clients (optional).** The router cannot hand out a DNS server, so set `10.0.0.140` as the only DNS server on each device that should use Pi-hole (`docs/operations.md`, "Pointing a device at Pi-hole"). On one phone or laptop: it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
+- [x] `pct stop 140`: Telegram alert within about two minutes (two check intervals); `pct start 140`: recovery. Only the devices pointed at Pi-hole are without DNS in between.
+- [x] `gh pr ready <N>`; the owner merges. Sub-project 1's "Done means" list in the spec is then met, except the sealed-Vault alert, which is proven by its condition (`[STATUS] == 200` against a 503) rather than by sealing Vault.

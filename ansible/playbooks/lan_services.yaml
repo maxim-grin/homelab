@@ -49,3 +49,9 @@
   force_handlers: true
   roles:
     - orangutan
+
+- name: Glance
+  hosts: glance
+  force_handlers: true
+  roles:
+    - glance

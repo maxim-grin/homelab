@@ -1,0 +1,32 @@
+---
+glance_version: "0.8.6"
+glance_archive_url: "https://github.com/glanceapp/glance/releases/download/v{{ glance_version }}/glance-linux-amd64.tar.gz"
+# No checksums file is published; GitHub records one per asset:
+#   gh api repos/glanceapp/glance/releases/tags/v<version> \
+#     --jq '.assets[] | select(.name=="glance-linux-amd64.tar.gz") | .digest'
+glance_archive_sha256: "d27fb887eece24859f6ed3881ebb28c9d0a4fe6ae01acfa31bb39543fbf69784"
+
+glance_port: 8080
+glance_ca_cert_src: "~/.homelab-ca/ca.crt"
+
+glance_proxmox_url: "https://{{ host_ips['pve'] }}:8006"
+glance_pihole_url: "http://{{ host_ips['pihole'] }}"
+glance_gatus_url: "http://{{ host_ips['gatus'] }}:8080"
+
+# The monitor widget. alt_status_codes: codes that still count as up.
+glance_sites:
+  - { title: Pi-hole, url: "https://pihole.hl.mgryn.cc/admin/" }
+  - { title: Proxmox, url: "https://proxmox.hl.mgryn.cc/" }
+  - { title: Traefik, url: "https://traefik.hl.mgryn.cc/dashboard/", alt_status_codes: [401] }
+  - { title: Gatus, url: "https://status.hl.mgryn.cc/" }
+  - { title: LAN Orangutan, url: "https://lan.hl.mgryn.cc/" }
+  - { title: Glance, url: "https://home.hl.mgryn.cc/" }
+  - { title: jobboard, url: "https://jobs.mgryn.cc/" }
+  - { title: Vault, url: "https://vault.mgryn.cc:8200/ui/" }
+
+glance_bookmarks:
+  - { title: Vault UI, url: "https://vault.mgryn.cc:8200/ui/" }
+  - { title: ArgoCD, url: "https://argocd.mgryn.cc/" }
+  - { title: Grafana, url: "https://grafana.mgryn.cc/" }
+  - { title: jobboard, url: "https://jobs.mgryn.cc/" }
+  - { title: GitHub, url: "https://github.com/maxim-grin/homelab" }

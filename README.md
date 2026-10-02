@@ -46,7 +46,7 @@ flowchart TB
             subgraph lxcs["LAN services, one LXC each"]
                 pihole["Pi-hole .140<br/>DNS + ad blocking"]
                 traefik["Traefik .141<br/>*.hl.mgryn.cc"]
-                glance["Glance .142<br/>dashboard"]:::planned
+                glance["Glance .142<br/>dashboard"]
                 gatus["Gatus .143<br/>uptime"]
                 orangutan["LAN Orangutan .144<br/>device discovery"]
             end
@@ -67,9 +67,9 @@ flowchart TB
     lan -- "jobs.mgryn.cc" --> ingress
     ingress --> jobboard
 
-    lan -. "DNS" .-> pihole
+    lan -. "DNS, devices that opt in" .-> pihole
     lan -- "*.hl.mgryn.cc" --> traefik
-    traefik -.-> glance
+    traefik --> glance
     traefik --> gatus
     traefik --> orangutan
     traefik --> pihole
@@ -92,7 +92,7 @@ diagram has a static address above that pool.
 | VMs        | k8s master + 2 workers, `claude-code` workstation                                                                                                                               | `terraform/environments/dev`                                                                            |
 | VM         | `nfs-01`, NFS for the dev cluster; its `nfs-prod` share is ready but unexported until prod has nodes                                                                            | `terraform/environments/shared`                                                                         |
 | VM         | `vault-02`, the Vault VM; `kv-dev` in use, `kv-prod` ready but unused                                                                                                           | `terraform/environments/shared`                                                                         |
-| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144`; `glance` empty until its role lands | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan` |
+| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `glance` (dashboard) at `.142`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144` | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
 | OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
 | GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`                                                                                                                              | `ansible/roles/argocd`, `argocd/environments/dev`                                                       |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                                                                                   | `argocd/apps/ingress-nginx`                                                                             |
@@ -107,9 +107,7 @@ hold the planned one: a Talos cluster that becomes the hub running ArgoCD
 and monitoring for both clusters, built by sub-project 2 of the
 [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
 ([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)). Until then
-they are never-applied scaffolding. Glance, one LXC reached as
-`home.hl.mgryn.cc`, comes next — see the
-[LAN services design](docs/superpowers/specs/2026-09-27-lan-services-design.md).
+they are never-applied scaffolding.
 
 **Rebuilding** after a disk replacement or a total loss starts at
 [docs/rebuild.md](docs/rebuild.md), which lists what this repository does
@@ -126,10 +124,13 @@ a private IP, so any device on the LAN resolves them without a hosts
 entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
-`pihole`, `proxmox`, `traefik`, `status` and `lan`; `vault.mgryn.cc` points
+`pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
 straight at `vault-02`. The other cluster names — `argocd`, `grafana`,
-`prometheus` — resolve through `/etc/hosts` on the workstation. There is
-no Cloudflare Tunnel.
+`prometheus` — resolve through `/etc/hosts` on the workstation, pointing
+at a node IP since ingress-nginx answers on every node. Pi-hole
+(`10.0.0.140`) answers only the devices pointed at it by hand, because
+the router cannot advertise a DNS server; the rest resolve through the
+router. There is no Cloudflare Tunnel.
 
 `jobs.mgryn.cc` and `*.hl.mgryn.cc` are served over HTTPS with their own
 Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT record
