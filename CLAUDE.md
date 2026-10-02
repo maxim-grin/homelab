@@ -25,11 +25,12 @@ with `kubernetes.core`, kubeadm, ArgoCD app-of-apps, kustomize for plain
 manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`), no test suite.
 
-Only the `dev` environment exists, plus `terraform/environments/shared` for
-`nfs-01`, `vault-02` and the LAN LXCs. Their prod halves (`nfs-prod`,
-`kv-prod`) are ready but unused until prod has nodes.
-`terraform/environments/prod` and `talos/` are scaffolding that has never been
-applied — do not extend them without saying so.
+`dev` is the kubeadm cluster. `terraform/environments/prod` is the Talos
+cluster: three nodes through the `siderolabs/talos` provider, applied from
+the operator's workstation, no workloads until sub-project 3.
+`terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs.
+Their prod halves (`nfs-prod`, `kv-prod`) stay unused until the hub platform
+lands.
 
 ## Layout
 
@@ -40,8 +41,9 @@ argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays, or Helm values
                   environments/dev/applications/  Application CRs, synced by root-dev
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
-                              nfs-server, vault-vm, talos-*
+                              nfs-server, vault-vm, talos-node
                   environments/dev/     the dev machines
+                  environments/prod/    the Talos prod cluster
                   environments/shared/  nfs-01, vault-02 and the LAN LXCs;
                                         prod shares and KV ready, unused
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
@@ -54,7 +56,7 @@ Three different paths, and mixing them up wastes an afternoon:
 
 | Layer                       | Applied by                                                                              | Takes effect                |
 | --------------------------- | --------------------------------------------------------------------------------------- | --------------------------- |
-| VMs, disks, network         | `terraform apply -var-file=<env>.tfvars` in `environments/dev` or `environments/shared` | immediately                 |
+| VMs, disks, network         | `terraform apply -var-file=<env>.tfvars` in `environments/dev`, `shared` or `prod` | immediately                 |
 | OS, packages, cluster       | `ansible-playbook … -e @secret.yaml --ask-vault-pass`                                   | immediately                 |
 | Kubernetes workloads        | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
 | `argocd/base/projects.yaml` | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
@@ -85,6 +87,14 @@ shape, writing-plans to sequence it, requesting-code-review before landing,
 finishing-a-development-branch for its pre-merge checks (stop before it
 merges; see below). Invoke them with the Skill tool; do not approximate them
 by hand.
+
+**Plans record decisions, not finished code.** A plan says what each
+task must do, which files it touches, in what order, and how to check
+it: the verification command and what its output should be. The
+implementer writes the code. Exact values — versions, digests, names,
+paths — stay verbatim in the plan, because a guessed one fails
+silently. This overrides the writing-plans skill's default of a
+complete code block in every step.
 
 **When a supervisor agent drives subagents, the supervisor owns the plan's
 checkboxes** — ticked when a task is implemented _and_ verified by review,
@@ -177,13 +187,22 @@ supersedes a record in `docs/decisions/` in the same PR.
   export with no client list is exported to everyone. (ADR
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
-  is bare metal with no LoadBalancer and no MetalLB. There is no DNS server
-  here, so most hostnames resolve via `/etc/hosts` on the workstation.
+  is bare metal with no LoadBalancer and no MetalLB. The cluster's own
+  names (`argocd.`, `grafana.`, `prometheus.mgryn.cc`) resolve via
+  `/etc/hosts` on the workstation.
   `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
   Traefik on `10.0.0.141`, which terminates TLS for the LAN services and
   the Proxmox UI. (ADR [0002](docs/decisions/0002-ingress-nginx-daemonset.md))
+- **Pi-hole is opt-in per device.** The router's admin page cannot hand
+  out a DNS server, so only devices whose own settings name `10.0.0.140`
+  (alone, never beside a public secondary) use it; the rest of the LAN
+  resolves through the router. A stopped Pi-hole takes DNS from those
+  devices only. Gatus alerts on it within about two minutes, resolving
+  through `1.1.1.1` and the router, as every LAN service container does,
+  never Pi-hole. Restart it, or set the device's DNS back to automatic.
+  (ADR [0020](docs/decisions/0020-pihole-opt-in-per-device.md))
 - **`jobs.mgryn.cc`'s certificate comes from cert-manager, not Cloudflare.**
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME
@@ -195,14 +214,15 @@ supersedes a record in `docs/decisions/` in the same PR.
 - **`secret.yaml` is committed encrypted; its password is not.** That file is
   the only record of every host address and vmid. Losing the password loses
   them. Keep it in a password manager.
-- **`*.tfvars` is gitignored and has no backup anywhere.** `dev.tfvars`
-  and `shared.tfvars` carry the Proxmox API token and the cloud-init
-  password.
-- **Generated output stays out of git.** `talos/_out/` once carried a
-  talosconfig with its private key into a public repository because the
-  ignore rule said `talos/secrets.yaml` and the file was at
-  `talos/_out/secrets.yaml`. Check `git check-ignore -v <path>` rather than
-  assuming a rule matches.
+- **`*.tfvars` is gitignored and has no backup anywhere.** `dev.tfvars`,
+  `shared.tfvars` and `prod.tfvars` carry the Proxmox API token and the
+  cloud-init password.
+- **Prod's cluster secrets live in `terraform.tfstate`.** The Talos PKI and
+  the kubeconfig are in `environments/prod/terraform.tfstate` on the
+  operator's workstation and nowhere else; `kubeconfig` and `talosconfig`
+  are sensitive outputs that Terraform never writes to disk. Losing the state means
+  rebuilding the cluster. (ADR
+  [0021](docs/decisions/0021-talos-prod-via-terraform-provider.md))
 - **A sealed Vault looks healthy.** After any `vault-02` reboot, Vault comes
   back sealed. AVP then renders nothing, and every Application whose
   manifests carry a `<path:...>` placeholder goes `Unknown` on sync status —

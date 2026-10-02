@@ -1,0 +1,80 @@
+# Managed by Ansible (roles/glance).
+# ${...} values come from /etc/glance/glance.env, which holds each secret
+# escaped for a YAML double-quoted string, so every use is quoted here.
+server:
+  host: 0.0.0.0
+  port: {{ glance_port }}
+
+pages:
+  - name: Home
+    slug: home
+    columns:
+      - size: small
+        widgets:
+          - type: dns-stats
+            service: pihole-v6
+            url: {{ glance_pihole_url }}
+            password: "${GLANCE_PIHOLE_PASSWORD}"
+          - type: bookmarks
+            groups:
+              - title: Homelab
+                links:
+{% for b in glance_bookmarks %}
+                  - title: {{ b.title }}
+                    url: {{ b.url }}
+{% endfor %}
+      - size: full
+        widgets:
+          - type: monitor
+            title: Services
+            cache: 1m
+            sites:
+{% for s in glance_sites %}
+              - title: {{ s.title }}
+                url: {{ s.url }}
+{% if s.alt_status_codes is defined %}
+                alt-status-codes: {{ s.alt_status_codes | to_json }}
+{% endif %}
+{% endfor %}
+          - type: custom-api
+            title: Proxmox
+            cache: 1m
+            url: {{ glance_proxmox_url }}/api2/json/cluster/resources
+            # Proxmox's certificate is self-signed.
+            allow-insecure: true
+            headers:
+              Authorization: "PVEAPIToken=${GLANCE_PROXMOX_TOKEN}"
+            template: |
+{% raw %}
+              <ul class="list list-gap-8">
+              {{ range sortByInt "vmid" "asc" (.JSON.Array "data") }}
+                {{ if or (eq (.String "type") "qemu") (eq (.String "type") "lxc") }}
+                <li class="flex justify-between">
+                  <span class="color-highlight">{{ .Int "vmid" }} {{ .String "name" }}</span>
+                  <span class="{{ if eq (.String "status") "running" }}color-positive{{ else }}color-negative{{ end }}">
+                    {{ .String "status" }} · {{ div (.Int "mem" | toFloat) 1048576 | toInt }}/{{ div (.Int "maxmem" | toFloat) 1048576 | toInt }} MiB
+                  </span>
+                </li>
+                {{ end }}
+              {{ end }}
+              </ul>
+{% endraw %}
+          - type: custom-api
+            title: Gatus
+            cache: 1m
+            # pageSize=1: each endpoint's results carry only its latest check.
+            url: {{ glance_gatus_url }}/api/v1/endpoints/statuses?page=1&pageSize=1
+            basic-auth:
+              username: "${GLANCE_GATUS_USER}"
+              password: "${GLANCE_GATUS_PASSWORD}"
+            template: |
+{% raw %}
+              <ul class="list list-gap-8">
+              {{ range .JSON.Array "" }}
+                <li class="flex justify-between">
+                  <span>{{ .String "group" }} · {{ .String "name" }}</span>
+                  {{ if .Bool "results.0.success" }}<span class="color-positive">up</span>{{ else }}<span class="color-negative">down</span>{{ end }}
+                </li>
+              {{ end }}
+              </ul>
+{% endraw %}

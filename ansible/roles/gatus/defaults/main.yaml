@@ -82,6 +82,10 @@ gatus_endpoints:
     group: lan
     url: https://lan.hl.mgryn.cc/
     conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
+  - name: home.hl.mgryn.cc
+    group: lan
+    url: https://home.hl.mgryn.cc/
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   - name: jobs.mgryn.cc
     group: dev
     url: https://jobs.mgryn.cc/

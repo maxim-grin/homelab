@@ -1,170 +1,21 @@
-# Talos K8s Cluster
-module "talos-k8s-1" {
-  source = "../../modules/talos-k8s"
+# The Talos prod cluster: one control plane and two workers, cloned from the
+# talos-tp template. The node map lives in prod.tfvars.
+module "node" {
+  source   = "../../modules/talos-node"
+  for_each = var.talos_nodes
 
-  cluster_id   = 1
-  cluster_name = "talos-k8s"
-  pool         = "Talos-K8s"
+  vm_name        = "${var.cluster_name}-${each.key}"
+  target_node    = var.pm_target_node
+  vmid           = each.value.vmid
+  pool           = var.pool
+  clone_template = var.clone_template
 
-  master_count = 1
-  worker_count = 2
+  memory    = each.value.memory
+  cpu_cores = var.node_cores
+  disk_size = var.node_disk_size
 
-  network_cidr = var.talos_k8s_cidr
-  gateway      = var.gateway
-
-  clone_template = "talos-tp"
-  full_clone     = true
-
-  power_state = "running"
-
-  qemu_agent = 0
-
-  master_memory = 8192
-  worker_memory = 8192
-
-}
-
-
-
-# Lightweight LXC Containers
-module "tk_nas" {
-  source = "../../modules/lxc"
-
-  vmid               = 300
-  target_node        = var.pm_target_node
-  hostname           = "tk-nas"
-  ostemplate         = var.debian_turnkey_fileserver_template
-  password           = var.lxc_pass
-  start_at_node_boot = true
-  unprivileged       = true
-  pool               = "LXC"
-
-
-  # Resources
-  cores  = 1
-  memory = 2048
-
-  # Storage
-  rootfs_storage = "local-lvm"
-  rootfs_size    = "8G"
-
-  # Network
-  network_bridge = "vmbr0"
-  network_ip     = var.tk_nas_ip
-  network_gw     = var.gateway
-
-  features_enabled = true
-  features = {
-    nesting = true
-  }
-
-  # Startup
-  startup = "order=10,up=10"
-
-  # Tags
-  tags = "lxc,nas,prod"
-}
-
-module "pi_hole" {
-  source = "../../modules/lxc"
-
-  vmid               = 311
-  target_node        = var.pm_target_node
-  hostname           = "pi-hole"
-  ostemplate         = var.debian_os_template
-  password           = var.lxc_pass
-  start_at_node_boot = true
-  unprivileged       = true
-  pool               = "LXC"
-
-  # Resources
-  cores  = 2
-  memory = 1024
-  swap   = 0
-
-  # Storage
-  rootfs_storage = "local-lvm"
-  rootfs_size    = "8G"
-
-  # Network
-  network_bridge = "vmbr0"
-  network_ip     = var.pi_hole_ip
-  network_gw     = var.gateway
-
-  features_enabled = true
-  features = {
-    nesting = true
-    keyctl  = true
-  }
-
-  startup = "order=5,up=10"
-
-  tags = "lxc,dns,prod"
-}
-
-module "traefik" {
-  source = "../../modules/lxc"
-
-  vmid               = 388
-  target_node        = var.pm_target_node
-  hostname           = "traefik"
-  ostemplate         = var.debian_os_template
-  password           = var.lxc_pass
-  start_at_node_boot = true
-  unprivileged       = true
-  pool               = "LXC"
-
-  # Resources
-  cores  = 1
-  memory = 512
-  swap   = 0
-
-  # Storage
-  rootfs_storage = "local-lvm"
-  rootfs_size    = "8G"
-
-  # Network
-  network_bridge = "vmbr0"
-  network_ip     = var.traefik_ip
-  network_gw     = var.gateway
-
-  features_enabled = true
-  features = {
-    nesting = true
-    keyctl  = true
-  }
-
-  startup = "order=4,up=10"
-
-  tags = "lxc,traefik,proxy,prod"
-}
-
-module "homepage" {
-  source             = "../../modules/lxc"
-  vmid               = 399
-  target_node        = var.pm_target_node
-  hostname           = "homepage"
-  ostemplate         = var.debian_os_template
-  password           = var.lxc_pass
-  start_at_node_boot = true
-  unprivileged       = true
-  pool               = "LXC"
-  # Resources - Increased for Docker
-  cores  = 2
-  memory = 2048
-  swap   = 0
-  # Storage
-  rootfs_storage = "local-lvm"
-  rootfs_size    = "8G"
-  # Network
-  network_bridge   = "vmbr0"
-  network_ip       = var.homepage_ip
-  network_gw       = var.gateway
-  features_enabled = true
-  features = {
-    nesting = true
-    keyctl  = true
-  }
-  startup = "order=7,up=10"
-  tags    = "lxc,dashboard,docker,prod"
+  ip            = each.value.ip
+  prefix_length = var.prefix_length
+  gateway       = var.gateway
+  nameserver    = var.nameserver
 }

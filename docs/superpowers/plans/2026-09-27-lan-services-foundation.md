@@ -503,7 +503,7 @@ and ends with the lan_services playbook."
 
 - [x] On `pve`: `pveam update && pveam available | grep debian-13`, then `pveam download local <file>`.
 - [x] On `pve`: the `LXC` pool exists (`pveum pool list`), and `pveum acl modify /pool/LXC --roles TerraformProv --users terraform@pve` (or the token's user) has been run.
-- [x] In `shared.tfvars` on the Mac: `debian_lxc_template` and `lxc_ips` as in `shared.tfvars.example`.
+- [x] In `shared.tfvars` on the operator's workstation: `debian_lxc_template` and `lxc_ips` as in `shared.tfvars.example`.
 - [x] `terraform plan -var-file=shared.tfvars` in `environments/shared`: **5 to add, 0 to change, 0 to destroy.** Anything else is a stop.
 - [x] `terraform apply -var-file=shared.tfvars`.
 - [x] `terraform plan -var-file=shared.tfvars` again: **No changes.** An in-place update on the new containers (e.g. tags reordered by Proxmox) is drift to fix in code before merging, not noise to skim.
@@ -918,7 +918,7 @@ Expected: `PARSE OK`; no pre-commit failures.
 - [x] `ansible-vault edit ansible/secret.yaml`: add `pihole_admin_password`.
 - [x] Before running the playbook: `ssh -i ~/.ssh/homelab_dev root@10.0.0.140 'ss -lntup | grep -E ":(53|80)\b"'` prints nothing — nothing is already bound to the ports Pi-hole needs.
 - [x] `ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass --limit pihole`: `failed=0`; a second run `changed=0`. FTL logging "Insufficient permissions to set system time (CAP_SYS_TIME)" is expected in an unprivileged LXC, not a failure.
-- [x] From the Mac: `dig @10.0.0.140 example.com +short` answers; the blocklist domain from rebuild.md step 15 returns `0.0.0.0`.
+- [x] From the operator's workstation: `dig @10.0.0.140 example.com +short` answers; the blocklist domain from rebuild.md step 15 returns `0.0.0.0`.
 - [x] `http://10.0.0.140/admin/` logs in with the password from `secret.yaml`.
 - [x] Do **not** change the router's DNS yet — that is PR 6.
 
