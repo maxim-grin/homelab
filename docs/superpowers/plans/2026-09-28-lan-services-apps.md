@@ -1164,7 +1164,9 @@ Expected: `PARSE OK`; lint passes; no pre-commit failures.
 
 ---
 
-## PR 6 — Glance and the cutover (branch `lan-glance`)
+## PR 6 — Glance and opt-in Pi-hole (branch `lan-glance`)
+
+> **Changed during execution:** the router's admin page has no DHCP DNS setting, no upstream DNS field and no way to turn its DHCP off, so the LAN-wide DNS cutover this PR was planned to end with is not possible. Pi-hole is opt-in per device instead (ADR [0020](../../decisions/0020-pihole-opt-in-per-device.md)). Task 10's steps below are kept as they were executed; the wording about the router handing out Pi-hole, and the "only DNS server" CLAUDE.md bullet, were replaced in the PR by the opt-in wording.
 
 ### Task 7: Operator — Glance's prerequisites (owner, before Task 8 runs on real hosts; the agent tasks do not need it)
 
@@ -1759,7 +1761,7 @@ every VM and container from Proxmox through a read-only token, Gatus's
 latest results, a monitor of every service, and bookmarks."
 ```
 
-### Task 10: Route, Gatus check, cutover and documentation for Glance
+### Task 10: Route, Gatus check and documentation for Glance
 
 **Files:**
 
@@ -1770,7 +1772,7 @@ latest results, a monitor of every service, and bookmarks."
 **Interfaces:**
 
 - Consumes: Glance on `:8080` (Task 9).
-- Produces: `home.hl.mgryn.cc`; the documented cutover.
+- Produces: `home.hl.mgryn.cc`; the documented Pi-hole setup for clients.
 
 - [x] **Step 1: Route and check**
 
@@ -1864,12 +1866,12 @@ says Pi-hole is now the LAN's only DNS server."
 
 Expected: `PARSE OK`; lint passes; no pre-commit failures.
 
-### Task 11: Operator — Glance and the cutover (owner, not an agent)
+### Task 11: Operator — Glance and Pi-hole for clients (owner, not an agent)
 
 - [x] Task 7 done: `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `pihole_app_password`, `pihole_app_pwhash` in `secret.yaml` on the `lan-glance` checkout; commit and push.
 - [x] `ansible-playbook ... --limit pihole,glance`, then `--limit traefik,gatus` (Glance first, so Gatus never checks a missing backend): `failed=0` each; a second run of both `changed=0`.
 - [ ] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
 - [ ] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
-- [ ] **Cutover.** Record the router's current DHCP DNS setting in `docs/operations.md` ("DNS cutover rollback"), commit and push it to this branch. Set it to `10.0.0.140` only. Renew a phone's lease (toggle Wi-Fi): it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
-- [ ] `pct stop 140`: Telegram alert within about two minutes (two check intervals); `pct start 140`: recovery. The LAN is without DNS in between — do this when nobody minds.
+- [ ] **Pi-hole for clients (optional).** The router cannot hand out a DNS server, so set `10.0.0.140` as the only DNS server on each device that should use Pi-hole (`docs/operations.md`, "Pointing a device at Pi-hole"). On one phone or laptop: it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
+- [ ] `pct stop 140`: Telegram alert within about two minutes (two check intervals); `pct start 140`: recovery. Only the devices pointed at Pi-hole are without DNS in between.
 - [ ] `gh pr ready <N>`; the owner merges. Sub-project 1's "Done means" list in the spec is then met, except the sealed-Vault alert, which is proven by its condition (`[STATUS] == 200` against a 503) rather than by sealing Vault.
