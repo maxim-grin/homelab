@@ -45,7 +45,9 @@ script parses. The first real run on a host is the final test. The script
 and `terraform/environments/prod/variables.tf` must change together when
 Talos is upgraded, and CI fails if they do not. Sections 1, 2 and 2b of
 `docs/rebuild.md` now keep the reasons and leave the commands to the
-script.
+script. A `glance` step was added after the first merge: it creates Glance's
+read-only `glance@pve` user, `PVEAuditor` ACL and API token, which had been
+a manual step.
 
 ## Related
 
