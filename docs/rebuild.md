@@ -716,6 +716,22 @@ from `secret.yaml`.
     `talos-prod-w1` and `talos-prod-w2`. The cluster has no workloads; the
     hub platform is sub-project 3 of the roadmap.
 
+    Right after the apply returns, `kubectl get nodes` prints `No resources
+    found`: the API server answers but the kubelets have not registered.
+    Retry for a few minutes. If a node is still missing after about ten,
+    `talosctl -n <ip> health` and `talosctl -n <ip> services` (with
+    `talosconfig` fetched as below) or `qm terminal <vmid>` on `pve` show
+    what it is waiting for.
+
+    If the apply fails on the config step with `UnattendedInstallConfig
+    config is incompatible with v1alpha1 config (.machine.install)`, a
+    patch in `talos.tf` sets the deprecated `machine.install`. Talos 1.14
+    takes the installer image and disk from the `UnattendedInstallConfig`
+    document, so patch that instead (ADR
+    [0021](decisions/0021-talos-prod-via-terraform-provider.md)). The
+    VMs already exist, so fix the patch and apply again with the same
+    state.
+
     The cluster's PKI exists only in `terraform.tfstate`, so a lost state
     means rebuilding the cluster, as for every other environment after an SSD
     replacement. Fetch `talosconfig` the same way as `kubeconfig` if you need
