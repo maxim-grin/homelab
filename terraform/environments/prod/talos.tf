@@ -25,13 +25,22 @@ data "talos_machine_configuration" "node" {
   talos_version      = var.talos_version
   kubernetes_version = var.kubernetes_version
 
+  # Talos 1.14 replaced machine.install with the UnattendedInstallConfig
+  # document, which the provider already generates, with the vanilla
+  # installer; a config carrying both is rejected. Patch the document, and
+  # name the disk, because patching it drops the generated selector.
   config_patches = [
     yamlencode({
-      machine = {
-        install = {
-          disk  = "/dev/sda"
-          image = local.install_image
+      apiVersion = "v1alpha1"
+      kind       = "UnattendedInstallConfig"
+      installer = {
+        image = local.install_image
+      }
+      provisioning = {
+        diskSelector = {
+          match = "disk.dev_path == \"/dev/sda\""
         }
+        wipe = false
       }
     }),
   ]
