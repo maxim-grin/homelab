@@ -3,109 +3,105 @@
 The repository alone is not enough. Terraform and
 Ansible recreate the machines and their configuration, but the Proxmox host
 underneath them — repositories, users, the API token, resource pools and
-the VM template every machine clones — is set up by hand, and the template
-blocks every `terraform apply` until it exists.
+the VM template every machine clones — is set up by `scripts/pve-bootstrap.sh`,
+not Terraform, and the template blocks every `terraform apply` until it
+exists.
 
 **What has been exercised, and what has not.** On 2026-09-27 an
 unintended apply (#47) rebuilt all three dev VMs from the blank template;
 the cluster was recreated by the playbooks in "Rebuild order" and the
 jobboard database restored from its old volume on `nfs-01` — see
 "Rebuilding dev only". A full run from a fresh Proxmox install on a new
-disk has not been done; the host-preparation steps below are recorded
-from the original setup, not re-tested.
+disk has not been done; the bootstrap script has stub tests but has not yet
+been run on a real host, so its first real run is the final test.
 
 ## What git does not contain
 
 ### 1. Proxmox host preparation
 
-None of this is in Terraform; it all precedes the first apply.
-
-**Repositories.** The enterprise repo 403s without a subscription, so disable
-it and add the no-subscription one. Proxmox 9 uses deb822 `.sources` files:
-
-```bash
-# /etc/apt/sources.list.d/pve-enterprise.sources -- set Enabled: false
-cat > /etc/apt/sources.list.d/pve-no-subscription.sources << 'EOF'
-Types: deb
-URIs: http://download.proxmox.com/debian/pve
-Suites: trixie
-Components: pve-no-subscription
-Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
-EOF
-apt update
-```
-
-**Admin user**, for SSH and the web UI:
+None of this is in Terraform; it all precedes the first apply. Run
+`scripts/pve-bootstrap.sh` on the new host, as root. It is standalone, so
+fetch just that file, read it, and run it with `--dry-run` first, which
+prints every command that would change something and changes nothing:
 
 ```bash
-adduser user1 && usermod -aG sudo user1
-pveum user add user1@pam -comment "user1 admin"
-pveum acl modify / --roles Administrator --users user1@pam
-pveum passwd user1@pam
+wget https://raw.githubusercontent.com/maxim-grin/homelab/main/scripts/pve-bootstrap.sh
+less pve-bootstrap.sh
+bash pve-bootstrap.sh --dry-run
+bash pve-bootstrap.sh
 ```
 
-**Terraform user, role and token.** A dedicated user with a narrow role
-rather than a root token:
+Name steps to run only those, for example
+`bash pve-bootstrap.sh pools talos-template`. The steps are `repos`,
+`users`, `pools`, `lxc-template`, `ubuntu-template` and `talos-template`,
+run in that order by default. The script warns if the node is not named
+`pve` (every tfvars file assumes it).
 
-```bash
-pveum user add terraform@pve --password '<PASSWORD>'
-pveum role add TerraformProv -privs \
-  "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit \
-   VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network \
-   VM.Config.Options VM.Monitor VM.Audit VM.PowerMgmt \
-   Datastore.AllocateSpace Datastore.Audit"
-pveum aclmod / -user terraform@pve -role TerraformProv
-```
+What to expect from a run:
 
-Then Datacenter > Permissions > API Tokens > Add, user `terraform@pve`.
-The token id looks like `terraform@pve!terraform`; that and the secret go
-into `pm_api_token_id` and `pm_api_token_secret`.
+- It prompts for the admin username (or reads `ADMIN_USER`) and, if that
+  Linux user does not exist yet, for its password twice. The password is
+  never echoed, stored or logged; it goes straight to `chpasswd`.
+- It prints the API token secret **once**, when it creates the token.
+  Proxmox cannot show it again, so copy it into `pm_api_token_secret`
+  immediately. If the token already exists the script says so and leaves
+  it; to rotate it, `pveum user token remove terraform@pve terraform` and
+  re-run the `users` step.
+- It ends by listing the tfvars values it knows: `pm_api_token_id`,
+  `debian_lxc_template` and `clone_template_ubuntu`.
+- Every step checks what exists first, so it is safe to re-run: on a
+  configured host each step reports what it skipped. The one exception is
+  the `TerraformProv` role, whose privileges are set again on every run and
+  reported as changed. It never destroys a template.
 
-**Resource pools**, which Terraform expects and does not create, plus the
-ACL that lets the Terraform user place VMs into them. The role above
-carries no `Pool.*` privileges; granting it on each pool path is what makes
-pool assignment work:
+What the steps do, and why:
 
-```bash
-pveum pool add VM
-pveum pool add Ubuntu-K8s
-pveum pool add LXC
-pveum pool list
+**Repositories (`repos`).** The enterprise repos (Proxmox and Ceph) fail
+without a subscription, so the script sets `Enabled: false` in every
+`.sources` file that points at `enterprise.proxmox.com` and adds the
+no-subscription one (Proxmox 9 uses deb822 `.sources` files, suite
+`trixie`), then runs `apt update`. A failing `apt update` only prints a
+warning; the run continues.
 
-pveum aclmod /pool/VM         -user terraform@pve -role TerraformProv
-pveum aclmod /pool/Ubuntu-K8s -user terraform@pve -role TerraformProv
-pveum aclmod /pool/LXC        -user terraform@pve -role TerraformProv
-```
+**Admin user (`users`)**, for SSH and the web UI: a Linux user in the
+`sudo` group, the matching `<user>@pam` Proxmox user, and the
+`Administrator` role on `/`.
+
+**Terraform user, role and token (`users`).** A dedicated user with a narrow
+role rather than a root token. `terraform@pve` is created with no password,
+since only its token is used, and gets the `TerraformProv` role on `/`. The
+token is `terraform@pve!terraform`; that id goes into `pm_api_token_id`.
+The script creates it with `--privsep 0`, because a privilege-separated
+token carries none of the user's permissions and every call would be
+refused.
+
+**Resource pools (`pools`)**, which Terraform expects and does not create:
+`VM`, `Ubuntu-K8s`, `LXC` and `Talos-K8s`, each with an ACL that lets the
+Terraform user place VMs into it. The role carries no `Pool.*` privileges;
+granting it on each pool path is what makes pool assignment work.
 
 The `LXC` pool holds the five LAN service containers in
 `environments/shared`, and they are created from the Debian 13 LXC template
-downloaded in step 2 of the rebuild order below; without the pool's ACL,
-their placement fails.
+the `lxc-template` step downloads (`pveam update`, then the newest
+`debian-13-standard` template); without the pool's ACL, their placement
+fails. `Talos-K8s` is for prod, see section 2b.
 
 ### 2. The cloud-init VM template — a hard blocker
 
 `dev.tfvars` sets `clone_template_ubuntu = "ubuntu-cid-tp"`, and every VM in
-`terraform/environments/dev/main.tf` is `full_clone = true` from it. Nothing in
-this repository creates it. On a fresh host `terraform apply` fails
-immediately with a template-not-found error.
+`terraform/environments/dev/main.tf` is `full_clone = true` from it. On a
+fresh host `terraform apply` fails immediately with a template-not-found
+error, so the `ubuntu-template` step of `scripts/pve-bootstrap.sh` builds
+it.
 
-The steps used originally, for Ubuntu 24.04 (noble). Cloud images go in
-`/var/lib/vz/template/cache`; `/var/lib/vz/dump` is for backups and
-`/var/lib/vz/images` for live VM disks.
-
-```bash
-mkdir -p /var/lib/vz/template/cache
-cd /var/lib/vz/template/cache
-wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-
-qm create 5000 --memory 2048 --cores 2 --name ubuntu-cid-tp
-qm importdisk 5000 noble-server-cloudimg-amd64.img local-lvm
-qm set 5000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-5000-disk-0
-qm set 5000 --ide2 local-lvm:cloudinit
-qm set 5000 --boot c --bootdisk scsi0
-qm set 5000 --serial0 socket --vga serial0
-qm template 5000
-```
+The step builds the template for Ubuntu 24.04 (noble) as vmid 5000, named
+`ubuntu-cid-tp`: it downloads the cloud image into
+`/var/lib/vz/template/cache`, checks it against Ubuntu's `SHA256SUMS`,
+installs `qemu-guest-agent` into the image with `virt-customize`, imports
+the disk to `local-lvm` and converts the VM to a template. Cloud images go
+in the cache directory; `/var/lib/vz/dump` is for backups and
+`/var/lib/vz/images` for live VM disks. An existing template is skipped. If
+vmid 5000 exists but is not a template, the step stops rather than touch it.
 
 **Both open questions were answered on 2026-09-09.** Recorded here so a
 rebuild does not re-derive them.
@@ -156,32 +152,26 @@ to expect an agent that never answers. What that costs:
   but the provider has a five-minute budget to wait on something that will
   never reply.
 
-Fix it in the image, so a template built from it inherits the agent:
+The script installs the agent in the image, so a template built from it
+inherits the agent.
 
-```bash
-apt-get install -y libguestfs-tools
-cd /var/lib/vz/template/cache
-virt-customize -a noble-server-cloudimg-amd64.img --install qemu-guest-agent
-```
-
-**That alone changes nothing on an existing host.** `qm importdisk` copied
-the disk when the template was built, so the template holds its own copy
-and a later edit to the `.img` never reaches it. On a fresh rebuild the
-ordering in this document is already correct -- customise, then create.
-On a host that already has a template, rebuild it:
+**Rebuilding an existing template.** Editing the image changes nothing on
+an existing host: `qm importdisk` copied the disk when the template was
+built, so the template holds its own copy and a later edit to the `.img`
+never reaches it. The script skips a template that exists, so to rebuild
+it, destroy it and re-run the step:
 
 ```bash
 qm destroy 5000     # safe: every VM clones with full_clone = true and
                     # holds an independent copy, and ubuntu_vm_1 sets
                     # clone_template = null so it never clones at all
+bash pve-bootstrap.sh ubuntu-template
 ```
 
-then re-run the `qm create` sequence above. The alternative, if destroying
-the template is unwelcome, is to customise its disk in place --
-`virt-customize -a /dev/pve/vm-5000-disk-0 --install qemu-guest-agent`,
-confirming the volume name with `lvs` first.
+The script has no in-place option; customising the template's disk where it
+sits is possible by hand but not worth the care it needs.
 
-For the VMs that already exist, install it in place — they are all
+For the VMs that already exist, install the agent in place — they are all
 reachable over SSH:
 
 ```bash
@@ -198,49 +188,44 @@ shutdowns and working backups.
 the module — but that one is harmless: the module sets it explicitly on
 every clone, so the template's value is overridden.
 
-Newer Proxmox can replace the `importdisk` + `set --scsi0` pair with a
-single `qm set <vmid> --scsi0 local-lvm:0,import-from=<path>`; the two-step
-form above is what was actually used and is known to work.
+The two-step `qm importdisk` + `qm set --scsi0` form is what the script
+uses, because it is known to work. Newer Proxmox can replace the pair with
+a single `qm set <vmid> --scsi0 local-lvm:0,import-from=<path>`.
 
 ### 2b. The Talos pool and template
 
-Only the prod cluster needs these. Neither is created by Terraform.
+Only the prod cluster needs these. Neither is created by Terraform. The
+`pools` step creates `Talos-K8s` and grants `terraform@pve` `TerraformProv`
+on it; the role carries no `Pool.*` privileges, so without the per-pool ACL
+placement fails.
 
-**Pool and ACL.** Create the pool, then grant `terraform@pve`
-`TerraformProv` on it. The role carries no `Pool.*` privileges, so without
-the per-pool ACL placement fails:
+**Template.** The `talos-template` step builds `talos-tp` as vmid 5001: the
+Image Factory `nocloud` disk image with the `qemu-guest-agent` extension,
+downloaded into `/var/lib/vz/template/iso`, decompressed, imported into a
+VM on `local-lvm` and converted to a template. Talos has no SSH and no
+package manager, so the guest agent comes from the image, not from a
+playbook. Image Factory publishes no checksum for the image (the schematic
+id is content-addressed), so the script says so and verifies nothing. As
+with the Ubuntu template, an existing template is skipped, and a vmid 5001
+that is not a template stops the step.
 
-```bash
-pveum pool add Talos-K8s
-pveum aclmod /pool/Talos-K8s -user terraform@pve -role TerraformProv
-```
-
-**Template.** `talos-tp` is the Image Factory `nocloud` disk image with the
-`qemu-guest-agent` extension, imported into a VM and converted to a
-template. Talos has no SSH and no package manager, so the guest agent
-comes from the image, not from a playbook. The version and schematic must
-match `talos_version` and `talos_schematic_id` in
-`terraform/environments/prod/variables.tf` (today `v1.14.2` and
+The version and schematic are constants at the top of the script,
+`TALOS_VERSION` and `TALOS_SCHEMATIC` (today `v1.14.2` and
 `ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515`; the
-schematic is the one for `siderolabs/qemu-guest-agent`). On `pve`:
+schematic is the one for `siderolabs/qemu-guest-agent`). They must match
+`talos_version` and `talos_schematic_id` in
+`terraform/environments/prod/variables.tf`; `scripts/check-talos-pins.sh`
+compares them and CI fails if they differ.
+
+**Changing the Talos version.** The template holds a copy of the image, so
+a new version means a new template. Destroy the old one, change
+`TALOS_VERSION` (and `TALOS_SCHEMATIC`, if the extension list changed) in
+the script and the defaults in `variables.tf` together, then re-run the
+step:
 
 ```bash
-TALOS=v1.14.2
-SCHEMATIC=ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515
-cd /var/lib/vz/template/iso
-wget -O talos-nocloud.raw.xz \
-  "https://factory.talos.dev/image/$SCHEMATIC/$TALOS/nocloud-amd64.raw.xz"
-xz -d talos-nocloud.raw.xz
-qm create 5001 --name talos-tp --memory 2048 --cores 2 \
-  --cpu x86-64-v2-AES --machine q35 --ostype l26 \
-  --scsihw virtio-scsi-single --net0 virtio,bridge=vmbr0 \
-  --serial0 socket --agent enabled=1
-qm importdisk 5001 talos-nocloud.raw local-lvm
-qm config 5001 | grep unused      # note the volume name, normally vm-5001-disk-0
-qm set 5001 --scsi0 local-lvm:vm-5001-disk-0,discard=on,iothread=1,ssd=1 \
-  --boot order=scsi0 --ide2 local-lvm:cloudinit
-qm template 5001
-rm talos-nocloud.raw
+qm destroy 5001
+bash pve-bootstrap.sh talos-template
 ```
 
 `terraform@pve` can already clone it because the `TerraformProv` role is
@@ -414,21 +399,17 @@ from `secret.yaml`.
 
 1. **Install Proxmox VE** on the new SSD. Node name must be `pve` or
    `dev.tfvars` needs updating.
-2. **Prepare the host** — section 1: swap the enterprise repo for
-   no-subscription, add the admin user, create `terraform@pve` with the
-   `TerraformProv` role, issue an API token, and create the `VM`,
-   `Ubuntu-K8s`, `LXC` and `Talos-K8s` pools (the `LXC` pool holds the LAN
-   service containers; grant `TerraformProv` on `/pool/LXC` as on the others,
-   or placement fails; `Talos-K8s` is for prod, see section 2b), and the
-   `glance@pve` read-only token (step 15). Put the Terraform token in
-   `dev.tfvars`.
-
-   Download the Debian 13 LXC template the LAN services use, and put its
-   name in `shared.tfvars` as `debian_lxc_template`:
-   `pveam update && pveam available | grep debian-13`, then
-   `pveam download local <file>`.
-3. **Build the cloud-init template** — section 2. It must be named whatever
-   `clone_template_ubuntu` says.
+2. **Prepare the host** — section 1: run `scripts/pve-bootstrap.sh`. It
+   swaps the enterprise repo for no-subscription, adds the admin user,
+   creates `terraform@pve` with the `TerraformProv` role and an API token,
+   creates the `VM`, `Ubuntu-K8s`, `LXC` and `Talos-K8s` pools with their
+   ACLs, and downloads the Debian 13 LXC template. Put the token in
+   `dev.tfvars`, and the template name the script prints in `shared.tfvars`
+   as `debian_lxc_template`. The script does not create the `glance@pve`
+   read-only token; that is a manual step before Glance (step 15).
+3. **Build the cloud-init template** — section 2. The same script builds it
+   (the `ubuntu-template` step, part of a full run) under the name
+   `clone_template_ubuntu` expects.
 4. **`terraform apply`, `shared` first, then `dev`** —
    `terraform/environments/shared` with `-var-file=shared.tfvars` creates
    `nfs-01` (vmid 103) with its OS disk and the `nfs-dev`, `nfs-prod` and

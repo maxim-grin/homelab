@@ -8,7 +8,7 @@ about _working on_ it.
 **Rebuilding after a disk failure or replacement starts at
 [docs/rebuild.md](docs/rebuild.md).** The host underneath — repositories,
 users, API token, resource pools, and the VM template every machine clones —
-is set up by hand and is not in Terraform.
+is set up by `scripts/pve-bootstrap.sh`, not Terraform.
 
 ## The thing that catches everyone
 
@@ -144,8 +144,8 @@ supersedes a record in `docs/decisions/` in the same PR.
 ## Load-bearing and non-obvious
 
 - **`ubuntu-cid-tp` must exist before any `terraform apply`.** Every VM is a
-  `full_clone` of it and nothing in this repository creates it. `qm` commands
-  in `docs/rebuild.md`.
+  `full_clone` of it and Terraform does not create it;
+  `scripts/pve-bootstrap.sh` does (`docs/rebuild.md`).
 - **Renaming a module or resource destroys what it manages.** Terraform
   tracks resources by address, so a new name reads as "delete the old,
   create the new". PR #47 renamed `module "ubunut-k8s-1"` to
@@ -285,8 +285,9 @@ system prompt.
 
 ## Verifying, with no test suite
 
-Nothing here has tests, so verification is running the checks the tools
-provide and then looking at the cluster:
+The cluster has no tests (the bootstrap script has stub tests), so
+verification is running the checks the tools provide and then looking at the
+cluster:
 
 ```bash
 terraform fmt -check && terraform validate     # in environments/dev
@@ -296,6 +297,8 @@ kustomize build argocd/apps/<app>/dev          # overlays only, not Helm values 
 helm template <chart> -f argocd/apps/<app>/dev/values.yaml
 pre-commit run --all-files                     # what the CI pre-commit job runs
 scripts/check-manifests.sh                     # every kustomization and Helm chart, rendered and schema-checked
+scripts/tests/pve-bootstrap.test.sh            # bootstrap script against stubbed pveum/qm/pveam
+scripts/check-talos-pins.sh                    # script's Talos pins equal the prod root's defaults
 ```
 
 `argocd/apps/ingress-nginx/dev` holds only `values.yaml` — it is a Helm
@@ -303,7 +306,7 @@ input, not a kustomize overlay, and `kustomize build` on it fails by
 design.
 
 CI runs the same checks on every PR: `pre-commit`, `commits`, `terraform`,
-`manifests`. Green CI is the floor, not the finish: it renders and
+`manifests`, `scripts`. Green CI is the floor, not the finish: it renders and
 schema-checks manifests, it does not prove anything serves traffic. The
 checks below still apply.
 

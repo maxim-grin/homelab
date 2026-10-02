@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+echo "${STUB_HOSTNAME:-pve}"

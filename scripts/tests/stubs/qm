@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+mkdir -p "$S/vms"
+id="${2:-}"
+case "${1:-}" in
+  config) [ -e "$S/vms/$id" ] || exit 2; cat "$S/vms/$id" ;;
+  create)
+    name=""; prev=""
+    for a in "$@"; do [ "$prev" = --name ] && name="$a"; prev="$a"; done
+    echo "name: $name" > "$S/vms/$id" ;;
+  importdisk) echo "unused0: $4:vm-$id-disk-0" >> "$S/vms/$id" ;;
+  set)
+    f="$S/vms/$id"
+    sed -i '/^unused0:/d' "$f"
+    prev=""
+    for a in "$@"; do [ "$prev" = --scsi0 ] && echo "scsi0: $a" >> "$f"; prev="$a"; done ;;
+  template) echo "template: 1" >> "$S/vms/$id" ;;
+esac
+exit 0

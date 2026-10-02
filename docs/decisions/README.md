@@ -34,3 +34,4 @@ Context or Decision.
 | [0019](0019-lxc-resolvers-1111-before-router.md) | LXC resolvers: `1.1.1.1` first, then the router, never Pi-hole | Accepted | 2026-09-30 |
 | [0020](0020-pihole-opt-in-per-device.md) | Pi-hole is opt-in per device | Accepted | 2026-10-02 |
 | [0021](0021-talos-prod-via-terraform-provider.md) | Talos prod cluster through the Terraform provider, secrets in state | Accepted | 2026-10-01 |
+| [0022](0022-host-bootstrapped-by-script.md) | Proxmox host bootstrapped by one idempotent script | Accepted | 2026-10-01 |

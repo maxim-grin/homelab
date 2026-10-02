@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+if [ "${1:-}" = -u ]; then echo "${STUB_UID:-0}"; exit 0; fi
+[ -e "$S/linux_users/${1:-}" ]

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+mkdir -p "$S/linux_users"
+for a in "$@"; do last="$a"; done
+touch "$S/linux_users/$last"

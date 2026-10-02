@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+mkdir -p "$S/users" "$S/roles" "$S/pools" "$S/tokens"
+case "${1:-} ${2:-}" in
+  "user add") touch "$S/users/$3" ;;
+  "role add" | "role modify")
+    case "${*:4}" in
+      *VM.Monitor*) echo "400 Parameter verification failed: invalid privilege 'VM.Monitor'" >&2; exit 2 ;;
+    esac
+    echo "${*:4}" > "$S/roles/$3" ;;
+  "pool add") touch "$S/pools/$3" ;;
+  "user token")
+    if [ "${3:-}" = add ]; then
+      touch "$S/tokens/$4!$5"
+      cat <<'TBL'
+┌──────────────┬──────────────────────────────────────┐
+│ key          │ value                                │
+╞══════════════╪══════════════════════════════════════╡
+│ full-tokenid │ terraform@pve!terraform              │
+├──────────────┼──────────────────────────────────────┤
+│ info         │ {"privsep":"0"}                      │
+├──────────────┼──────────────────────────────────────┤
+│ value        │ 11111111-2222-3333-4444-555555555555 │
+└──────────────┴──────────────────────────────────────┘
+TBL
+    fi ;;
+  "acl list") touch "$S/acl"; cat "$S/acl" ;;
+  *)
+    if [ "${1:-}" = aclmod ]; then
+      # aclmod PATH -user U -role R
+      echo "$4 $2 1 $6 user" >> "$S/acl"
+    fi ;;
+esac
+exit 0

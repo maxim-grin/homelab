@@ -168,3 +168,20 @@ jobs:
           echo "$bin" >> "$GITHUB_PATH"
       - name: Render and schema-check manifests
         run: scripts/check-manifests.sh
+
+  # The Proxmox bootstrap script: lint it, check its Talos pins against the
+  # prod root, run its stub-based tests. shellcheck is preinstalled on the
+  # runner image.
+  scripts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/tests/pve-bootstrap.test.sh
+      - name: Talos pins match the prod root
+        run: scripts/check-talos-pins.sh
+      - name: Bootstrap script tests
+        run: scripts/tests/pve-bootstrap.test.sh

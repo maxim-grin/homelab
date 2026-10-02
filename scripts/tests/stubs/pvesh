@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+# pvesh get PATH: exit 0 iff the object exists in the state dir.
+[ "${1:-}" = get ] || exit 0
+p="${2:-}"
+case "$p" in
+  /access/users/*/token/*)
+    rest="${p#/access/users/}"; u="${rest%%/token/*}"; t="${rest##*/token/}"
+    [ -e "$S/tokens/$u!$t" ] ;;
+  /access/users/*) [ -e "$S/users/${p#/access/users/}" ] ;;
+  /access/roles/*) [ -e "$S/roles/${p#/access/roles/}" ] ;;
+  /pools/*) [ -e "$S/pools/${p#/pools/}" ] ;;
+  *) exit 1 ;;
+esac

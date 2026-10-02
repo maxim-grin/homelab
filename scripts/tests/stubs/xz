@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"
+echo "xz $*" >> "$S/calls.log"
+for a in "$@"; do f="$a"; done
+case " $* " in *" -df "* | *" -fd "* | *" -f "*) force=1 ;; *) force=0 ;; esac
+if [ -e "${f%.xz}" ] && [ "$force" -eq 0 ]; then
+  echo "xz: ${f%.xz}: File exists" >&2; exit 1
+fi
+cp "$f" "${f%.xz}"; rm -f "$f"
