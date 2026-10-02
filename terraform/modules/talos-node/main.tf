@@ -19,6 +19,9 @@ resource "proxmox_vm_qemu" "node" {
       power_state,
       clone,
       full_clone,
+      # No boot order is set here. Proxmox reports "unset" as -1, and the
+      # provider plans to remove that empty block on every run.
+      startup_shutdown,
     ]
   }
 

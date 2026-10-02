@@ -35,9 +35,9 @@ is a stop — see
 | `https://jobs.mgryn.cc`                                                                          | jobboard; HTTP 308s to HTTPS                                                                        | cert-manager |
 | `http://argocd.mgryn.cc`                                                                         | ArgoCD UI                                                                                           | none         |
 | `https://grafana.mgryn.cc`                                                                       | Grafana; HTTP 308s to HTTPS                                                                         | cert-manager |
-| `http://prometheus.mgryn.cc`                                                                     | Prometheus, no authentication — Prometheus ships none                                               | none         |
+| `http://prometheus.mgryn.cc`                                                                     | Prometheus, basic auth from ingress-nginx — Prometheus ships none; login in `vault_kv` as `kv-dev/monitoring/prometheus` | none         |
 | `https://vault.mgryn.cc:8200`                                                                    | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA   |
-| `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc`, `lan.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus, LAN Orangutan                                               | Traefik      |
+| `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc`, `lan.hl.mgryn.cc`, `home.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus, LAN Orangutan, Glance                                               | Traefik      |
 
 The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every
@@ -85,3 +85,39 @@ kubectl -n jobboard get order,challenge
 Traefik's `*.hl.mgryn.cc` certificate is Traefik's own ACME client, not
 cert-manager; debug it with `-e traefik_cert_resolver=letsencrypt-staging`
 (see `ansible/roles/traefik/defaults/main.yaml`).
+
+## Stale resolv.conf after a nameserver change
+
+Terraform's `nameserver` for the LAN service LXCs is `1.1.1.1 10.0.0.1`,
+in that order: the router answers `mgryn.cc` names that point at a
+private address with an empty NOERROR, and a resolver takes that as final.
+Proxmox writes the setting into a container's `/etc/resolv.conf` only when
+the container starts, so a container that was not restarted after the
+order changed keeps the old file. Symptoms: `*.hl.mgryn.cc`, `vault` and
+`jobs` fail to resolve in that container (public names still work), and
+Glance's Services widget shows ERROR for every hostname.
+
+The LAN services playbook's first play fails on a host whose first
+nameserver is not `1.1.1.1`, with this fix in the message. Check all five
+by hand after any change to `nameserver`:
+
+```bash
+for id in 140 141 142 143 144; do echo "== $id"; pct exec $id -- cat /etc/resolv.conf; done
+```
+
+`1.1.1.1` must come first. Fix a stale one with `pct reboot <id>`; a
+Traefik reboot takes every `*.hl.mgryn.cc` route down for about a second.
+Then `pct exec <id> -- getent hosts vault.mgryn.cc` answers.
+
+## Pointing a device at Pi-hole
+
+The router's admin page offers only a DHCP address range, so it cannot
+hand out Pi-hole's address (record
+[0020](decisions/0020-pihole-opt-in-per-device.md)). A device uses Pi-hole
+only when its own network settings name `10.0.0.140` as the DNS server;
+set it to that alone, with no second server, or the device will bypass
+Pi-hole at will. Everything else keeps resolving through the router.
+
+To undo it, set the device's DNS back to automatic. If Pi-hole cannot be
+restarted, do that on the opted-in devices; the rest of the LAN is
+unaffected.

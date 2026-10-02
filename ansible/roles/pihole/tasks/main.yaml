@@ -85,10 +85,16 @@
 
 - name: Apply FTL settings
   ansible.builtin.include_tasks: ftl_setting.yaml
-  loop:
-    - { key: dns.upstreams, value: "{{ pihole_upstreams | to_json }}" }
-    - { key: dns.listeningMode, value: "{{ pihole_listening_mode }}" }
-    - { key: dns.revServers, value: "{{ [pihole_rev_server] | to_json }}" }
+  loop: >-
+    {{
+      [
+        {'key': 'dns.upstreams', 'value': pihole_upstreams | to_json},
+        {'key': 'dns.listeningMode', 'value': pihole_listening_mode},
+        {'key': 'dns.revServers', 'value': [pihole_rev_server] | to_json}
+      ]
+      + ([{'key': 'webserver.api.app_pwhash', 'value': pihole_app_pwhash, 'secret': true}]
+         if pihole_app_pwhash is defined and pihole_app_pwhash | length > 0 else [])
+    }}
   loop_control:
     loop_var: pihole_setting
     label: "{{ pihole_setting.key }}"

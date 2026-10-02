@@ -405,7 +405,8 @@ from `secret.yaml`.
    creates the `VM`, `Ubuntu-K8s`, `LXC` and `Talos-K8s` pools with their
    ACLs, and downloads the Debian 13 LXC template. Put the token in
    `dev.tfvars`, and the template name the script prints in `shared.tfvars`
-   as `debian_lxc_template`.
+   as `debian_lxc_template`. The script does not create the `glance@pve`
+   read-only token; that is a manual step before Glance (step 15).
 3. **Build the cloud-init template** — section 2. The same script builds it
    (the `ubuntu-template` step, part of a full run) under the name
    `clone_template_ubuntu` expects.
@@ -600,6 +601,10 @@ from `secret.yaml`.
     its own re-runs, so seeing it at all here means the very first run
     was interrupted before it could.
 
+    The role returns before FTL is serving again (the restart is a
+    handler), so a scripted check right after a run, such as the `dig`
+    above, should retry for about 10 seconds before it calls a failure.
+
     A half-finished install (interrupted before `/usr/local/bin/pihole`
     exists) is safe to resume: re-running the play retries the
     installer from scratch. If it instead insists Pi-hole is already
@@ -648,6 +653,34 @@ from `secret.yaml`.
     env ORANGUTAN_DATA_DIR=/var/lib/orangutan orangutan list --config
     /etc/orangutan/config.ini`.
 
+    **Glance** needs, before its play:
+
+    - a read-only Proxmox token: on the host, `pveum user add glance@pve`,
+      `pveum acl modify / --users glance@pve --roles PVEAuditor`,
+      `pveum user token add glance@pve glance --privsep 0`; the id
+      `glance@pve!glance` and the secret it prints once go into
+      `secret.yaml` as `glance_proxmox_token_id` and
+      `glance_proxmox_token_secret`;
+    - Pi-hole's application password, kept from before the rebuild — both
+      `pihole_app_password` and `pihole_app_pwhash` are in `secret.yaml`,
+      and the Pi-hole play applies the hash. Only if they were lost:
+      log in to Pi-hole's API with the admin password, `GET /api/auth/app`,
+      keep `.app.password` and `.app.hash`, and re-run the Pi-hole play.
+
+    Re-run the Pi-hole, Traefik and Gatus plays too. Check:
+    `https://home.hl.mgryn.cc` shows every VM and container, Pi-hole's
+    statistics and Gatus's endpoints. If the Services widget shows ERROR
+    for every hostname while the IP-based widgets work, the container is
+    resolving through the router first: `pct exec 142 -- cat
+    /etc/resolv.conf` should list `1.1.1.1` first, and `pct exec 142 --
+    getent hosts vault.mgryn.cc` should answer. See "Stale resolv.conf
+    after a nameserver change" in `docs/operations.md`.
+
+    **Pi-hole for clients** — last, once Gatus is watching Pi-hole: the
+    router cannot hand out a DNS server, so set `10.0.0.140` as the only
+    DNS server in the network settings of each device that should use it
+    (see "Pointing a device at Pi-hole" in `docs/operations.md`).
+
 16. **The Talos prod cluster** — section 2b first. Then, from the operator's
     workstation, in `terraform/environments/prod`:
 
@@ -663,6 +696,22 @@ from `secret.yaml`.
     Done when `kubectl get nodes` shows three Ready nodes: `talos-prod-cp1`,
     `talos-prod-w1` and `talos-prod-w2`. The cluster has no workloads; the
     hub platform is sub-project 3 of the roadmap.
+
+    Right after the apply returns, `kubectl get nodes` prints `No resources
+    found`: the API server answers but the kubelets have not registered.
+    Retry for a few minutes. If a node is still missing after about ten,
+    `talosctl -n <ip> health` and `talosctl -n <ip> services` (with
+    `talosconfig` fetched as below) or `qm terminal <vmid>` on `pve` show
+    what it is waiting for.
+
+    If the apply fails on the config step with `UnattendedInstallConfig
+    config is incompatible with v1alpha1 config (.machine.install)`, a
+    patch in `talos.tf` sets the deprecated `machine.install`. Talos 1.14
+    takes the installer image and disk from the `UnattendedInstallConfig`
+    document, so patch that instead (ADR
+    [0021](decisions/0021-talos-prod-via-terraform-provider.md)). The
+    VMs already exist, so fix the patch and apply again with the same
+    state.
 
     The cluster's PKI exists only in `terraform.tfstate`, so a lost state
     means rebuilding the cluster, as for every other environment after an SSD

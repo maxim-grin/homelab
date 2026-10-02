@@ -46,6 +46,18 @@ Proxmox host steps (pool, ACL, template) stay manual in `docs/rebuild.md`; a
 script for them is a follow-up; see
 [0022](0022-host-bootstrapped-by-script.md).
 
+The first apply (2026-10-02) found that Talos 1.14 deprecates
+`machine.install` in favour of the `UnattendedInstallConfig` document, and
+rejects a config that carries both. The provider generates that document by
+default, with the vanilla installer image (without the guest-agent
+extension) and an older patch release. `talos.tf` therefore patches the
+document with the factory `nocloud-installer` image and `/dev/sda`, never
+`machine.install`
+([#78](https://github.com/maxim-grin/homelab/pull/78)). The mock-provider
+tests never render a real config, so only a real apply or a render with the
+provider shows this. The nodes also take a few minutes to register after
+the apply returns: `kubectl get nodes` first prints `No resources found`.
+
 ## Related
 
 `docs/superpowers/specs/2026-10-01-talos-prod-design.md`;
