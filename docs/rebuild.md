@@ -636,7 +636,12 @@ from `secret.yaml`.
 
     Re-run the Pi-hole, Traefik and Gatus plays too. Check:
     `https://home.hl.mgryn.cc` shows every VM and container, Pi-hole's
-    statistics and Gatus's endpoints.
+    statistics and Gatus's endpoints. If the Services widget shows ERROR
+    for every hostname while the IP-based widgets work, the container is
+    resolving through the router first: `pct exec 142 -- cat
+    /etc/resolv.conf` should list `1.1.1.1` first, and `pct exec 142 --
+    getent hosts vault.mgryn.cc` should answer. See "Stale resolv.conf
+    after a nameserver change" in `docs/operations.md`.
 
     **Cutover** — last, once Gatus is watching Pi-hole: record the router's
     current DHCP DNS setting under "DNS cutover rollback" in

@@ -86,6 +86,27 @@ Traefik's `*.hl.mgryn.cc` certificate is Traefik's own ACME client, not
 cert-manager; debug it with `-e traefik_cert_resolver=letsencrypt-staging`
 (see `ansible/roles/traefik/defaults/main.yaml`).
 
+## Stale resolv.conf after a nameserver change
+
+Terraform's `nameserver` for the LAN service LXCs is `1.1.1.1 10.0.0.1`,
+in that order: the router answers `mgryn.cc` names that point at a
+private address with an empty NOERROR, and a resolver takes that as final.
+Proxmox writes the setting into a container's `/etc/resolv.conf` only when
+the container starts, so a container that was not restarted after the
+order changed keeps the old file. Symptoms: `*.hl.mgryn.cc`, `vault` and
+`jobs` fail to resolve in that container (public names still work), and
+Glance's Services widget shows ERROR for every hostname.
+
+Check all five after any change to `nameserver`:
+
+```bash
+for id in 140 141 142 143 144; do echo "== $id"; pct exec $id -- cat /etc/resolv.conf; done
+```
+
+`1.1.1.1` must come first. Fix a stale one with `pct reboot <id>`; a
+Traefik reboot takes every `*.hl.mgryn.cc` route down for about a second.
+Then `pct exec <id> -- getent hosts vault.mgryn.cc` answers.
+
 ## DNS cutover rollback
 
 The router's DHCP hands out `10.0.0.140` (Pi-hole) as the only DNS
