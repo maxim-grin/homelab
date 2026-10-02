@@ -6,9 +6,6 @@
   prConcurrentLimit: 3,
   labels: ["deps"],
   semanticCommits: "enabled",
-  // Never-applied scaffolding (CLAUDE.md). Remove both entries when
-  // roadmap sub-project 2 (Talos prod) is done; see ADR 0023.
-  ignorePaths: ["terraform/environments/prod/**", "talos/**"],
   // Opt-in manager: tracks the hook revs in .pre-commit-config.yaml.
   "pre-commit": { enabled: true },
   argocd: {

@@ -30,10 +30,13 @@ Rejected:
   GitHub token and a job to run it, for a bot that could then write to a
   repository where a merge is a deploy.
 
-**Excluded until sub-project 2:** `terraform/environments/prod` and
-`talos/`, never-applied scaffolding. Renovate's defaults would silently
-"fix" prod's conflicting provider pin. Remove both `ignorePaths`
-entries in `renovate.json5` when roadmap sub-project 2 is done.
+**Every root is covered.** `terraform/environments/prod` was excluded
+while it was never-applied scaffolding with a conflicting provider pin;
+sub-project 2 made it real and fixed the pin, so the exclusion is gone.
+The roots must keep the same `Telmate/proxmox` pin; Renovate puts one
+update to it in every `versions.tf` on a single branch by default (a dry
+run with an old pin showed one `renovate/proxmox-3.x` branch for all of
+them), so no grouping rule is needed.
 
 ## Consequences
 
@@ -41,10 +44,9 @@ entries in `renovate.json5` when roadmap sub-project 2 is done.
   branch by hand; the commands are in `docs/operations.md`.
 - The hosted app holds write access to this repository through its
   install.
-- The Glance pin is not annotated yet. A follow-up adds
-  `# renovate: datasource=github-releases depName=glanceapp/glance extractVersion=^v(?<version>.+)$`
-  above `glance_version` after PR #65 merges; until then the gated
-  `glanceapp/glance` entry is inert.
+- The Talos version and schematic are pinned in `scripts/pve-bootstrap.sh`
+  and `terraform/environments/prod/variables.tf`, where Renovate cannot
+  see them. They are bumped by hand, together; CI fails if they differ.
 - The `pre-commit` manager is opt-in and enabled, so hook revisions in
   `.pre-commit-config.yaml` are tracked. The gitleaks hook shares the
   `gitleaks/gitleaks` depName with the CI pin and is gated with it.

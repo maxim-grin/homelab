@@ -69,16 +69,17 @@ Done means:
   image tag in the same role's defaults, which is bumped by hand to
   match the chart, and the `ubuntu` runner image in `runs-on`.
 
-## Excluded until sub-project 2
+## Prod was excluded until sub-project 2
 
-`terraform/environments/prod` and `talos/` are never-applied scaffolding
-(CLAUDE.md). Renovate's defaults would propose `proxmox 3.0.2-rc10` for
-prod's root, quietly "fixing" the provider conflict that sub-project 2 is
-meant to fix on purpose. Both paths are in `ignorePaths`.
+`terraform/environments/prod` and `talos/` were never-applied scaffolding
+(CLAUDE.md). Renovate's defaults would have proposed `proxmox 3.0.2-rc10`
+for prod's root, quietly "fixing" the provider conflict that sub-project 2
+was meant to fix on purpose, so both paths were in `ignorePaths`.
 
-**When sub-project 2 finishes, remove those entries.** The reminder is in
-`renovate.json5` as a comment, in ADR 0023, and in sub-project 2's "Done
-when" line in the roadmap spec.
+Sub-project 2 is done (#66), so the entries are removed. The three roots
+now pin the same `Telmate/proxmox`, and Renovate puts one update to it in
+every `versions.tf` on a single branch (checked with a dry run), so they
+cannot drift apart.
 
 ## Pins with a companion hash
 
