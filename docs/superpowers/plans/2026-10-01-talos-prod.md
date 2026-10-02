@@ -64,21 +64,21 @@ The worktree already contains the spec (committed) and this plan.
 - Consumes: nothing.
 - Produces: a CLAUDE.md that no longer forbids extending prod.
 
-- [ ] **Step 1: Find the sentence**
+- [x] **Step 1: Find the sentence**
 
 Run: `grep -n "scaffolding that has never been" CLAUDE.md`
 Expected: one hit in the Stack paragraph.
 
-- [ ] **Step 2: Delete the rule**
+- [x] **Step 2: Delete the rule**
 
 In the Stack paragraph, delete exactly these lines (they currently read `` `terraform/environments/prod` and `talos/` are scaffolding that has never been `` / `applied — do not extend them without saying so.`), and leave the preceding sentence about the prod halves of `nfs-prod` and `kv-prod` intact. If the sentence before now ends mid-thought, end it with a period. Do nothing else in this task; Task 6 rewrites the rest of the paragraph.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run: `grep -n "do not extend" CLAUDE.md; echo "exit=$?"`
 Expected: no match, `exit=1`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md
@@ -99,7 +99,7 @@ branch, so it no longer applies."
 - Consumes: nothing.
 - Produces: a prod root with only `backend.tf.example`, `versions.tf`, the lock file; Task 4 fills it.
 
-- [ ] **Step 1: Delete**
+- [x] **Step 1: Delete**
 
 ```bash
 git rm -r -q terraform/modules/talos-k8s terraform/modules/talos-vm talos
@@ -107,12 +107,12 @@ git rm -q terraform/environments/prod/main.tf terraform/environments/prod/output
   terraform/environments/prod/variables.tf terraform/environments/prod/prod.tfvars.example
 ```
 
-- [ ] **Step 2: Verify nothing else imports them**
+- [x] **Step 2: Verify nothing else imports them**
 
 Run: `grep -rIn "modules/talos-k8s\|modules/talos-vm\|talos-tp" --exclude-dir=.git . | grep -v "^./docs/superpowers"`
 Expected: hits only in `README.md`, `terraform/README.md` and `docs/rebuild.md` (prose that Task 6 rewrites), none in `.tf` files.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -m "chore: delete the old talos scaffolding" -m "modules/talos-k8s, modules/talos-vm, talos/ and the prod root's
@@ -133,7 +133,7 @@ from scratch in the commits that follow."
   - Inputs: `vm_name string`, `target_node string`, `vmid number`, `pool string`, `clone_template string`, `memory number`, `cpu_cores number`, `disk_size string`, `disk_storage string`, `cloudinit_storage string`, `network_bridge string`, `network_firewall bool`, `ip string` (bare address, no CIDR), `prefix_length number`, `gateway string`, `nameserver string`, `start_at_node_boot bool`, `tags string`
   - Outputs: `vm_id` (number), `vm_name` (string), `ip` (string)
 
-- [ ] **Step 1: Write `versions.tf`**
+- [x] **Step 1: Write `versions.tf`**
 
 ```hcl
 terraform {
@@ -147,7 +147,7 @@ terraform {
 }
 ```
 
-- [ ] **Step 2: Write `variables.tf`**
+- [x] **Step 2: Write `variables.tf`**
 
 ```hcl
 variable "vm_name" {
@@ -251,7 +251,7 @@ variable "tags" {
 }
 ```
 
-- [ ] **Step 3: Write `main.tf`**
+- [x] **Step 3: Write `main.tf`**
 
 ```hcl
 # One Talos node: a full clone of the talos-tp template (the Image Factory
@@ -352,7 +352,7 @@ resource "proxmox_vm_qemu" "node" {
 }
 ```
 
-- [ ] **Step 4: Write `outputs.tf`**
+- [x] **Step 4: Write `outputs.tf`**
 
 ```hcl
 output "vm_id" {
@@ -371,7 +371,7 @@ output "ip" {
 }
 ```
 
-- [ ] **Step 5: Validate the module**
+- [x] **Step 5: Validate the module**
 
 ```bash
 terraform -chdir=terraform/modules/talos-node fmt -check
@@ -381,7 +381,7 @@ tflint --chdir=terraform/modules/talos-node --config="$PWD/.tflint.hcl"
 ```
 Expected: `fmt` prints nothing, `validate` prints `Success! The configuration is valid.`, `tflint` exits 0. If `validate` rejects an argument (`automatic_reboot`, `skip_ipv6`, `nameserver`, `define_connection_info`), check it against `terraform/modules/vault-vm/main.tf` or `ubuntu-vm`, which use the same provider version, and fix the module — do not delete the argument without saying why in your report.
 
-- [ ] **Step 6: Remove the untracked init artefacts and commit**
+- [x] **Step 6: Remove the untracked init artefacts and commit**
 
 ```bash
 git status --porcelain terraform/modules/talos-node
@@ -406,7 +406,7 @@ address, no SSH, restarts left to the operator."
 - Consumes: `modules/talos-node` (Task 3) with the inputs listed there.
 - Produces: root outputs `kubeconfig` (sensitive), `talosconfig` (sensitive), `node_ips` (map name→ip), `controlplane_ip`; variables listed in Step 3.
 
-- [ ] **Step 1: Write `versions.tf`**
+- [x] **Step 1: Write `versions.tf`**
 
 ```hcl
 terraform {
@@ -433,7 +433,7 @@ provider "proxmox" {
 provider "talos" {}
 ```
 
-- [ ] **Step 2: Write the failing tests, `prod.tftest.hcl`**
+- [x] **Step 2: Write the failing tests, `prod.tftest.hcl`**
 
 ```hcl
 # Mock providers: nothing here reaches Proxmox or a Talos node. These tests
@@ -544,7 +544,7 @@ run "rejects_unknown_role" {
 }
 ```
 
-- [ ] **Step 3: Write `variables.tf` with only the plain variables first, then confirm the tests fail**
+- [x] **Step 3: Write `variables.tf` with only the plain variables first, then confirm the tests fail**
 
 Write the file with everything below **except** the `validation` blocks in `talos_nodes` (add them in Step 5):
 
@@ -656,7 +656,7 @@ Now write `main.tf`, `talos.tf` and `outputs.tf` (Steps 4 and 6 below give their
 `terraform -chdir=terraform/environments/prod test`
 Expected: `three_nodes_one_controlplane` passes; the six `rejects_*` runs FAIL with "expected failure but none occurred" (no validation blocks yet). Record that output.
 
-- [ ] **Step 4: Write `main.tf`**
+- [x] **Step 4: Write `main.tf`**
 
 ```hcl
 # The Talos prod cluster: one control plane and two workers, cloned from the
@@ -682,7 +682,7 @@ module "node" {
 }
 ```
 
-- [ ] **Step 5: Add the validations to `talos_nodes`**
+- [x] **Step 5: Add the validations to `talos_nodes`**
 
 Replace the `talos_nodes` variable with:
 
@@ -728,7 +728,7 @@ variable "talos_nodes" {
 }
 ```
 
-- [ ] **Step 6: Write `talos.tf` and `outputs.tf`**
+- [x] **Step 6: Write `talos.tf` and `outputs.tf`**
 
 `talos.tf`:
 
@@ -835,7 +835,7 @@ output "controlplane_ip" {
 }
 ```
 
-- [ ] **Step 7: Run the tests, expect green**
+- [x] **Step 7: Run the tests, expect green**
 
 ```bash
 terraform -chdir=terraform/environments/prod fmt -check -recursive
@@ -844,7 +844,7 @@ terraform -chdir=terraform/environments/prod test
 ```
 Expected: `validate` succeeds; `test` reports 8 passed, 0 failed. If a `rejects_*` run fails because the mock provider rejects the shape of a plan before the validation fires, the failing run's diagnostics will say so; fix the root, not the test. If `terraform test` cannot run a mock-provider plan against the `talos` provider's nested `machine_secrets` schema at all, do NOT delete the tests: report the exact error and fall back to `terraform validate` plus a manual check of the validations with `terraform console` using `-var` JSON, and say so.
 
-- [ ] **Step 8: Write `prod.tfvars.example`**
+- [x] **Step 8: Write `prod.tfvars.example`**
 
 Mirror the header style of `terraform/environments/shared/shared.tfvars.example` (read it first; copy its Proxmox block and token-id format exactly). Content:
 
@@ -872,7 +872,7 @@ talos_nodes = {
 }
 ```
 
-- [ ] **Step 9: Regenerate the lock file for CI and the operator's workstation**
+- [x] **Step 9: Regenerate the lock file for CI and the operator's workstation**
 
 ```bash
 cd terraform/environments/prod
@@ -880,12 +880,12 @@ terraform providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=
 ```
 Expected: `.terraform.lock.hcl` lists `Telmate/proxmox 3.0.2-rc10` and `siderolabs/talos 0.12.0`, with no `3.0.2-rc04` left. Check: `grep -n 'version' .terraform.lock.hcl`.
 
-- [ ] **Step 10: tflint**
+- [x] **Step 10: tflint**
 
 Run: `tflint --chdir=terraform/environments/prod --config="$(git rev-parse --show-toplevel)/.tflint.hcl"`
 Expected: exit 0. Fix findings; do not disable rules.
 
-- [ ] **Step 11: Confirm no secret-bearing file appeared**
+- [x] **Step 11: Confirm no secret-bearing file appeared**
 
 ```bash
 git status --porcelain
@@ -893,7 +893,7 @@ git check-ignore -v terraform/environments/prod/terraform.tfstate terraform/envi
 ```
 Expected: `git status` lists only the files this task created or changed (no `*.tfstate`, `*.tfvars`, kubeconfig or talosconfig); both `check-ignore` lines print a matching rule from `.gitignore`.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add terraform/environments/prod
@@ -914,11 +914,11 @@ Pins now match shared, and the lock file is regenerated."
 - Consumes: a prod root that inits with `-backend=false` (Task 4).
 - Produces: CI validating and linting prod.
 
-- [ ] **Step 1: Edit both loops**
+- [x] **Step 1: Edit both loops**
 
 Change both occurrences of `for env in dev shared; do` to `for env in dev shared prod; do`. Check: `grep -n "for env in" .github/workflows/ci.yaml` shows `dev shared prod` twice and nothing else.
 
-- [ ] **Step 2: Run the same commands CI runs**
+- [x] **Step 2: Run the same commands CI runs**
 
 ```bash
 for env in dev shared prod; do
@@ -929,12 +929,12 @@ done
 ```
 Expected: three `Success! The configuration is valid.` lines and no tflint output. Clean up: `git status --porcelain` shows only `ci.yaml` modified.
 
-- [ ] **Step 3: actionlint, if installed**
+- [x] **Step 3: actionlint, if installed**
 
 Run: `command -v actionlint && actionlint .github/workflows/ci.yaml`
 Expected: no output (or the command is absent; skip).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .github/workflows/ci.yaml
@@ -953,7 +953,7 @@ git commit -m "ci: validate and lint the prod root" -m "prod inits now that its 
 - Consumes: everything built in Tasks 2-5.
 - Produces: docs that are true about the merged branch.
 
-- [ ] **Step 1: `docs/rebuild.md` — the template and pool**
+- [x] **Step 1: `docs/rebuild.md` — the template and pool**
 
 Read sections 1 and 2 first and mirror their style (heading levels, `bash` fences, how existing pool and ACL commands are written; if section 1 already uses `pveum` for pools, use the same form). Replace the three-line `talos-tp` note near line 205 ("The `talos-tp` template hard-coded at … ignored unless that changes.") with this subsection:
 
@@ -1005,7 +1005,7 @@ enabled=1`, `scsi0` on `local-lvm`, `ide2` a cloudinit drive, and no `ipconfig0`
 on the template itself.
 ````
 
-- [ ] **Step 2: `docs/rebuild.md` — the rebuild order and caveats**
+- [x] **Step 2: `docs/rebuild.md` — the rebuild order and caveats**
 
 (a) In "Rebuild order" step 2 (the host preparation list), add `Talos-K8s` to the list of pools to create, with a pointer to section 2b. (b) After step 15, add:
 
@@ -1040,7 +1040,7 @@ on the template itself.
 
 (c) In section 4's table of workstation-only files, add rows for `terraform/environments/prod/prod.tfvars` (Proxmox API token and the node map; recreate from `prod.tfvars.example`) and `terraform/environments/prod/terraform.tfstate` (holds the cluster PKI and the kubeconfig; if lost, rebuild the cluster). (d) In section 5's state-reset loop, change `for env in shared dev; do` to `for env in shared dev prod; do` only if the loop's body still makes sense for prod (it needs `prod.tfvars`, which exists by then); otherwise add a sentence after the loop.
 
-- [ ] **Step 3: `README.md`**
+- [x] **Step 3: `README.md`**
 
 Edit, reading each spot first:
 - **Diagram:** change the `talos` node to a solid box with its machines: `talos["Talos cluster<br/>cp1 .110 · w1 .111 · w2 .112"]` (remove `:::planned`). Keep the dashed `talos -. "manages" .-> k8s` edge (that is sub-project 4). Update the line below the diagram if "Solid boxes run today" is no longer accurate.
@@ -1058,15 +1058,15 @@ node "$MP/p.mjs" README.md
 ```
 Expected: the parser reports the diagram valid. If the copy has no `node_modules`, `npm i mermaid jsdom` inside it. If the parser path is gone, say so in your report instead of skipping silently.
 
-- [ ] **Step 4: `terraform/README.md`**
+- [x] **Step 4: `terraform/README.md`**
 
 Read the file. Rewrite the intro paragraph (prod "is never-applied scaffolding" → the Talos prod cluster); in the module tree replace `talos-k8s/` and `talos-vm/` with a `talos-node/` entry listing its four files, matching the neighbours' format; replace the whole "Prod — not yet" section with a short "Prod" section (the root builds the three-node Talos cluster; applied from the operator's workstation with `-var-file=prod.tfvars`; its prerequisites are in `docs/rebuild.md` section 2b; CI validates it with the other two); replace the `modules/talos-vm` / `modules/talos-k8s` bullet with a `modules/talos-node` bullet (one Talos VM, full clone of `talos-tp`, static cloud-init address; used by `environments/prod`).
 
-- [ ] **Step 5: `CLAUDE.md`**
+- [x] **Step 5: `CLAUDE.md`**
 
 (a) Stack paragraph: replace "Only the `dev` environment exists, plus `terraform/environments/shared` … Their prod halves (`nfs-prod`, `kv-prod`) are ready but unused until prod has nodes." with text saying: `dev` is the kubeadm cluster; `terraform/environments/prod` is the Talos cluster (three nodes via the `siderolabs/talos` provider, applied from the operator's workstation, no workloads until sub-project 3); `terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs. Keep the sentence about `nfs-prod` and `kv-prod` but say they stay unused until the hub platform lands. (b) Layout block: add `environments/prod/` ("the Talos prod cluster") and change `talos-*` to `talos-node`. (c) "How a change reaches the cluster" table row 1: `in environments/dev or environments/shared` → `in environments/dev, shared or prod`. (d) "Load-bearing" list: the `*.tfvars` bullet gains `prod.tfvars`; add one bullet: **Prod's cluster secrets live in `terraform.tfstate`.** The Talos PKI and the kubeconfig are in `environments/prod/terraform.tfstate` on the operator's workstation and nowhere else; `kubeconfig` and `talosconfig` are sensitive outputs that nothing writes to disk. Losing the state means rebuilding the cluster. (ADR [0021](docs/decisions/0021-talos-prod-via-terraform-provider.md)). Also: the "Resource pools are not created by Terraform" bullet is already general; leave it.
 
-- [ ] **Step 6: ADR 0021, the index and 0012**
+- [x] **Step 6: ADR 0021, the index and 0012**
 
 Create `docs/decisions/0021-talos-prod-via-terraform-provider.md`, matching the shape of ADR 0012 (read it and 0019 first):
 
@@ -1125,7 +1125,7 @@ script for them is a follow-up.
 
 Add the row to the table in `docs/decisions/README.md`, after the last row, in the same column format: `| [0021](0021-talos-prod-via-terraform-provider.md) | Talos prod cluster through the Terraform provider, secrets in state | Accepted | 2026-10-01 |`. In ADR 0012, change `**Status:** Accepted (2026-09-26), not yet built` to `**Status:** Accepted (2026-09-26); prod built per [0021](0021-talos-prod-via-terraform-provider.md)`, and in its Consequences paragraph replace the sentences saying prod and `talos/` "remain scaffolding until sub-project 2 …" and that CI "validates only `dev` and `shared`" with one sentence: sub-project 2 built the prod cluster (0021) and CI now validates `prod` with the other two roots. Do not edit 0012's Context or Decision. Also set the index row for 0012 to `Accepted, prod built (0021)`.
 
-- [ ] **Step 7: Fact-check the ADR against the repo**
+- [x] **Step 7: Fact-check the ADR against the repo**
 
 Run each and compare with the ADR text:
 
@@ -1136,7 +1136,7 @@ grep -n 'memory' terraform/environments/prod/prod.tfvars.example
 ```
 Expected: the version, schematic, provider pin and the 2048 sizes in the ADR match the files. Fix the ADR, not the code, if they differ. The controller will also have the ADR independently fact-checked.
 
-- [ ] **Step 8: Check every doc claim**
+- [x] **Step 8: Check every doc claim**
 
 ```bash
 grep -rIn "never-applied\|never applied\|talos-k8s\|talos-vm\|talos/_out\|the Mac\|the laptop" --exclude-dir=.git . | grep -v "^./docs/superpowers/\(specs\|plans\)/"
@@ -1144,7 +1144,7 @@ pre-commit run --all-files
 ```
 Expected: the grep finds nothing (the history in `docs/superpowers/specs` and `plans` is allowed to mention them; the Talos design spec and this plan legitimately contain `talos-k8s` as a name to delete); `pre-commit` passes everywhere. Fix findings.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add docs README.md terraform/README.md CLAUDE.md
@@ -1163,7 +1163,7 @@ the provider-based design; 0012's status points to it."
 - Consumes: Tasks 1-6.
 - Produces: a branch ready for the operator to apply.
 
-- [ ] **Step 1: Full local CI**
+- [x] **Step 1: Full local CI**
 
 ```bash
 pre-commit run --all-files
@@ -1177,7 +1177,7 @@ scripts/check-manifests.sh
 ```
 Expected: all pass (the manifests script needs `kustomize`, `helm`, `yq`, `kubeconform`; if one is missing, say which and skip only that).
 
-- [ ] **Step 2: Nothing secret or generated is tracked or untracked**
+- [x] **Step 2: Nothing secret or generated is tracked or untracked**
 
 ```bash
 git status --porcelain
@@ -1186,14 +1186,14 @@ git check-ignore -v terraform/environments/prod/terraform.tfstate terraform/envi
 ```
 Expected: `git status` is clean; the `ls-files` grep prints only `ansible/secret.yaml`-style encrypted files that were already tracked (none under `terraform/environments/prod`) and `exit=1` or only those; both `check-ignore` lines match a rule.
 
-- [ ] **Step 3: The PR description lists the operator's steps**
+- [x] **Step 3: The PR description lists the operator's steps**
 
 Append to the PR description (body file, then `gh pr edit 66 --body-file <file>`; no generated-with footer) a section "Operator steps, in order" that quotes `docs/rebuild.md` section 2b (pool, ACL, template) and step 16 (init, apply, outputs, `kubectl get nodes`), notes the RAM situation (apply at 2G/2G/2G, grow later), and notes "README says prod runs; true once you apply".
 
-- [ ] **Step 4: Mark ready**
+- [x] **Step 4: Mark ready**
 
 Run: `gh pr ready 66`, then `gh pr view 66 --json isDraft,statusCheckRollup`. Expected: `isDraft: false`; CI checks pending or passing. Report any failing check with its log tail.
 
-- [ ] **Step 5: Commit any fixes made in this task**
+- [x] **Step 5: Commit any fixes made in this task**
 
 If Steps 1-2 needed fixes: commit them with `fix:` or `docs:` subjects and push. Otherwise nothing to commit.
