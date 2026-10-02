@@ -7,6 +7,8 @@
 - name: Bootstrap Python on the LAN service containers
   hosts: lan_services
   gather_facts: false
+  vars:
+    lan_services_first_resolver: "1.1.1.1"
   tasks:
     # The Debian LXC template may ship without python3, which every module
     # but raw needs.
@@ -16,6 +18,31 @@
         (apt-get update -qq && apt-get install -y -qq python3 >/dev/null && echo installed)
       register: lan_services_python
       changed_when: "'installed' in lan_services_python.stdout"
+
+    # Proxmox writes the LXC's nameserver setting into /etc/resolv.conf only
+    # when the container starts, so one that was not restarted after the
+    # order changed keeps the old file, and with the router first the
+    # mgryn.cc names that point at a private address never resolve.
+    # -e lan_services_first_resolver= (empty) skips this, for a container
+    # that is not a Proxmox LXC.
+    - name: Read the first nameserver in resolv.conf
+      ansible.builtin.command:
+        argv: [awk, '/^nameserver/ {print $2; exit}', /etc/resolv.conf]
+      register: lan_services_first_ns
+      changed_when: false
+      check_mode: false
+      when: lan_services_first_resolver | length > 0
+
+    - name: Require 1.1.1.1 to be resolved first
+      ansible.builtin.assert:
+        that: lan_services_first_ns.stdout == lan_services_first_resolver
+        fail_msg: >-
+          {{ inventory_hostname }} resolves through {{ lan_services_first_ns.stdout | default('nothing') }}
+          first. Proxmox applies the nameserver setting only when the
+          container starts: run pct reboot <vmid> on the host (see "Stale
+          resolv.conf after a nameserver change" in docs/operations.md).
+        quiet: true
+      when: lan_services_first_resolver | length > 0
 
 - name: Pi-hole
   hosts: pihole

@@ -572,6 +572,10 @@ from `secret.yaml`.
     its own re-runs, so seeing it at all here means the very first run
     was interrupted before it could.
 
+    The role returns before FTL is serving again (the restart is a
+    handler), so a scripted check right after a run, such as the `dig`
+    above, should retry for about 10 seconds before it calls a failure.
+
     A half-finished install (interrupted before `/usr/local/bin/pihole`
     exists) is safe to resume: re-running the play retries the
     installer from scratch. If it instead insists Pi-hole is already
