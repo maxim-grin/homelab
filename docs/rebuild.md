@@ -202,9 +202,51 @@ Newer Proxmox can replace the `importdisk` + `set --scsi0` pair with a
 single `qm set <vmid> --scsi0 local-lvm:0,import-from=<path>`; the two-step
 form above is what was actually used and is known to work.
 
-The `talos-tp` template hard-coded at `terraform/environments/prod/main.tf:15`
-is likewise absent and undocumented. Nothing applies it, so it can be
-ignored unless that changes.
+### 2b. The Talos pool and template
+
+Only the prod cluster needs these. Neither is created by Terraform.
+
+**Pool and ACL.** Create the pool, then grant `terraform@pve`
+`TerraformProv` on it. The role carries no `Pool.*` privileges, so without
+the per-pool ACL placement fails:
+
+```bash
+pveum pool add Talos-K8s
+pveum aclmod /pool/Talos-K8s -user terraform@pve -role TerraformProv
+```
+
+**Template.** `talos-tp` is the Image Factory `nocloud` disk image with the
+`qemu-guest-agent` extension, imported into a VM and converted to a
+template. Talos has no SSH and no package manager, so the guest agent
+comes from the image, not from a playbook. The version and schematic must
+match `talos_version` and `talos_schematic_id` in
+`terraform/environments/prod/variables.tf` (today `v1.14.2` and
+`ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515`; the
+schematic is the one for `siderolabs/qemu-guest-agent`). On `pve`:
+
+```bash
+TALOS=v1.14.2
+SCHEMATIC=ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515
+cd /var/lib/vz/template/iso
+wget -O talos-nocloud.raw.xz \
+  "https://factory.talos.dev/image/$SCHEMATIC/$TALOS/nocloud-amd64.raw.xz"
+xz -d talos-nocloud.raw.xz
+qm create 5001 --name talos-tp --memory 2048 --cores 2 \
+  --cpu x86-64-v2-AES --machine q35 --ostype l26 \
+  --scsihw virtio-scsi-single --net0 virtio,bridge=vmbr0 \
+  --serial0 socket --agent enabled=1
+qm importdisk 5001 talos-nocloud.raw local-lvm
+qm config 5001 | grep unused      # note the volume name, normally vm-5001-disk-0
+qm set 5001 --scsi0 local-lvm:vm-5001-disk-0,discard=on,iothread=1,ssd=1 \
+  --boot order=scsi0 --ide2 local-lvm:cloudinit
+qm template 5001
+rm talos-nocloud.raw
+```
+
+`terraform@pve` can already clone it because the `TerraformProv` role is
+granted on `/` (section 1), so no per-template ACL is needed. Confirm with
+`qm config 5001`: `agent: enabled=1`, `scsi0` on `local-lvm`, `ide2` a
+cloudinit drive, and no `ipconfig0` on the template itself.
 
 ### 3. Proxmox host assumptions Terraform makes
 
@@ -224,8 +266,8 @@ written into `dev.tfvars`.
 ### 4. Files that live only on the workstation
 
 None of these are in git, by design. They survive an SSD replacement because
-they are on the laptop, not the server — but they do not survive losing the
-laptop, and they are what the rebuild needs.
+they are on the operator's workstation, not the server — but they do not
+survive losing the workstation, and they are what the rebuild needs.
 
 | File                                         | Contains                                                             | If lost                                                                                                                  |
 | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -234,6 +276,8 @@ laptop, and they are what the rebuild needs.
 | `~/.ssh/homelab_dev`                         | The key every VM trusts                                              | No SSH to any VM. Cloud-init injects the _public_ half at create time, so a new key means recreating every VM            |
 | `terraform/environments/dev/terraform.tfstate` | Local backend, 67 KB                                                 | See below                                                                                                                |
 | `terraform/environments/shared/terraform.tfstate` | Local backend for `nfs-01`                                        | See below                                                                                                                |
+| `terraform/environments/prod/prod.tfvars`      | Proxmox API token and the Talos node map                             | Recreate from the committed `prod.tfvars.example`, then fill in the token                                                |
+| `terraform/environments/prod/terraform.tfstate` | Local backend; holds the Talos cluster's PKI and the kubeconfig     | The cluster cannot be managed or reached any more: rebuild it                                                            |
 | The ansible-vault password                   | Unlocks `ansible/secret.yaml`                                        | `secret.yaml` is unrecoverable. It holds `host_ips`, `proxmox_vm_ids`, `nfs_server_ip`, `user_name`, `vault_kv` and the SSH key path |
 | The Vault unseal key                         | Unseals `vault-02` after every reboot                                | No unseal, ever. Vault stays sealed, AVP renders nothing, every app reading a `<path:...>` degrades                     |
 | The Vault root token                         | Auth for `vault kv`, seeding, and configuring auth methods           | Nothing already stored in Vault is lost, but re-seeding or reconfiguring k8s auth needs a new root token from a fresh `vault operator init` |
@@ -250,7 +294,7 @@ reconcile against a machine that is gone and produce confusing errors.
 After the SSD is replaced, discard it rather than fighting it:
 
 ```bash
-for env in shared dev; do
+for env in shared dev prod; do
   cd terraform/environments/$env
   rm terraform.tfstate terraform.tfstate.backup
   terraform init
@@ -258,6 +302,9 @@ for env in shared dev; do
   cd -
 done
 ```
+
+`prod` needs the pool and the `talos-tp` template from section 2b first, and
+its `prod.tfvars` and `backend.tf` from the workstation.
 
 This is safe _because_ nothing in Proxmox survives the disk swap. Never do it
 against a live environment.
@@ -370,10 +417,11 @@ from `secret.yaml`.
 2. **Prepare the host** — section 1: swap the enterprise repo for
    no-subscription, add the admin user, create `terraform@pve` with the
    `TerraformProv` role, issue an API token, and create the `VM`,
-   `Ubuntu-K8s` and `LXC` pools (the `LXC` pool holds the LAN service
-   containers; grant `TerraformProv` on `/pool/LXC` as on the others, or
-   placement fails), and the `glance@pve` read-only token (step 15). Put
-   the Terraform token in `dev.tfvars`.
+   `Ubuntu-K8s`, `LXC` and `Talos-K8s` pools (the `LXC` pool holds the LAN
+   service containers; grant `TerraformProv` on `/pool/LXC` as on the others,
+   or placement fails; `Talos-K8s` is for prod, see section 2b), and the
+   `glance@pve` read-only token (step 15). Put the Terraform token in
+   `dev.tfvars`.
 
    Download the Debian 13 LXC template the LAN services use, and put its
    name in `shared.tfvars` as `debian_lxc_template`:
@@ -651,6 +699,33 @@ from `secret.yaml`.
     router cannot hand out a DNS server, so set `10.0.0.140` as the only
     DNS server in the network settings of each device that should use it
     (see "Pointing a device at Pi-hole" in `docs/operations.md`).
+
+16. **The Talos prod cluster** — section 2b first. Then, from the operator's
+    workstation, in `terraform/environments/prod`:
+
+    ```bash
+    cp prod.tfvars.example prod.tfvars   # fill in the token and the node map
+    cp backend.tf.example backend.tf
+    terraform init
+    terraform apply -var-file=prod.tfvars
+    terraform output -raw kubeconfig > ~/.kube/talos-prod
+    KUBECONFIG=~/.kube/talos-prod kubectl get nodes
+    ```
+
+    Done when `kubectl get nodes` shows three Ready nodes: `talos-prod-cp1`,
+    `talos-prod-w1` and `talos-prod-w2`. The cluster has no workloads; the
+    hub platform is sub-project 3 of the roadmap.
+
+    The cluster's PKI exists only in `terraform.tfstate`, so a lost state
+    means rebuilding the cluster, as for every other environment after an SSD
+    replacement. Fetch `talosconfig` the same way as `kubeconfig` if you need
+    `talosctl`: `terraform output -raw talosconfig > ~/.talos/config`.
+
+    **Resizing a node.** Edit `memory` in `talos_nodes` and apply. The VM
+    keeps running with the old size until restarted, because the module sets
+    `automatic_reboot = false`. One node at a time: `kubectl drain`, then
+    `qm reboot <vmid>` on `pve` (a guest-level `talosctl reboot` does not pick
+    up the new size), then `kubectl uncordon`.
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.

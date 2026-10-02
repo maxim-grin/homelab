@@ -2,9 +2,10 @@
 
 Three Terraform roots, one per state file. `dev` holds the kubeadm
 cluster and `claude-code`; `shared` holds what outlives any one cluster —
-`nfs-01`, `vault-02` and the LAN LXCs; `prod` is never-applied
-scaffolding for the planned Talos cluster (roadmap sub-project 2, ADR
-[0012](../docs/decisions/0012-hub-and-spoke-topology.md)). The layout:
+`nfs-01`, `vault-02` and the LAN LXCs; `prod` is the Talos cluster (roadmap
+sub-project 2, ADRs [0012](../docs/decisions/0012-hub-and-spoke-topology.md)
+and [0021](../docs/decisions/0021-talos-prod-via-terraform-provider.md)). The
+layout:
 
 ```txt
 terraform/
@@ -26,7 +27,7 @@ terraform/
 │   │   ├── shared.tfvars.example
 │   │   ├── variables.tf
 │   │   └── versions.tf
-│   └── prod/                    # never applied; cannot init yet
+│   └── prod/                    # the Talos cluster
 │       ├── .terraform.lock.hcl
 │       ├── backend.tf.example
 │       ├── main.tf
@@ -50,8 +51,11 @@ terraform/
 │   │   ├── outputs.tf
 │   │   ├── variables.tf
 │   │   └── versions.tf
-│   ├── talos-k8s/
-│   ├── talos-vm/
+│   ├── talos-node/
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   │   ├── variables.tf
+│   │   └── versions.tf
 │   ├── ubuntu-k8s/
 │   └── ubuntu-vm/
 └── ...
@@ -93,6 +97,11 @@ cp terraform/environments/shared/shared.tfvars.example terraform/environments/sh
 # same fields as dev.tfvars, plus nfs-01's and vault-02's IPs
 
 cp terraform/environments/shared/backend.tf.example terraform/environments/shared/backend.tf
+
+cp terraform/environments/prod/prod.tfvars.example terraform/environments/prod/prod.tfvars
+# the Proxmox API token, and the Talos node map
+
+cp terraform/environments/prod/backend.tf.example terraform/environments/prod/backend.tf
 ```
 
 `backend.tf` is gitignored alongside `*.tfvars`, for the same reason: it is
@@ -106,7 +115,7 @@ there is no bucket or credential involved in either file.
 ## Initialising an Environment
 
 ```bash
-cd terraform/environments/dev   # or shared
+cd terraform/environments/dev   # or shared, or prod
 terraform init
 ```
 
@@ -134,14 +143,19 @@ terraform plan  -var-file="shared.tfvars"
 terraform apply -var-file="shared.tfvars"
 ```
 
-### Prod — not yet
+### Prod
 
-`environments/prod` has never been applied and cannot `terraform init`:
-it pins `telmate/proxmox` `3.0.2-rc04` and Terraform `~> 1.13.0`, while
-`modules/talos-vm` pins `3.0.2-rc10` and `~> 1.16.0`. Roadmap
-sub-project 2 fixes the pins and builds the Talos cluster; until then CI
-validates only `dev` and `shared`, and nothing here should be extended
-without saying so.
+```bash
+cd terraform/environments/prod
+terraform plan  -var-file="prod.tfvars"
+terraform apply -var-file="prod.tfvars"
+```
+
+The root builds the three-node Talos cluster and is applied from the
+operator's workstation. Its prerequisites, the `Talos-K8s` pool and the
+`talos-tp` template, are in `docs/rebuild.md` section 2b. CI validates it
+with the other two roots. `terraform -chdir=terraform/environments/prod test`
+runs its mock-provider tests.
 
 > Avoid manual changes to Terraform-managed Proxmox resources; use Terraform for drift-free automation.
 >
@@ -153,10 +167,10 @@ without saying so.
 
 ## Module Overview
 
-- **modules/lxc** – reusable module for lightweight Proxmox containers; backs the LAN-service LXCs (`module.lan_service`, vmids 140–144) in `environments/shared`, and prod's never-applied containers.
+- **modules/lxc** – reusable module for lightweight Proxmox containers; backs the LAN-service LXCs (`module.lan_service`, vmids 140–144) in `environments/shared`.
 - **modules/nfs-server** – `ubuntu-vm` plus three data disks (`scsi1` for `nfs-dev`, `scsi2` for `nfs-prod`, `scsi3` for `nfs-backups`); backs `nfs-01` (vmid 103) in `environments/shared`.
 - **modules/vault-vm** – `ubuntu-vm` plus one data disk for Vault's raft store; backs `vault-02` (vmid 105) in `environments/shared`.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
-- **modules/talos-vm** / **modules/talos-k8s** – Talos OS VM modules for Kubernetes control-plane and worker roles; used only by the never-applied prod root.
+- **modules/talos-node** – one Talos VM, a full clone of `talos-tp` with a static cloud-init address; used by `environments/prod`.
 - **modules/ubuntu-k8s** – Ubuntu-based Kubernetes nodes via kubeadm.
 - Additional modules can be added under `modules/` and referenced from environment `main.tf` files.

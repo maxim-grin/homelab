@@ -14,8 +14,7 @@ implemented by this document alone.
 Learning Kubernetes, ArgoCD, Prometheus and Grafana on real
 infrastructure. Where two designs work equally well, the one that
 teaches more of those wins. The layout in `terraform/environments/prod`
-came with the repository from its original author and is not a
-requirement.
+is not a requirement.
 
 Success looks like:
 
@@ -144,7 +143,7 @@ and every service. Pi-hole becomes the router's DNS.
 **2. Prod Talos cluster.** Fix the prod root's provider and Terraform
 pins (`3.0.2-rc04` conflicts with `modules/talos-vm`'s `3.0.2-rc10`),
 build the `talos-tp` template and `Talos-K8s` pool, replace the
-author's LXC modules in `environments/prod/main.tf`, and generate Talos
+old LXC modules in `environments/prod/main.tf`, and generate Talos
 machine configs without committing their secrets. Done when `kubectl get
 nodes` shows three Ready nodes.
 

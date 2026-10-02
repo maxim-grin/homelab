@@ -53,7 +53,7 @@ flowchart TB
         end
 
         subgraph prod["terraform/environments/prod"]
-            talos["Talos cluster .110–.119<br/>ArgoCD + monitoring hub"]:::planned
+            talos["Talos cluster<br/>cp1 .110 · w1 .111 · w2 .112"]
         end
     end
 
@@ -90,6 +90,7 @@ diagram has a static address above that pool.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                                                                                                                                          | not in git — see `docs/rebuild.md`                                                                      |
 | VMs        | k8s master + 2 workers, `claude-code` workstation                                                                                                                               | `terraform/environments/dev`                                                                            |
+| VM         | Talos prod cluster: one control plane and two workers, `.110`–`.112`; nodes only, no workloads yet                                                                              | `terraform/environments/prod`, `terraform/modules/talos-node`                                           |
 | VM         | `nfs-01`, NFS for the dev cluster; its `nfs-prod` share is ready but unexported until prod has nodes                                                                            | `terraform/environments/shared`                                                                         |
 | VM         | `vault-02`, the Vault VM; `kv-dev` in use, `kv-prod` ready but unused                                                                                                           | `terraform/environments/shared`                                                                         |
 | LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `glance` (dashboard) at `.142`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144` | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
@@ -101,13 +102,11 @@ diagram has a static address above that pool.
 | Apps       | monitoring (Prometheus + Grafana); jobboard, the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/`                                                                                          |
 | Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time                                                       | `ansible/roles/vault`, `terraform/environments/shared`                                                  |
 
-**Scope.** One physical machine, one SSD, and one Kubernetes cluster: `dev`.
-There is no `prod` cluster yet. `terraform/environments/prod` and `talos/`
-hold the planned one: a Talos cluster that becomes the hub running ArgoCD
-and monitoring for both clusters, built by sub-project 2 of the
-[roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
-([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)). Until then
-they are never-applied scaffolding.
+**Scope.** One physical machine, one SSD, two Kubernetes clusters: `dev`
+(kubeadm, running the platform today) and `prod` (Talos, three nodes, no
+workloads yet). `prod`'s ArgoCD and monitoring hub arrives in sub-project 3
+of the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
+([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)).
 
 **Rebuilding** after a disk replacement or a total loss starts at
 [docs/rebuild.md](docs/rebuild.md), which lists what this repository does
@@ -154,12 +153,10 @@ argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays per app
                   environments/dev/applications/  Application CRs, synced by root-dev
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, nfs-server,
-                              vault-vm, talos-*
+                              vault-vm, talos-node
                   environments/dev/     the kubeadm cluster and claude-code
                   environments/shared/  nfs-01, vault-02, the LAN LXCs
-                  environments/prod/    never-applied scaffolding
-talos/            Templates for the planned Talos prod cluster — see the
-                  roadmap and ADR 0012.
+                  environments/prod/    the Talos prod cluster
 scripts/          check-manifests.sh (the CI manifests check, runnable
                   locally) and ad-hoc helpers.
 docs/             rebuild.md, operations.md
@@ -196,13 +193,8 @@ secret; it only reads. Four jobs, in parallel:
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes)                                                                                                                       |
 | `commits`    | the conventional-commit hook over every non-merge commit in the PR (PRs only)                                                                                                                                                                                  |
-| `terraform`  | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev` and `terraform/environments/shared`                                                                                                                                   |
+| `terraform`  | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev`, `terraform/environments/shared` and `terraform/environments/prod`                                                                                                                                   |
 | `manifests`  | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind) |
-
-`terraform/environments/prod` is not in the `terraform` job: it cannot
-`terraform init` today, because it pins `telmate/proxmox` `3.0.2-rc04` and
-Terraform `~> 1.13.0` while `modules/talos-vm` pins `3.0.2-rc10` and
-`~> 1.16.0`. It joins the loop when sub-project 2 fixes those pins.
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
 `kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`

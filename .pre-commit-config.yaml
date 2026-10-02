@@ -26,11 +26,8 @@ repos:
       - id: check-yaml
         args: [--allow-multiple-documents]
 
-      # The reason this config exists. talos/_out/talosconfig carried a
-      # client CA, certificate and private key into a public repository
-      # because the ignore rule read talos/secrets.yaml while the file sat
-      # at talos/_out/secrets.yaml. A gitignore typo should not be the only
-      # thing between a key and GitHub.
+      # A gitignore typo should not be the only thing between a private
+      # key and GitHub.
       - id: detect-private-key
 
   # Broader than detect-private-key: catches API tokens, cloud credentials

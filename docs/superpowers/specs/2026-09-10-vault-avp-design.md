@@ -355,8 +355,7 @@ task that lands code without its doc change is not done.
 - `argocd/apps/jobboard/base/secret.yaml.example` -- superseded by the
   committed placeholder manifest.
 - The `argocd/apps/jobboard/base/secret.yaml` line in `.gitignore`, checked
-  with `git check-ignore -v` rather than assumed, per the `talos/_out`
-  incident.
+  with `git check-ignore -v` rather than assumed.
 
 ## Out of scope
 
