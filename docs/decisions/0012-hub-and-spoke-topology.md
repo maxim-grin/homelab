@@ -1,6 +1,6 @@
 # 0012. Hub and spoke: Talos prod hub, kubeadm dev spoke
 
-**Status:** Accepted (2026-09-26), not yet built
+**Status:** Accepted (2026-09-26); prod built per [0021](0021-talos-prod-via-terraform-provider.md)
 
 ## Context
 
@@ -27,12 +27,9 @@ with its own design and PR.
 
 One ArgoCD teaches cluster registration and per-cluster overlays; the
 cost is dev cannot deploy while prod is down, and dev's current ArgoCD has
-to be retired. `terraform/environments/prod` and `talos/` remain
-scaffolding until sub-project 2 fixes the prod root's provider and
-Terraform pins and builds the `talos-tp` template — CLAUDE.md's rule not
-to extend them without saying so stands until then. CI's `terraform` job
-validates only `dev` and `shared` for the same reason; prod joins that
-loop once its root can `terraform init`.
+to be retired. Sub-project 2 built the prod cluster
+([0021](0021-talos-prod-via-terraform-provider.md)), and CI now validates
+`prod` with the other two roots.
 
 ## Related
 

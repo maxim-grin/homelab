@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+mkdir -p "$S/pveam"
+case "${1:-}" in
+  available)
+    echo "system          debian-12-standard_12.7-1_amd64.tar.zst"
+    echo "system          debian-13-standard_13.0-1_amd64.tar.zst"
+    echo "system          debian-13-standard_13.1-2_amd64.tar.zst" ;;
+  list) ls "$S/pveam" ;;
+  download) touch "$S/pveam/$3" ;;
+esac
+exit 0

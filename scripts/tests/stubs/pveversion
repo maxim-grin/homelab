@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+S="${S:?stub state dir not set}"
+mkdir -p "$S"; printf "%s\n" "$(basename "$0") $*" >> "$S/calls.log"
+echo "pve-manager/9.0.3/abc123 (running kernel: 6.14.8-2-pve)"

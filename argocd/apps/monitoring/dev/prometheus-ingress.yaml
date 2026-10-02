@@ -3,11 +3,20 @@ kind: Ingress
 metadata:
   name: prometheus
   namespace: monitoring
+  annotations:
+    # Prometheus ships no authentication of its own, so ingress-nginx
+    # asks for it. The htpasswd line is the prometheus-basic-auth Secret
+    # (from Vault, see prometheus-basic-auth.yaml). This guards the name
+    # only: Grafana reaches Prometheus in-cluster at http://prometheus:9090
+    # and never passes through here, and a NodePort, if one were added,
+    # would bypass it.
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: prometheus-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Prometheus"
 spec:
-  # Prometheus ships no authentication of any kind, so anything that can
-  # reach this name can read every metric -- host names, addresses, pod
-  # labels. Acceptable on this LAN, and no worse than the NodePort it
-  # replaces, but it is not a page to make reachable from anywhere else.
+  # Without authentication anyone who can reach this name could read every
+  # metric -- host names, addresses, pod labels -- so the annotations above
+  # are what keep it a LAN page.
   #
   # The deployment passes only --config.file, --storage.tsdb.path and
   # --storage.tsdb.retention.time: without --web.enable-admin-api or

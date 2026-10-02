@@ -1,0 +1,18 @@
+# Managed by Ansible (roles/glance).
+[Unit]
+Description=Glance dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=glance
+Group=glance
+EnvironmentFile=/etc/glance/glance.env
+WorkingDirectory=/var/lib/glance
+ExecStart=/usr/local/bin/glance -config /etc/glance/glance.yml
+NoNewPrivileges=true
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

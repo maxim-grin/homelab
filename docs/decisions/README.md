@@ -24,7 +24,7 @@ Context or Decision.
 | [0009](0009-ci-reads-only-lint-blocks.md) | CI only reads, and any lint finding fails the build | Accepted | 2026-09-20 |
 | [0010](0010-one-shared-nfs-server.md) | One shared NFS server, a disk per share, mounted by label | Accepted | 2026-09-22 |
 | [0011](0011-vault-on-its-own-vm.md) | Vault on its own VM outside the cluster | Accepted, supersedes [0005](0005-vault-lxc-for-secrets.md) | 2026-09-25 |
-| [0012](0012-hub-and-spoke-topology.md) | Hub and spoke: Talos prod hub, kubeadm dev spoke | Accepted, not yet built | 2026-09-26 |
+| [0012](0012-hub-and-spoke-topology.md) | Hub and spoke: Talos prod hub, kubeadm dev spoke | Accepted, prod built (0021) | 2026-09-26 |
 | [0013](0013-terraform-renames-need-moved-blocks.md) | Every Terraform rename carries a `moved` block | Accepted | 2026-09-27 |
 | [0014](0014-lan-services-as-lxcs.md) | LAN services as one unprivileged LXC each, outside both clusters | Accepted | 2026-09-27 |
 | [0015](0015-gatus-and-glance-over-alternatives.md) | Gatus + Telegram over Uptime Kuma; Glance over Homepage | Accepted (Glance not yet built) | 2026-09-27 |
@@ -32,4 +32,7 @@ Context or Decision.
 | [0017](0017-verify-lan-service-binaries-sha256.md) | Every LAN-service binary is verified by SHA-256 | Accepted | 2026-09-28 |
 | [0018](0018-commit-msg-hook-enforces-rules.md) | Commit rules enforced by a commit-msg hook, not by review | Accepted | 2026-09-29 |
 | [0019](0019-lxc-resolvers-1111-before-router.md) | LXC resolvers: `1.1.1.1` first, then the router, never Pi-hole | Accepted | 2026-09-30 |
-| [0021](0021-renovate-hosted-app.md) | Renovate, as the hosted app, proposes pin updates | Accepted | 2026-10-01 |
+| [0020](0020-pihole-opt-in-per-device.md) | Pi-hole is opt-in per device | Accepted | 2026-10-02 |
+| [0021](0021-talos-prod-via-terraform-provider.md) | Talos prod cluster through the Terraform provider, secrets in state | Accepted | 2026-10-01 |
+| [0022](0022-host-bootstrapped-by-script.md) | Proxmox host bootstrapped by one idempotent script | Accepted | 2026-10-01 |
+| [0023](0023-renovate-hosted-app.md) | Renovate, as the hosted app, proposes pin updates | Accepted | 2026-10-01 |

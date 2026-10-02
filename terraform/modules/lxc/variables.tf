@@ -21,8 +21,7 @@ variable "ostemplate" {
 }
 
 # Optional: with SSH keys injected, a container needs no root password, and
-# leaving it null keeps one out of tfvars and state. prod's never-applied
-# scaffolding still passes one.
+# leaving it null keeps one out of tfvars and state.
 variable "password" {
   description = "Root password for the LXC container; null for key-only access"
   type        = string

@@ -2029,11 +2029,11 @@ gh pr create --base main --head vault-role-rebuild --title "feat: rebuild the va
 
 ### Task 10: Operator steps for PR 3 (repository owner)
 
-Not for agents. On the Mac, after PR 3 merges and `git pull`. Any unexpected output: stop and paste it.
+Not for agents. On the operator's workstation, after PR 3 merges and `git pull`. Any unexpected output: stop and paste it.
 
 - [ ] **Step 1: Collections** — `cd ansible && ansible-galaxy collection install -r requirements.yml` (adds `community.crypto`).
 
-- [ ] **Step 2: Install** — `ansible-playbook -i inventories/shared playbooks/vault.yaml -e @secret.yaml --ask-vault-pass`. Expected: `~/.homelab-ca/{ca.key,ca.crt}` created on the Mac, the data disk formatted `vault-data` and mounted, `/mnt/vault-backups` mounted, Vault running uninitialised.
+- [ ] **Step 2: Install** — `ansible-playbook -i inventories/shared playbooks/vault.yaml -e @secret.yaml --ask-vault-pass`. Expected: `~/.homelab-ca/{ca.key,ca.crt}` created on the operator's workstation, the data disk formatted `vault-data` and mounted, `/mnt/vault-backups` mounted, Vault running uninitialised.
 
 - [ ] **Step 3: Initialise and unseal, by hand on `vault-02`**
 
@@ -2046,12 +2046,12 @@ vault status                                           # Storage Type raft, Seal
 
 - [ ] **Step 4: Configure and seed** — `ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true -e vault_token=<root token>`.
 
-- [ ] **Step 5: The name** — Cloudflare DNS-only record `vault.mgryn.cc` → `10.0.0.133`. Check `/etc/hosts` on the Mac for an old `vault.mgryn.cc` line pointing at `10.0.0.132` and remove it. Then `ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass`.
+- [ ] **Step 5: The name** — Cloudflare DNS-only record `vault.mgryn.cc` → `10.0.0.133`. Check `/etc/hosts` on the operator's workstation for an old `vault.mgryn.cc` line pointing at `10.0.0.132` and remove it. Then `ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass`.
 
 - [ ] **Step 6: Verify** (spec, PR 3)
 
 ```bash
-# on the Mac
+# on the operator's workstation
 openssl s_client -connect vault.mgryn.cc:8200 -CAfile ~/.homelab-ca/ca.crt -verify_hostname vault.mgryn.cc -verify_return_error </dev/null 2>&1 | grep 'Verify return code'
 openssl s_client -connect 10.0.0.133:8200 -CAfile ~/.homelab-ca/ca.crt -verify_ip 10.0.0.133 -verify_return_error </dev/null 2>&1 | grep 'Verify return code'
 kubectl run -it --rm dnscheck --image=busybox:1.36 --restart=Never -- nslookup vault.mgryn.cc
@@ -2271,7 +2271,7 @@ gh pr create --base main --head vault-cutover --title "feat: cut argocd over to 
 
 Not for agents. One sitting.
 
-- [x] **Step 1: Ansible** — on the Mac, from the `vault-cutover` branch (the merge comes second): `ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass`. Then `kubectl -n argocd rollout status deploy/argocd-repo-server`.
+- [x] **Step 1: Ansible** — on the operator's workstation, from the `vault-cutover` branch (the merge comes second): `ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass`. Then `kubectl -n argocd rollout status deploy/argocd-repo-server`.
 - [x] **Step 2: Merge PR 4** at once. Watch `kubectl -n argocd get applications` until `jobboard`, `cert-manager-issuers` and the rest are `Synced`.
 - [x] **Step 3: Verify** — the `curl` this step used to run fails: the
   argocd image has no `curl`. Verify instead with what actually proved the
@@ -2312,7 +2312,7 @@ until qm agent 199 ping; do sleep 2; done
 # the host has no jq -- read the address by hand and take the 10.0.0.x line
 qm guest cmd 199 network-get-interfaces | grep '"ip-address"'
 
-# from the Mac, with the owner's key
+# from the operator's workstation, with the owner's key
 K=~/.ssh/homelab_dev
 ssh -i $K ubuntu@<drill-ip> true
 SNAP=$(ssh -i $K ubuntu@10.0.0.133 'ls -t /mnt/vault-backups/vault-*.snap | head -1')

@@ -77,7 +77,7 @@ prod's root, quietly "fixing" the provider conflict that sub-project 2 is
 meant to fix on purpose. Both paths are in `ignorePaths`.
 
 **When sub-project 2 finishes, remove those entries.** The reminder is in
-`renovate.json5` as a comment, in ADR 0021, and in sub-project 2's "Done
+`renovate.json5` as a comment, in ADR 0023, and in sub-project 2's "Done
 when" line in the roadmap spec.
 
 ## Pins with a companion hash
@@ -103,7 +103,7 @@ Pins with no hash — Actions, providers, Helm charts — open on their own.
 
 ## Documentation
 
-- ADR `docs/decisions/0021-renovate-hosted-app.md`: the hosted choice, the
+- ADR `docs/decisions/0023-renovate-hosted-app.md`: the hosted choice, the
   squash exception, the dashboard gate, the prod exclusion and when to
   lift it.
 - `docs/operations.md`, a section **Updating a pinned version**: how a
@@ -122,7 +122,7 @@ Pins with no hash — Actions, providers, Helm charts — open on their own.
 ## Pull requests
 
 One pull request: `renovate.json5`, the annotation comments, the
-`commits` job change, ADR 0021, and the documentation above.
+`commits` job change, ADR 0023, and the documentation above.
 
 ## Out of scope
 

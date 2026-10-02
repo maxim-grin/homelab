@@ -1,4 +1,4 @@
-# 0021. Renovate, as the hosted app, proposes pin updates
+# 0023. Renovate, as the hosted app, proposes pin updates
 
 **Status:** Accepted (2026-10-01)
 
