@@ -1870,8 +1870,8 @@ Expected: `PARSE OK`; lint passes; no pre-commit failures.
 
 - [x] Task 7 done: `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `pihole_app_password`, `pihole_app_pwhash` in `secret.yaml` on the `lan-glance` checkout; commit and push.
 - [x] `ansible-playbook ... --limit pihole,glance`, then `--limit traefik,gatus` (Glance first, so Gatus never checks a missing backend): `failed=0` each; a second run of both `changed=0`.
-- [ ] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
-- [ ] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
-- [ ] **Pi-hole for clients (optional).** The router cannot hand out a DNS server, so set `10.0.0.140` as the only DNS server on each device that should use Pi-hole (`docs/operations.md`, "Pointing a device at Pi-hole"). On one phone or laptop: it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
-- [ ] `pct stop 140`: Telegram alert within about two minutes (two check intervals); `pct start 140`: recovery. Only the devices pointed at Pi-hole are without DNS in between.
-- [ ] `gh pr ready <N>`; the owner merges. Sub-project 1's "Done means" list in the spec is then met, except the sealed-Vault alert, which is proven by its condition (`[STATUS] == 200` against a 503) rather than by sealing Vault.
+- [x] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
+- [x] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
+- [x] **Pi-hole for clients (optional).** The router cannot hand out a DNS server, so set `10.0.0.140` as the only DNS server on each device that should use Pi-hole (`docs/operations.md`, "Pointing a device at Pi-hole"). On one phone or laptop: it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
+- [x] `pct stop 140`: Telegram alert within about two minutes (two check intervals); `pct start 140`: recovery. Only the devices pointed at Pi-hole are without DNS in between.
+- [x] `gh pr ready <N>`; the owner merges. Sub-project 1's "Done means" list in the spec is then met, except the sealed-Vault alert, which is proven by its condition (`[STATUS] == 200` against a 503) rather than by sealing Vault.
