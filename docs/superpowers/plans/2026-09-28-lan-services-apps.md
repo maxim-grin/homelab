@@ -740,7 +740,7 @@ Expected: `PARSE OK`; ansible-lint passes; no pre-commit failures.
 - [x] `https://status.hl.mgryn.cc` asks for the Gatus login; after it, a valid certificate and every endpoint green within about two minutes (two check intervals).
 - [x] `pct stop 140` on the host: a Telegram alert for "Pi-hole DNS" (and `pihole.hl.mgryn.cc`) within about two minutes (two check intervals). `pct start 140`: a recovery message.
 - [x] **LAN Orangutan's raw-socket check, before PR 5 is written** (the spec requires it). On the host: `pct exec 144 -- sh -c 'apt-get update -qq && apt-get install -y -qq nmap >/dev/null && nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"'` prints a number close to the device count, and, as a normal user with capabilities: `pct exec 144 -- setpriv --reuid=nobody --regid=nogroup --clear-groups --inh-caps=+net_raw,+net_admin --ambient-caps=+net_raw,+net_admin env NMAP_PRIVILEGED=1 nmap -sn -PR 10.0.0.0/24 | grep -c "MAC Address"` prints a similar number. Record both numbers in the PR. If either is `0`, stop: PR 5 needs `orangutan` privileged, which is a Terraform change and a new plan decision.
-- [ ] `gh pr ready <N>`; the owner merges.
+- [x] `gh pr ready <N>`; the owner merges.
 
 ---
 
@@ -1156,11 +1156,11 @@ Expected: `PARSE OK`; lint passes; no pre-commit failures.
 
 ### Task 6: Operator — LAN Orangutan (owner, not an agent)
 
-- [ ] On the `lan-orangutan` checkout: add `orangutan_password` to `secret.yaml`; commit and push.
-- [ ] `ansible-playbook ... --limit traefik,gatus,orangutan`: `failed=0`; a second run `changed=0`.
-- [ ] `https://lan.hl.mgryn.cc` asks for the password; after it, within five minutes, the device list shows roughly the twenty devices Task 3's count found, with MACs and vendors.
-- [ ] `https://status.hl.mgryn.cc` shows `lan.hl.mgryn.cc` green.
-- [ ] `gh pr ready <N>`; the owner merges.
+- [x] On the `lan-orangutan` checkout: add `orangutan_password` to `secret.yaml`; commit and push.
+- [x] `ansible-playbook ... --limit traefik,gatus,orangutan`: `failed=0`; a second run `changed=0`.
+- [x] `https://lan.hl.mgryn.cc` asks for the password; after it, within five minutes, the device list shows roughly the twenty devices Task 3's count found, with MACs and vendors.
+- [x] `https://status.hl.mgryn.cc` shows `lan.hl.mgryn.cc` green.
+- [x] `gh pr ready <N>`; the owner merges.
 
 ---
 
@@ -1866,8 +1866,8 @@ Expected: `PARSE OK`; lint passes; no pre-commit failures.
 
 ### Task 11: Operator — Glance and the cutover (owner, not an agent)
 
-- [ ] Task 7 done: `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `pihole_app_password`, `pihole_app_pwhash` in `secret.yaml` on the `lan-glance` checkout; commit and push.
-- [ ] `ansible-playbook ... --limit pihole,glance`, then `--limit traefik,gatus` (Glance first, so Gatus never checks a missing backend): `failed=0` each; a second run of both `changed=0`.
+- [x] Task 7 done: `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `pihole_app_password`, `pihole_app_pwhash` in `secret.yaml` on the `lan-glance` checkout; commit and push.
+- [x] `ansible-playbook ... --limit pihole,glance`, then `--limit traefik,gatus` (Glance first, so Gatus never checks a missing backend): `failed=0` each; a second run of both `changed=0`.
 - [ ] `https://home.hl.mgryn.cc`: every VM and LXC with status and memory, Pi-hole's query and block counts, Gatus's endpoints, the monitor all green except anything genuinely down, bookmarks.
 - [ ] `https://status.hl.mgryn.cc` shows `home.hl.mgryn.cc` green.
 - [ ] **Cutover.** Record the router's current DHCP DNS setting in `docs/operations.md` ("DNS cutover rollback"), commit and push it to this branch. Set it to `10.0.0.140` only. Renew a phone's lease (toggle Wi-Fi): it appears by name in Pi-hole's query log, and an ad-heavy site shows blocked queries.
