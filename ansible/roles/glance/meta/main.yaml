@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: homelab
+  description: Glance dashboard for the homelab
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Debian
+      versions:
+        - trixie
+dependencies: []

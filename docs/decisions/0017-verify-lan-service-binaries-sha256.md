@@ -34,6 +34,17 @@ written before the LAN services — `vault`, `kube_packages`, `workstation`,
 and the AVP binary `curl`'d in `roles/argocd` — still fetch their
 downloads with no checksum verification at all.
 
+## Update (2026-10-01): CI downloads follow the same rule
+
+`.github/workflows/ci.yaml` fetched gitleaks, kustomize, kubeconform and
+yq with `curl` and no verification, in a job that holds a repository
+checkout. Each now has a `*_SHA256` next to its `*_VERSION` in the
+workflow's `env` block, taken from GitHub's per-asset digest, and
+`sha256sum --strict -c` checks the download before it is unpacked.
+`--strict` matters: without it GNU `sha256sum` exits 0 on a malformed
+checksum line, such as an empty variable. A version bump there needs a
+new digest as well, with the `gh api` command in the workflow's comment.
+
 ## Related
 
 `docs/superpowers/specs/2026-09-27-lan-services-design.md` "Ansible";

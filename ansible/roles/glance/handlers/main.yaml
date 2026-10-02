@@ -1,0 +1,10 @@
+---
+- name: Update the CA trust store
+  ansible.builtin.command: update-ca-certificates
+  changed_when: true
+
+- name: Restart glance
+  ansible.builtin.systemd_service:
+    name: glance
+    state: restarted
+    daemon_reload: true
