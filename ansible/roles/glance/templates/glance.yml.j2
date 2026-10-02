@@ -1,5 +1,6 @@
-# Managed by Ansible (roles/glance). Glance reloads this file on change.
-# ${...} values come from /etc/glance/glance.env.
+# Managed by Ansible (roles/glance).
+# ${...} values come from /etc/glance/glance.env, which holds each secret
+# escaped for a YAML double-quoted string, so every use is quoted here.
 server:
   host: 0.0.0.0
   port: {{ glance_port }}
@@ -13,7 +14,7 @@ pages:
           - type: dns-stats
             service: pihole-v6
             url: {{ glance_pihole_url }}
-            password: ${GLANCE_PIHOLE_PASSWORD}
+            password: "${GLANCE_PIHOLE_PASSWORD}"
           - type: bookmarks
             groups:
               - title: Homelab
@@ -42,7 +43,7 @@ pages:
             # Proxmox's certificate is self-signed.
             allow-insecure: true
             headers:
-              Authorization: PVEAPIToken=${GLANCE_PROXMOX_TOKEN}
+              Authorization: "PVEAPIToken=${GLANCE_PROXMOX_TOKEN}"
             template: |
 {% raw %}
               <ul class="list list-gap-8">
@@ -64,8 +65,8 @@ pages:
             # pageSize=1: each endpoint's results carry only its latest check.
             url: {{ glance_gatus_url }}/api/v1/endpoints/statuses?page=1&pageSize=1
             basic-auth:
-              username: ${GLANCE_GATUS_USER}
-              password: ${GLANCE_GATUS_PASSWORD}
+              username: "${GLANCE_GATUS_USER}"
+              password: "${GLANCE_GATUS_PASSWORD}"
             template: |
 {% raw %}
               <ul class="list list-gap-8">

@@ -83,7 +83,8 @@
     state: link
   notify: Restart glance
 
-# No restart: Glance reloads its config file on change.
+# Restart rather than rely on Glance's config hot-reload, which is unverified
+# and would not re-read the env file anyway.
 - name: Write the configuration
   ansible.builtin.template:
     src: glance.yml.j2
@@ -91,6 +92,7 @@
     owner: root
     group: glance
     mode: "0640"
+  notify: Restart glance
 
 - name: Write the secrets
   ansible.builtin.template:

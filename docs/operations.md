@@ -97,7 +97,9 @@ order changed keeps the old file. Symptoms: `*.hl.mgryn.cc`, `vault` and
 `jobs` fail to resolve in that container (public names still work), and
 Glance's Services widget shows ERROR for every hostname.
 
-Check all five after any change to `nameserver`:
+The LAN services playbook's first play fails on a host whose first
+nameserver is not `1.1.1.1`, with this fix in the message. Check all five
+by hand after any change to `nameserver`:
 
 ```bash
 for id in 140 141 142 143 144; do echo "== $id"; pct exec $id -- cat /etc/resolv.conf; done
