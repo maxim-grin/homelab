@@ -67,7 +67,7 @@ flowchart TB
     lan -- "jobs.mgryn.cc" --> ingress
     ingress --> jobboard
 
-    lan -- "DNS" --> pihole
+    lan -. "DNS, devices that opt in" .-> pihole
     lan -- "*.hl.mgryn.cc" --> traefik
     traefik --> glance
     traefik --> gatus
@@ -127,9 +127,10 @@ DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
 `pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
 straight at `vault-02`. The other cluster names — `argocd`, `grafana`,
 `prometheus` — resolve through `/etc/hosts` on the workstation, pointing
-at a node IP since ingress-nginx answers on every node. Every other LAN
-device resolves through Pi-hole (`10.0.0.140`), which the router's DHCP
-hands out. There is no Cloudflare Tunnel.
+at a node IP since ingress-nginx answers on every node. Pi-hole
+(`10.0.0.140`) answers only the devices pointed at it by hand, because
+the router cannot advertise a DNS server; the rest resolve through the
+router. There is no Cloudflare Tunnel.
 
 `jobs.mgryn.cc` and `*.hl.mgryn.cc` are served over HTTPS with their own
 Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT record

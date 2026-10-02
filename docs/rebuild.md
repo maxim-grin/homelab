@@ -643,10 +643,10 @@ from `secret.yaml`.
     getent hosts vault.mgryn.cc` should answer. See "Stale resolv.conf
     after a nameserver change" in `docs/operations.md`.
 
-    **Cutover** — last, once Gatus is watching Pi-hole: record the router's
-    current DHCP DNS setting under "DNS cutover rollback" in
-    `docs/operations.md`, then set it to `10.0.0.140` alone. Rollback is
-    that recorded setting.
+    **Pi-hole for clients** — last, once Gatus is watching Pi-hole: the
+    router cannot hand out a DNS server, so set `10.0.0.140` as the only
+    DNS server in the network settings of each device that should use it
+    (see "Pointing a device at Pi-hole" in `docs/operations.md`).
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.

@@ -32,4 +32,4 @@ Context or Decision.
 | [0017](0017-verify-lan-service-binaries-sha256.md) | Every LAN-service binary is verified by SHA-256 | Accepted | 2026-09-28 |
 | [0018](0018-commit-msg-hook-enforces-rules.md) | Commit rules enforced by a commit-msg hook, not by review | Accepted | 2026-09-29 |
 | [0019](0019-lxc-resolvers-1111-before-router.md) | LXC resolvers: `1.1.1.1` first, then the router, never Pi-hole | Accepted | 2026-09-30 |
-| [0020](0020-pihole-sole-lan-dns.md) | Pi-hole is the LAN's only DNS server | Accepted | 2026-10-01 |
+| [0020](0020-pihole-opt-in-per-device.md) | Pi-hole is opt-in per device | Accepted | 2026-10-02 |

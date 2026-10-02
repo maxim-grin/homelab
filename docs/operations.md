@@ -107,14 +107,15 @@ for id in 140 141 142 143 144; do echo "== $id"; pct exec $id -- cat /etc/resolv
 Traefik reboot takes every `*.hl.mgryn.cc` route down for about a second.
 Then `pct exec <id> -- getent hosts vault.mgryn.cc` answers.
 
-## DNS cutover rollback
+## Pointing a device at Pi-hole
 
-The router's DHCP hands out `10.0.0.140` (Pi-hole) as the only DNS
-server (record [0020](decisions/0020-pihole-sole-lan-dns.md)). If
-Pi-hole cannot be restarted, put the router back the way it was.
+The router's admin page offers only a DHCP address range, so it cannot
+hand out Pi-hole's address (record
+[0020](decisions/0020-pihole-opt-in-per-device.md)). A device uses Pi-hole
+only when its own network settings name `10.0.0.140` as the DNS server;
+set it to that alone, with no second server, or the device will bypass
+Pi-hole at will. Everything else keeps resolving through the router.
 
-Router DHCP DNS before the cutover: _record it here when the cutover is
-done_
-
-To roll back, set the router's DHCP DNS to that value, then renew leases
-on the devices that matter (or wait out the lease time).
+To undo it, set the device's DNS back to automatic. If Pi-hole cannot be
+restarted, do that on the opted-in devices; the rest of the LAN is
+unaffected.
