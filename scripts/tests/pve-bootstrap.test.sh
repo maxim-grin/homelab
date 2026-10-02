@@ -195,6 +195,29 @@ test_token_exists() {
   assert_out_contains "already exists"
 }
 
+test_glance_first_run() {
+  run_script glance
+  assert_rc 0
+  assert_calls_contain 'pveum user add glance@pve'
+  assert_calls_contain 'pveum aclmod / -user glance@pve -role PVEAuditor'
+  assert_calls_contain 'pveum user token add glance@pve glance --privsep 0'
+  assert_out_contains "$FAKE_TOKEN"
+  assert_out_contains 'glance_proxmox_token_id: "glance@pve!glance"'
+}
+
+test_glance_token_exists() {
+  mkdir -p "$S/users" "$S/tokens"
+  touch "$S/users/glance@pve" "$S/tokens/glance@pve!glance"
+  printf 'glance@pve / 1 PVEAuditor user\n' > "$S/acl"
+  run_script glance
+  assert_rc 0
+  assert_calls_lack 'pveum user add'
+  assert_calls_lack 'user token add'
+  assert_calls_lack 'pveum aclmod'
+  assert_out_lacks "$FAKE_TOKEN"
+  assert_out_contains "already exists"
+}
+
 test_pools_idempotent() {
   local p
   run_script pools

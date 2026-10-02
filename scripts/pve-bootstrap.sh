@@ -2,7 +2,8 @@
 # pve-bootstrap.sh - bring a fresh Proxmox VE 9 install to the state that
 # `terraform apply` assumes: package repositories, the operator and Terraform
 # users, the TerraformProv role and API token, resource pools with their ACLs,
-# the Debian LXC template, and the VM templates every machine clones. Every
+# Glance's read-only API token, the Debian LXC template, and the VM templates
+# every machine clones. Every
 # step checks what exists first, so a re-run creates nothing: it only sets the
 # TerraformProv privilege list again (reported "changed"), and every other
 # step reports "skipped". Values that belong in tfvars are printed at the end. Secrets are never written to a file
@@ -12,7 +13,7 @@
 # Usage: bash pve-bootstrap.sh [--dry-run] [step ...]
 #
 # Steps (default: all, in this order):
-#   repos  users  pools  lxc-template  ubuntu-template  talos-template
+#   repos  users  pools  glance  lxc-template  ubuntu-template  talos-template
 set -euo pipefail
 set +x # never trace: the operator password passes through this script
 
@@ -38,13 +39,19 @@ VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network \
 VM.Config.Options Sys.Audit VM.GuestAgent.Audit VM.Audit VM.PowerMgmt \
 Datastore.AllocateSpace Datastore.Audit"
 
-ALL_STEPS=(repos users pools lxc-template ubuntu-template talos-template)
+# Glance only reads: PVEAuditor is Proxmox's built-in read-only role.
+GLANCE_USER="glance@pve"
+GLANCE_ROLE="PVEAuditor"
+GLANCE_TOKEN="glance"
+
+ALL_STEPS=(repos users pools glance lxc-template ubuntu-template talos-template)
 
 DRY_RUN=0
 CREATED=()
 CHANGED=()
 SKIPPED=()
 TFVARS=()
+SECRETS=()
 
 # ---- helpers ---------------------------------------------------------------
 
@@ -243,6 +250,27 @@ step_users() {
   TFVARS+=("pm_api_token_id = \"$TF_USER!$TF_TOKEN\"")
 }
 
+step_glance() {
+  if pvesh get "/access/users/$GLANCE_USER" > /dev/null 2>&1; then
+    note_skipped "pve user $GLANCE_USER"
+  else
+    run pveum user add "$GLANCE_USER" -comment "Glance dashboard, read-only"
+    note_created "pve user $GLANCE_USER"
+  fi
+  ensure_acl / "$GLANCE_USER" "$GLANCE_ROLE"
+
+  if pvesh get "/access/users/$GLANCE_USER/token/$GLANCE_TOKEN" > /dev/null 2>&1; then
+    echo "token $GLANCE_USER!$GLANCE_TOKEN already exists; Proxmox cannot show its secret again." >&2
+    echo "to rotate: pveum user token remove $GLANCE_USER $GLANCE_TOKEN, then re-run this step." >&2
+    note_skipped "token $GLANCE_USER!$GLANCE_TOKEN"
+  else
+    echo "Creating API token. The secret below is shown once; copy it into glance_proxmox_token_secret."
+    run pveum user token add "$GLANCE_USER" "$GLANCE_TOKEN" --privsep 0
+    note_created "token $GLANCE_USER!$GLANCE_TOKEN"
+  fi
+  SECRETS+=("glance_proxmox_token_id: \"$GLANCE_USER!$GLANCE_TOKEN\"")
+}
+
 step_pools() {
   local pool
   local -a pools
@@ -382,6 +410,13 @@ summary() {
       echo "$v"
     done
   fi
+  if [ "${#SECRETS[@]}" -gt 0 ]; then
+    echo
+    echo "== values for ansible/secret.yaml (the secret is shown above, once) =="
+    for v in "${SECRETS[@]}"; do
+      echo "$v"
+    done
+  fi
 }
 
 usage() {
@@ -389,7 +424,7 @@ usage() {
 usage: bash pve-bootstrap.sh [--dry-run] [step ...]
 
 steps (default: all, in this order):
-  repos  users  pools  lxc-template  ubuntu-template  talos-template
+  repos  users  pools  glance  lxc-template  ubuntu-template  talos-template
 
 --dry-run  print the commands that would change something, change nothing
 -h, --help show this help

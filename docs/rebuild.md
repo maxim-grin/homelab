@@ -33,8 +33,8 @@ bash pve-bootstrap.sh
 
 Name steps to run only those, for example
 `bash pve-bootstrap.sh pools talos-template`. The steps are `repos`,
-`users`, `pools`, `lxc-template`, `ubuntu-template` and `talos-template`,
-run in that order by default. The script warns if the node is not named
+`users`, `pools`, `glance`, `lxc-template`, `ubuntu-template` and
+`talos-template`, run in that order by default. The script warns if the node is not named
 `pve` (every tfvars file assumes it).
 
 What to expect from a run:
@@ -403,10 +403,11 @@ from `secret.yaml`.
    swaps the enterprise repo for no-subscription, adds the admin user,
    creates `terraform@pve` with the `TerraformProv` role and an API token,
    creates the `VM`, `Ubuntu-K8s`, `LXC` and `Talos-K8s` pools with their
-   ACLs, and downloads the Debian 13 LXC template. Put the token in
-   `dev.tfvars`, and the template name the script prints in `shared.tfvars`
-   as `debian_lxc_template`. The script does not create the `glance@pve`
-   read-only token; that is a manual step before Glance (step 15).
+   ACLs, creates the read-only `glance@pve` API token for Glance (the
+   `glance` step), and downloads the Debian 13 LXC template. Put the
+   Terraform token in `dev.tfvars`, the template name the script prints in
+   `shared.tfvars` as `debian_lxc_template`, and Glance's token id and
+   secret in `secret.yaml` (step 15).
 3. **Build the cloud-init template** — section 2. The same script builds it
    (the `ubuntu-template` step, part of a full run) under the name
    `clone_template_ubuntu` expects.
@@ -655,12 +656,13 @@ from `secret.yaml`.
 
     **Glance** needs, before its play:
 
-    - a read-only Proxmox token: on the host, `pveum user add glance@pve`,
-      `pveum acl modify / --users glance@pve --roles PVEAuditor`,
-      `pveum user token add glance@pve glance --privsep 0`; the id
-      `glance@pve!glance` and the secret it prints once go into
-      `secret.yaml` as `glance_proxmox_token_id` and
-      `glance_proxmox_token_secret`;
+    - a read-only Proxmox token: the `glance` step of `pve-bootstrap.sh`
+      creates `glance@pve` with the built-in `PVEAuditor` role and the
+      token `glance`; the id `glance@pve!glance` and the secret it prints
+      once go into `secret.yaml` as `glance_proxmox_token_id` and
+      `glance_proxmox_token_secret`. If the token already exists its
+      secret cannot be shown again: `pveum user token remove glance@pve
+      glance`, then re-run `bash pve-bootstrap.sh glance`;
     - Pi-hole's application password, kept from before the rebuild — both
       `pihole_app_password` and `pihole_app_pwhash` are in `secret.yaml`,
       and the Pi-hole play applies the hash. Only if they were lost:
