@@ -90,6 +90,87 @@ a NodePort: `http://10.0.0.111:32080`, or
 [rebuild.md](rebuild.md), step 17
 ([ADR 0024](decisions/0024-hub-in-prod.md)).
 
+## Alerts
+
+Prod's Prometheus evaluates the rules; Alertmanager sends them to the
+same Telegram chat as Gatus ([ADR 0024](decisions/0024-hub-in-prod.md)).
+The first word of a message is the header, taken from the highest
+severity still firing in that group:
+
+| Header     | Meaning                                                                   |
+| ---------- | ------------------------------------------------------------------------- |
+| `PAGE`     | a `critical` alert; look now. Repeats every 4h while it fires             |
+| `TICKET`   | a `warning` alert; fix in working hours. Repeats every 12h while it fires |
+| `RESOLVED` | the group stopped firing                                                  |
+
+Alerts group by alert name and namespace, so one message can list
+several (at most six, then a total). `Watchdog` always fires, by design,
+and goes to a `null` receiver: it proves the pipeline is alive, so its
+absence from Alertmanager's alert list is the failure, not its silence in
+Telegram. Besides the rules below, the chart's own defaults are active
+(`KubeNodeNotReady`, `KubePodCrashLooping`, `TargetDown` and the rest).
+
+Rules this repo defines, in `argocd/apps/alerts/prod/rules.yaml`:
+
+| Alert                                | Meaning                                                               | First check                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `CertificateExpiringSoon`            | a certificate expires within 14 days; renewal is failing              | `kubectl -n <ns> describe certificate <name>`, then its Order                |
+| `CertificateNotReady`                | a Certificate is `False` or `Unknown` for 15m                         | same; for DNS-01, the Cloudflare token in Vault                              |
+| `NfsProvisionerUnavailable`          | no available `nfs-client-provisioner` replica in `nfs-system`         | `kubectl -n nfs-system describe deployment`; `showmount -e` on `nfs-01`      |
+| `PrometheusStorageNearRetentionSize` | TSDB above 80% of `retentionSize`; size now decides retention         | series growing fastest, or raise `retentionSize` and the claim together      |
+| `IngressNginxMetricsAbsent`          | no ingress-nginx controller scraped for 15m; SLO alerts are blind     | the PodMonitor selector, `controller.metrics.enabled`                        |
+| `CertManagerMetricsAbsent`           | cert-manager controller not scraped for 15m; certificate alerts blind | the PodMonitor selector and the `http-metrics` port                          |
+| `IngressErrorBudgetBurnFast`         | `critical`: an Ingress burns its 99% / 30d budget at 14.4x (5m, 1h)   | `kubectl -n <ns> get pods,endpoints`; a 502/503 without endpoints is the app |
+| `IngressErrorBudgetBurnSlow`         | `warning`: the same at 6x (30m, 6h)                                   | the app's restarts, timeouts and logs                                        |
+
+The two burn alerts need at least 30 (1h) and 60 (6h) requests in their
+long window, so a quiet Ingress cannot fire them. A `data%` alert for the
+Proxmox thin pool is not defined yet: it waits for the operator to
+observe the `pve-exporter` series (`docs/rebuild.md` step 19.4).
+
+**Inspecting and silencing.** Alertmanager and Prometheus have no
+Ingress. Port-forward from the operator's workstation, with `$PROD_KC`
+extracted as in the section above:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
+  svc/monitoring-kube-prometheus-alertmanager 9093
+kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
+  svc/monitoring-kube-prometheus-prometheus 9090
+```
+
+`http://localhost:9093` lists alerts and takes silences; `/targets` on
+9090 shows every scrape target and `/alerts` the rules' state. With
+`amtool`: `amtool silence add alertname=<name> --duration 2h
+--comment "<why>" --alertmanager.url=http://localhost:9093`, and
+`amtool silence expire <id>` to end one early.
+
+**Editing routes.** The whole Alertmanager configuration is the Secret
+`alertmanager-config` in
+`argocd/apps/monitoring-secrets/prod/alertmanager-config-secret.yaml`.
+Change it in a pull request; the merge deploys it. Keep `chat_id`
+unquoted: AVP substitutes a bare integer, and a quoted one is a string
+that Alertmanager rejects. Alertmanager keeps running the old
+configuration if the new one fails to parse, so after a merge check its
+log for `Loading configuration file failed`.
+
+**A Telegram message does not arrive.** In order:
+
+1. Alertmanager's alert list (port-forward above): is the alert there?
+   If not, the rule or the scrape is the problem, not Telegram.
+2. Notification errors:
+   `kubectl --kubeconfig "$PROD_KC" -n monitoring logs
+   alertmanager-monitoring-kube-prometheus-alertmanager-0 -c alertmanager
+   | grep -i "notify\|telegram\|error"`. A rejected message names
+   Telegram's reason; a bad bot token or chat id shows here.
+3. The Secret rendered: `kubectl --kubeconfig "$PROD_KC" -n monitoring
+   get secret alertmanager-config -o jsonpath='{.data.alertmanager\.yaml}'
+   | base64 -d | grep -c '<path:'` must print `0`. A literal
+   placeholder means AVP did not render it.
+4. Vault unsealed: `vault status` on `vault-02`. A sealed Vault leaves
+   `monitoring-secrets` `Unknown` on sync status; unseal, then sync by
+   hand as in `docs/rebuild.md` step 18.2.
+
 ## jobboard image version
 
 jobboard is the owner's own web application, deployed here with its

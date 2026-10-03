@@ -994,6 +994,81 @@ from `secret.yaml`.
     Nothing deletes them: `kubectl delete pv <name>`, then remove the
     directory on `nfs-01` once the data is not wanted.
 
+19. **Alerting rollout** — the Proxmox exporter, scrapes and alert rules,
+    delivered by `root-prod` once PR 4 (hub-alerting) is on `main`
+    ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
+    workstation, with `$PROD_KC` extracted as in step 17.1
+    (`rm "$PROD_KC"` when done). Prerequisite: step 18 done.
+
+    1. The exporter's Proxmox token. On the Proxmox host, as root, run
+       the script's `pve-exporter` step alone:
+
+       ```bash
+       bash pve-bootstrap.sh pve-exporter
+       ```
+
+       It creates `pve-exporter@pve` with the `PVEAuditor` role (read
+       only) and a token named `pve-exporter`, and prints the token
+       secret once. Copy it into `secret.yaml`'s `kv-prod` block, under
+       `monitoring/pve-exporter`: `PVE_USER` (`pve-exporter@pve`),
+       `PVE_TOKEN_NAME` (`pve-exporter`), `PVE_TOKEN_VALUE` (the printed
+       secret) and `PVE_TARGET` (the Proxmox host's address). Then seed
+       Vault with the command in step 17's prerequisites. If the secret
+       was not copied, delete the token (`pveum user token remove
+       pve-exporter@pve pve-exporter`) and run the step again.
+
+    2. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, are in
+       wave 6, after `monitoring` (5) and `monitoring-secrets` (4), which
+       own the CRDs and the namespace; both carry finite retries for the
+       race, and a sealed Vault is handled as in step 18.2.
+
+    3. Targets. Expect `pve-exporter` and `alerts` `Synced` and `Healthy`:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+       kubectl --kubeconfig "$PROD_KC" -n monitoring get pod -l app.kubernetes.io/name=pve-exporter
+       kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
+         svc/monitoring-kube-prometheus-prometheus 9090
+       ```
+
+       The `pve-exporter` pod is `Ready`. On `http://localhost:9090/targets`
+       the pve-exporter, `monitoring/ingress-nginx-controller` and
+       `monitoring/cert-manager-controller` targets are `UP`. A pve-exporter
+       target that is `DOWN` with a 401 means the token fields in Vault are
+       wrong; with a timeout, `PVE_TARGET` is.
+
+    4. The pool rule, held until the series is seen. In Prometheus, query
+       for the `local-lvm` storage series. Expected `pve_disk_size_bytes`
+       and `pve_disk_usage_bytes` with an `id` like
+       `storage/<node>/local-lvm`; that is unconfirmed. Paste the series
+       actually observed into a follow-up PR, then add the rule (alert
+       when used over size is above 0.8 for 10m, `severity: warning`) to
+       `argocd/apps/alerts/prod/rules.yaml`, with a `promtool check
+       rules` and a `promtool test rules` unit test, and merge.
+
+    5. Prove Telegram. With Alertmanager port-forwarded
+       (`svc/monitoring-kube-prometheus-alertmanager 9093`), `Watchdog`
+       is firing:
+
+       ```bash
+       amtool alert query --alertmanager.url=http://localhost:9093 | grep Watchdog
+       amtool alert add testalert severity=warning namespace=monitoring \
+         --alertmanager.url=http://localhost:9093
+       ```
+
+       Expect a Telegram message headed `TICKET testalert in monitoring`
+       within about 2 minutes (30s group wait plus delivery). `Watchdog`
+       itself never reaches Telegram. Remove the test alert: let it
+       expire, or silence it with `amtool silence add alertname=testalert
+       --duration 10m --comment test --alertmanager.url=http://localhost:9093`.
+       A `RESOLVED` message follows when it ends. No message: the
+       checklist in `docs/operations.md`, "A Telegram message does not
+       arrive".
+
+    6. Record the thin pool's `data%` (`lvs -o lv_name,data_percent pve`,
+       the `data` volume) and `free -m` on `pve`, with `available` above
+       1000 MiB, in the PR that adds the pool rule.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
