@@ -26,9 +26,10 @@ immutable.
 ## Consequences
 
 dev and prod now have independent free-space pools and client lists, and
-a `terraform destroy` of dev cannot touch prod's disk. `nfs-prod` has no
-export line until prod has nodes — an export with no client list is
-exported to everyone. The VM itself was adopted in place, same vmid and
+a `terraform destroy` of dev cannot touch prod's disk. `nfs-prod` is
+exported to the two prod workers only (`talos-w1`, `talos-w2`); an
+export with no client list is exported to everyone, so the role omits
+the line when the list is empty. The VM itself was adopted in place, same vmid and
 IP, but its data still had to move: auto-sync was disabled on the apps
 using it, their stateful workloads and the provisioner scaled to 0, the
 old export rsynced onto the new `nfs-dev` disk, `nfs-server` restarted
