@@ -194,27 +194,27 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 **Interfaces:**
 - Produces: StorageClass `nfs-prod`, default; the provisioner's NFS server `10.0.0.<nfs-01>` and path `/srv/nfs/prod`, both taken from `host_ips` / the nfs_server role defaults, not from the old overlay.
 
-- [ ] Check every field of the leftover overlay against current values (server, path, image tag, namespace); fix what is stale. Add the `argocd.argoproj.io/sync-wave` annotation that orders it first.
-- [ ] Verify: `kustomize build argocd/apps/nfs_provisioner/prod`; `scripts/check-manifests.sh`.
-- [ ] Commit `feat: nfs-prod storage class on the prod cluster`.
+- [x] Check every field of the leftover overlay against current values (server, path, image tag, namespace); fix what is stale. Add the `argocd.argoproj.io/sync-wave` annotation that orders it first.
+- [x] Verify: `kustomize build argocd/apps/nfs_provisioner/prod`; `scripts/check-manifests.sh`.
+- [x] Commit `feat: nfs-prod storage class on the prod cluster`.
 
 ### Task 14: cert-manager and issuers in prod
 
 **Files:**
 - Create: `argocd/environments/prod/applications/cert-manager.yaml`, `cert-manager-issuers.yaml`; `argocd/apps/cert-manager-issuers/prod/` (overlay of the existing base reading `kv-prod`)
 
-- [ ] Mirror the dev Applications; chart pin `v1.21.2`; issuers production and staging; Cloudflare token via `<path:kv-prod/data/cert-manager/cloudflare#API_TOKEN>`.
-- [ ] Sync waves after the StorageClass. Verify: `kustomize build` on the overlay; `helm template` is not needed (Helm values only).
-- [ ] Commit `feat: cert-manager on the prod cluster`.
+- [x] Mirror the dev Applications; chart pin `v1.21.2`; issuers production and staging; Cloudflare token via `<path:kv-prod/data/cert-manager/cloudflare#API_TOKEN>`.
+- [x] Sync waves after the StorageClass. Verify: `kustomize build` on the overlay; `helm template` is not needed (Helm values only).
+- [x] Commit `feat: cert-manager on the prod cluster`.
 
 ### Task 15: ingress-nginx in prod
 
 **Files:**
 - Create: `argocd/environments/prod/applications/ingress-nginx.yaml`, `argocd/apps/ingress-nginx/prod/values.yaml`
 
-- [ ] Same shape as dev (DaemonSet, host ports 80/443, `ServerSideApply`), chart pin `4.14.5`. **Talos enforces Pod Security `baseline` by default, which rejects `hostPort`:** the Application must label namespace `ingress-nginx` `pod-security.kubernetes.io/enforce: privileged` (Argo's `managedNamespaceMetadata`), or the DaemonSet pods are refused at admission. The `argocd/apps/ingress-nginx/*` directories are Helm inputs, not kustomize overlays.
-- [ ] Verify: `helm template` with the values; expected: a DaemonSet, no Service of type LoadBalancer.
-- [ ] Commit `feat: ingress-nginx on the prod cluster`.
+- [x] Same shape as dev (DaemonSet, host ports 80/443, `ServerSideApply`), chart pin `4.14.5`. **Talos enforces Pod Security `baseline` by default, which rejects `hostPort`:** the Application must label namespace `ingress-nginx` `pod-security.kubernetes.io/enforce: privileged` (Argo's `managedNamespaceMetadata`), or the DaemonSet pods are refused at admission. The `argocd/apps/ingress-nginx/*` directories are Helm inputs, not kustomize overlays.
+- [x] Verify: `helm template` with the values; expected: a DaemonSet, no Service of type LoadBalancer.
+- [x] Commit `feat: ingress-nginx on the prod cluster`.
 
 ### Task 16: `kube-prometheus-stack`, secrets app, remove the old overlay
 
@@ -228,6 +228,9 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 
 - [ ] Pod Security: node-exporter uses `hostNetwork`, `hostPID` and `hostPath`, which Talos's default `baseline` admission rejects. Label namespace `monitoring` `pod-security.kubernetes.io/enforce: privileged` (Argo's `managedNamespaceMetadata`) in the Application.
 - [ ] Helm values: Prometheus PVC 20Gi `nfs-prod`, `retention.size` 15GB, remote-write receiver on, rule and monitor selectors open; Grafana PVC 5Gi, admin credentials from an `existingSecret`, ingress host `grafana.mgryn.cc` with the production ClusterIssuer; Alertmanager reads its Telegram token and chat id from a mounted Secret (never an inline value). Secrets come from the separate kustomize app so no placeholder sits in a Helm values file.
+- [ ] Talos binds the controller-manager, scheduler, etcd and kube-proxy metrics endpoints to localhost, so their ServiceMonitors would sit down and fire alerts from day one: disable `kubeControllerManager`, `kubeScheduler`, `kubeEtcd` and `kubeProxy` in the values, with a comment saying a Talos machine-config patch can expose them later.
+- [ ] Alertmanager's Telegram `chat_id` is an integer in its config and cannot be read from a file, so the whole Alertmanager configuration lives in a Secret in the `monitoring-secrets` app (token and chat id as `<path:...>` placeholders) and the chart points at it with `alertmanager.alertmanagerSpec.configSecret`. Task 21 edits that Secret's routes, not the chart values.
+- [ ] Namespace ownership: the `monitoring-secrets` app owns the `monitoring` Namespace (a manifest carrying the privileged Pod Security label, sync wave before the chart); the chart Application does not create or label it. Waves: `monitoring-secrets` 4, `kube-prometheus-stack` 5.
 - [ ] `ServerSideApply` for the chart (large CRDs). Add the CRD-size caveat as a comment where it is set.
 - [ ] Verify: `helm template` (chart `91.9.0`) with the values; `kustomize build argocd/apps/monitoring-secrets/prod`; `scripts/check-manifests.sh`; grep the diff for any literal token.
 - [ ] Commit `feat: kube-prometheus-stack on the prod cluster`.
@@ -296,7 +299,7 @@ ArgoCD's Ingress comes from the role's Helm values, not from git, so the certifi
 
 **Files:**
 - Create: `argocd/apps/alerts/prod/` (kustomize of `PrometheusRule`s), `argocd/environments/prod/applications/alerts.yaml`
-- Modify: `argocd/apps/kube-prometheus-stack/prod/values.yaml` (Alertmanager route to Telegram, a `Watchdog` route that goes nowhere)
+- Modify: `argocd/apps/monitoring-secrets/prod/` (the Alertmanager configuration Secret: route to Telegram, a `Watchdog` route that goes nowhere)
 
 - [ ] Rules: node not ready, pod crash looping, certificate expiry within 14 days, NFS provisioner unavailable, Prometheus PVC above 80%, thin-pool `data%` above 80% (expression from Task 20's observed series), plus burn-rate SLO rules over ingress request ratios (availability target 99%, fast and slow windows).
 - [ ] Write rules cluster-agnostically (no hard-coded `cluster` label values) so dev's metrics are covered by sub-project 4 without a rewrite.
