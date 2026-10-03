@@ -739,6 +739,28 @@ from `secret.yaml`.
     Ansible has no SSH target on Talos; it talks to the cluster API
     through a kubeconfig.
 
+    Prerequisites:
+
+    - Prod nodes at 4G memory and `nfs-prod` exported to the prod
+      workers (the hub-nodes PR applied).
+    - `kv-prod` seeded. Step 7 resolves a `kv-prod` placeholder, and
+      nothing else seeds it. With the `kv-prod` block of `secret.yaml`
+      filled in (see `secret.yaml.example`), seed from `ansible/`;
+      `vault_configure` stays false:
+
+      ```bash
+      ansible-playbook -i inventories/shared playbooks/vault.yaml \
+        -e @secret.yaml --ask-vault-pass -e vault_seed=true \
+        -e vault_token=<root token>
+      ```
+
+      The play also re-runs the install, TLS and service tasks, which are
+      idempotent; a service restart would seal Vault, so check
+      `vault status` afterwards. Check the seed on `vault-02` without
+      printing the password:
+      `vault kv get -field=admin-user kv-prod/monitoring/grafana` prints
+      `admin`.
+
     1. Extract the kubeconfig into a mode-600 temp file. It is a sensitive
        Terraform output and is never kept on disk beyond this run:
 
