@@ -87,10 +87,10 @@
 **Interfaces:**
 - Produces: the five kv-prod paths from Global Constraints, which Tasks 14-21 read.
 
-- [ ] Add the block with placeholder values only; reuse the existing comment style (permissions, what reads it). Telegram values are the same bot Gatus uses.
+- [x] Add the block with placeholder values only; reuse the existing comment style (permissions, what reads it). Telegram values are the same bot Gatus uses.
 - [ ] Operator fills `secret.yaml` (`PVE_*` values are filled after Task 19) and seeds with `vault.yaml -e vault_seed=true -e vault_token=...`.
-- [ ] Verify: `vault kv get kv-prod/cert-manager/cloudflare` shows `API_TOKEN` set; no value is printed into the PR.
-- [ ] Commit `docs: seed example for kv-prod`.
+- [x] Verify: `vault kv get kv-prod/cert-manager/cloudflare` shows `API_TOKEN` set; no value is printed into the PR.
+- [x] Commit `docs: seed example for kv-prod`.
 - [ ] Open the PR; operator merges after Tasks 2-4 are verified. Branch cleanup per CLAUDE.md.
 
 ---
