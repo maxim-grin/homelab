@@ -134,10 +134,10 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 - Consumes: Task 6's variables. Sets `argocd_vault_auth_path: kubernetes-prod`, `argocd_ingress_host: argocd.mgryn.cc`, `argocd_nodeport_enabled: true`, and `argocd_context_kubeconfig` from an extra var `prod_kubeconfig`.
 - Produces: the playbook the operator runs in Task 11.
 
-- [ ] Hosts `localhost`, `connection: local`, no apt/Helm-install pre-tasks (Helm and `python3-kubernetes` live on the workstation); fail early with a clear message if `prod_kubeconfig` is unset or `helm` is missing.
-- [ ] Decide the Vault name path: pods need `vault.mgryn.cc`. Preferred: set `argocd_repo_server_host_aliases` (Task 6) to `vault.mgryn.cc` with Vault's address (`host_ips['vault-02']`) in the prod playbook, because the CoreDNS ConfigMap on Talos is Talos-managed. Confirm the chart exposes `repoServer.hostAliases` with `helm template`; if it does not, fall back to patching CoreDNS and say which in the ADR.
-- [ ] Verify: `ansible-lint ansible/playbooks/argocd-prod.yaml` and `--syntax-check -e @secret.yaml -e prod_kubeconfig=/tmp/x --ask-vault-pass`.
-- [ ] Commit `feat: argocd playbook for the prod cluster`.
+- [x] Hosts `localhost`, `connection: local`, no apt/Helm-install pre-tasks (Helm and `python3-kubernetes` live on the workstation); fail early with a clear message if `prod_kubeconfig` is unset or `helm` is missing.
+- [x] Decide the Vault name path: pods need `vault.mgryn.cc`. Preferred: set `argocd_repo_server_host_aliases` (Task 6) to `vault.mgryn.cc` with Vault's address (`host_ips['vault-02']`) in the prod playbook, because the CoreDNS ConfigMap on Talos is Talos-managed. Confirm the chart exposes `repoServer.hostAliases` with `helm template`; if it does not, fall back to patching CoreDNS and say which in the ADR.
+- [x] Verify: `ansible-lint ansible/playbooks/argocd-prod.yaml` and `--syntax-check -e @secret.yaml -e prod_kubeconfig=/tmp/x --ask-vault-pass`.
+- [x] Commit `feat: argocd playbook for the prod cluster`.
 
 ### Task 8: prod `argocd-config`, drop stale prod Applications, project sources, ADR 0024
 
