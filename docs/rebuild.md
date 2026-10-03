@@ -566,7 +566,7 @@ from `secret.yaml`.
     ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-14. **Point `/etc/hosts`** at a node IP for `argocd.mgryn.cc`,
+14. **Point `/etc/hosts`** at a node IP for `dev-argocd.mgryn.cc`,
     `grafana.mgryn.cc` and
     `prometheus.mgryn.cc`. One line per name, all pointing at the same node
     -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
