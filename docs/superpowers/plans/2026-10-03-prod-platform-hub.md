@@ -121,9 +121,9 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 **Interfaces:**
 - Produces: variables `argocd_vault_auth_path`, `argocd_ingress_host`, `argocd_repo_server_host_aliases` that Tasks 7 and 9 set per environment. Defaults must reproduce today's dev render byte for byte except the host.
 
-- [ ] Confirm which AVP setting selects the Vault auth mount (the AVP docs name it for `AVP_AUTH_TYPE: k8s`) and use that key; the value must be in the pod-annotation checksum so a change rolls the repo-server (the role already hashes `argocd_avp_config`).
-- [ ] Verify: `ansible-lint ansible/roles/argocd`; `--syntax-check` on `argocd-dev.yaml`.
-- [ ] Commit `refactor: argocd role takes vault mount and host`.
+- [x] Confirm which AVP setting selects the Vault auth mount (the AVP docs name it for `AVP_AUTH_TYPE: k8s`) and use that key; the value must be in the pod-annotation checksum so a change rolls the repo-server (the role already hashes `argocd_avp_config`).
+- [x] Verify: `ansible-lint ansible/roles/argocd`; `--syntax-check` on `argocd-dev.yaml`.
+- [x] Commit `refactor: argocd role takes vault mount and host`.
 
 ### Task 7: `argocd-prod.yaml` playbook
 
