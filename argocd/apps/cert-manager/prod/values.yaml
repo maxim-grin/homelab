@@ -29,8 +29,13 @@ resources:
 # puts prometheus.io/scrape, /port and /path annotations on the
 # controller pod by default (prometheus.enabled: true, with neither
 # podmonitor nor servicemonitor enabled -- verified against
-# templates/deployment.yaml) -- the monitoring stack's
-# 'kubernetes-pods' scrape job already picks it up with zero config here.
+# templates/deployment.yaml). They are harmless but unused on prod:
+# kube-prometheus-stack has no annotation-based scrape jobs, so nothing
+# scrapes cert-manager yet. A PodMonitor or ServiceMonitor will, added
+# by the alerting PR in an Application that syncs after the monitoring
+# chart, so its CRD exists. Do not enable the chart's own
+# `prometheus.servicemonitor` here: this Application syncs before the CRD
+# exists and the sync would fail permanently.
 # Careful if this ever needs a `podAnnotations` override for something
 # else: the chart's own template only adds its prometheus.io annotations
 # when `.Values.podAnnotations` is unset, so setting one for an unrelated
