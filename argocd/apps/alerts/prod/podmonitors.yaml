@@ -34,11 +34,12 @@ spec:
       app.kubernetes.io/name: ingress-nginx
       app.kubernetes.io/component: controller
   podMetricsEndpoints:
-    # Matched against the pod's *declared* container ports, and the chart
-    # declares 10254 only while `controller.metrics.enabled` is true in
-    # the ingress-nginx values: turning that off silently drops this
-    # target, though the controller still listens. By number so a
-    # renamed port (`controller.metrics.portName`) does not.
+    # Matched against the pod's *declared* container ports. The chart
+    # declares 10254, and passes --enable-metrics, only while
+    # `controller.metrics.enabled` is true in the ingress-nginx values;
+    # with it off there are no request metrics and no target, and
+    # IngressNginxMetricsAbsent fires. By number so a renamed port
+    # (`controller.metrics.portName`) does not drop it.
     - portNumber: 10254
       path: /metrics
       honorLabels: true

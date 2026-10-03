@@ -31,10 +31,12 @@ spec:
       rules:
         # cert-manager renews a Let's Encrypt certificate 30 days before
         # it expires, so one still inside 14 days means renewal has been
-        # failing for two weeks.
+        # failing for two weeks. The `> 0` guard: cert-manager reports 0
+        # for a Certificate never issued (no NotAfter yet), which would
+        # read as expired decades ago; CertificateNotReady covers that one.
         - alert: CertificateExpiringSoon
           expr: |
-            certmanager_certificate_expiration_timestamp_seconds - time()
+            (certmanager_certificate_expiration_timestamp_seconds > 0) - time()
               < 14 * 86400
           for: 1h
           labels:
@@ -96,32 +98,82 @@ spec:
 
     - name: prometheus-storage
       rules:
-        # Against the TSDB's own block bytes, not kubelet_volume_stats_*:
-        # on an nfs-subdir PV the kubelet reports the whole nfs-prod
-        # share's filesystem, not the 20Gi claim.
+        # Against the TSDB's own sizes, not kubelet_volume_stats_*: on an
+        # nfs-subdir PV the kubelet reports the whole nfs-prod share's
+        # filesystem, not the 20Gi claim.
         #
-        # 15 * 2^30 is prod's `retentionSize: 15GB` (kube-prometheus-stack
-        # values). Prometheus reads that unit as base 2, so 15GB is 15 GiB,
-        # 16106127360 bytes; this alerts at 90%, about 13.5 GiB. Change
-        # both together. Retention deletes the oldest blocks at the cap, so
-        # this firing means size, not the 10d time limit, now decides how
-        # much history is kept.
+        # Size retention counts blocks, WAL and head chunks together, so
+        # this sums all three, and divides by the limit Prometheus itself
+        # reports (prod's `retentionSize: 15GB`, i.e. 15 GiB) rather than a
+        # copy of it here. `> 0` drops a Prometheus with no size limit.
+        #
+        # Once size retention binds, this stays firing, on purpose: size,
+        # not the 10d time limit, now decides how much history is kept.
+        # That is a ticket (repeated every 12h by the route), not a page.
         - alert: PrometheusStorageNearRetentionSize
           expr: |
-            prometheus_tsdb_storage_blocks_bytes > 0.9 * 15 * 2^30
+            (
+                prometheus_tsdb_storage_blocks_bytes
+              + prometheus_tsdb_wal_storage_size_bytes
+              + prometheus_tsdb_head_chunks_storage_size_bytes
+            )
+            / (prometheus_tsdb_retention_limit_bytes > 0)
+              > 0.8
           for: 30m
           labels:
             severity: warning
           annotations:
-            summary: Prometheus {{ $labels.pod }} TSDB above 90% of its 15 GiB retention size
+            summary: Prometheus {{ $labels.pod }} TSDB above 80% of its retention size
             description: >-
-              Prometheus {{ $labels.namespace }}/{{ $labels.pod }} holds
-              {{ $value | humanize1024 }}B of blocks. Size-based retention
-              is about to delete history younger than the 10 day limit.
+              Prometheus {{ $labels.namespace }}/{{ $labels.pod }} uses
+              {{ $value | humanizePercentage }} of its size-based
+              retention limit. At the limit it deletes history younger
+              than the 10 day time limit.
             runbook: >-
               Find the series growing fastest (topk over
               scrape_series_added) and drop them, or raise retentionSize
               and the 20Gi claim together.
+
+    # A target that vanishes (a chart upgrade renames a label, the
+    # PodMonitor stops matching) has no `up` series at all, so the chart's
+    # TargetDown (`up == 0`) stays quiet, and so do the certificate and SLO
+    # rules above, which then look healthy. These watch `up` itself, not
+    # the certificate or request series, which are legitimately empty
+    # with no Certificates or no traffic. The job label is the operator's
+    # default for a PodMonitor, `<namespace>/<name>` (podmonitors.yaml).
+    - name: scrape-targets
+      rules:
+        - alert: IngressNginxMetricsAbsent
+          expr: |
+            absent(up{job="monitoring/ingress-nginx-controller"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: No ingress-nginx controller is being scraped
+            description: >-
+              No target of the monitoring/ingress-nginx-controller
+              PodMonitor has been up for 15 minutes. The ingress SLO
+              alerts are blind until it is back.
+            runbook: >-
+              Check the PodMonitor's selector against the controller
+              pods' labels and that controller.metrics.enabled is still
+              true in the ingress-nginx values.
+        - alert: CertManagerMetricsAbsent
+          expr: |
+            absent(up{job="monitoring/cert-manager-controller"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: The cert-manager controller is not being scraped
+            description: >-
+              No target of the monitoring/cert-manager-controller
+              PodMonitor has been up for 15 minutes. The certificate
+              alerts are blind until it is back.
+            runbook: >-
+              Check the PodMonitor's selector and the http-metrics port
+              against the cert-manager controller pod.
 ---
 # Ingress availability SLO: 99% of requests answered without a 5xx over
 # 30 days, so the error budget is 1%. Multi-window, multi-burn-rate alerts
@@ -193,11 +245,19 @@ spec:
     - name: ingress-slo-alerts
       rules:
         # 14.4 * 0.01 = 0.144: 14.4x the 1% budget.
+        #
+        # Both burn alerts need a floor of requests in their long window
+        # (30 in 1h here, 60 in 6h below): on a quiet homelab Ingress a
+        # handful of 502s is a large ratio and not worth a page. `on`
+        # includes `cluster`, which matches as empty while this Prometheus
+        # has no such label.
         - alert: IngressErrorBudgetBurnFast
           expr: |
             ingress:request_error_ratio:rate1h > 14.4 * 0.01
             and
             ingress:request_error_ratio:rate5m > 14.4 * 0.01
+            and on (cluster, namespace, ingress)
+            sum by (cluster, namespace, ingress) (increase(nginx_ingress_controller_requests{ingress!=""}[1h])) >= 30
           for: 2m
           labels:
             severity: critical
@@ -218,6 +278,8 @@ spec:
             ingress:request_error_ratio:rate6h > 6 * 0.01
             and
             ingress:request_error_ratio:rate30m > 6 * 0.01
+            and on (cluster, namespace, ingress)
+            sum by (cluster, namespace, ingress) (increase(nginx_ingress_controller_requests{ingress!=""}[6h])) >= 60
           for: 15m
           labels:
             severity: warning
