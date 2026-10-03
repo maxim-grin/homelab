@@ -300,8 +300,8 @@ Prod's Grafana takes `grafana.mgryn.cc` through public DNS, and dev's Grafana al
 **Files:**
 - Create: `argocd/environments/prod/applications/pve-exporter.yaml`, `argocd/apps/pve-exporter/prod/` (Deployment with image `prompve/prometheus-pve-exporter:3.10.0`, Service, `ServiceMonitor`, Secret with `<path:kv-prod/data/monitoring/pve-exporter#...>` placeholders)
 
-- [ ] Verify: `kustomize build`; `scripts/check-manifests.sh`.
-- [ ] Commit `feat: pve-exporter on the prod cluster`.
+- [x] Verify: `kustomize build`; `scripts/check-manifests.sh`.
+- [x] Commit `feat: pve-exporter on the prod cluster`.
 - [ ] After merge [operator]: in Prometheus, find the series for `local-lvm` size and usage (`pve_disk_size_bytes` and `pve_disk_usage_bytes` are the expected names; confirm in the UI) and paste them into the PR. The rule in Task 21 is written from what is observed, not from this guess.
 
 ### Task 21: Rules, SLOs and Alertmanager route
