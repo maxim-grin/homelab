@@ -12,6 +12,9 @@
 #     -e prod_kubeconfig=<tmpfile> --ask-vault-pass
 #   rm <tmpfile>
 #
+# The ArgoCD Ingress gets its certificate only when this playbook is re-run
+# after the platform PR merges: cert-manager does not exist on the first run.
+#
 # It does not apply argocd/base/projects.yaml or the app-of-apps; the
 # operator does that by hand afterwards, as on dev.
 - name: Deploy ArgoCD to prod cluster
@@ -24,6 +27,10 @@
   vars:
     argocd_vault_auth_path: kubernetes-prod
     argocd_ingress_host: argocd.mgryn.cc
+    # The ClusterIssuer from argocd/apps/cert-manager-issuers/prod. The
+    # playbook first runs before cert-manager exists, so the certificate
+    # appears only when the operator re-runs it after the platform PR merges.
+    argocd_ingress_cluster_issuer: letsencrypt-prod
     # Break-glass way into the UI when the ingress is broken.
     argocd_nodeport_enabled: true
     argocd_context_kubeconfig: "{{ prod_kubeconfig | default('') | expanduser }}"
