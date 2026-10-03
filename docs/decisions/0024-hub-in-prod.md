@@ -56,7 +56,8 @@ Rejected:
 
 ## Consequences
 
-- Dev cannot deploy while prod is down.
+- Once sub-project 4 lands, dev cannot deploy while prod is down; until
+  then dev has its own ArgoCD.
 - Prod's reviewer JWT Secret exists only after prod's `argocd-config`
   syncs, so Vault's prod auth is configured after the first sync.
 - Later PRs extend this record with the monitoring decisions.

@@ -34,6 +34,7 @@ is a stop — see
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------ |
 | `https://jobs.mgryn.cc`                                                                          | jobboard; HTTP 308s to HTTPS                                                                        | cert-manager |
 | `http://dev-argocd.mgryn.cc`                                                                     | ArgoCD UI (dev; `argocd.mgryn.cc` is the prod hub)                                                  | none         |
+| `http://10.0.0.111:32080`                                                                        | ArgoCD UI (prod), NodePort break-glass on a prod worker; `.112` and HTTPS `32443` work too            | none         |
 | `https://grafana.mgryn.cc`                                                                       | Grafana; HTTP 308s to HTTPS                                                                         | cert-manager |
 | `http://prometheus.mgryn.cc`                                                                     | Prometheus, basic auth from ingress-nginx — Prometheus ships none; login in `vault_kv` as `kv-dev/monitoring/prometheus` | none         |
 | `https://vault.mgryn.cc:8200`                                                                    | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA   |
@@ -43,6 +44,33 @@ The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every
 node — except `jobs.mgryn.cc` and `vault.mgryn.cc`, which have DNS-only
 Cloudflare records. `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
+
+## Prod hub ArgoCD
+
+**Prod kubeconfig.** It exists only as a Terraform output; extract it to
+a mode-600 temp file and delete it afterwards:
+
+```bash
+cd terraform/environments/prod
+umask 077; PROD_KC="$(mktemp)"
+terraform output -raw kubeconfig > "$PROD_KC"
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+rm "$PROD_KC"
+```
+
+**A prod Application is `Unknown` on sync status while health says
+`Healthy`.** Check Vault first: `vault status` on `vault-02`
+(`VAULT_ADDR=https://10.0.0.133:8200`, or run it on the host). A sealed
+Vault looks healthy: AVP renders nothing, the last-applied resources stay
+in place, and only the sync status turns `Unknown`. Unseal, and the
+Application clears on Argo's next poll. If Vault is unsealed, read the
+`ComparisonError` condition for AVP's stderr.
+
+**Break-glass UI.** When the ingress is broken, or before PR 3 gives prod
+one, the ArgoCD server is also a NodePort: `http://10.0.0.111:32080`, or
+`.112`, HTTPS on `32443`. Bootstrapping the hub is in
+[rebuild.md](rebuild.md), step 17
+([ADR 0024](decisions/0024-hub-in-prod.md)).
 
 ## jobboard image version
 
