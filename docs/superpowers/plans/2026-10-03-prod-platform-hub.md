@@ -240,6 +240,22 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 - [ ] Verify: `ansible-lint ansible/roles/gatus`.
 - [ ] Commit `ops: gatus checks for the prod hub`; open the PR, draft until Task 18 passes.
 
+### Task 17a: ArgoCD's own Ingress gets a certificate (prod)
+
+**Files:**
+- Modify: `ansible/roles/argocd/defaults/main.yaml` (new `argocd_ingress_cluster_issuer`, default empty; when set, the server Ingress carries `cert-manager.io/cluster-issuer` and a `tls` block for `argocd_ingress_host`), `ansible/playbooks/argocd-prod.yaml` (sets it to `letsencrypt-prod`; confirm the ClusterIssuer's real name in `argocd/apps/cert-manager-issuers/base` and use it verbatim), `docs/rebuild.md`, `docs/operations.md`
+
+**Interfaces:**
+- Consumes: the ClusterIssuers Task 14 creates; the existing `argocd_ingress_host`.
+- Produces: a certificate Secret for `argocd.mgryn.cc`. With the default empty value dev's render is unchanged except nothing: dev keeps no TLS.
+
+ArgoCD's Ingress comes from the role's Helm values, not from git, so the certificate only appears when the operator re-runs `argocd-prod.yaml` after PR 3 merges; cert-manager does not exist when the playbook first runs.
+
+- [ ] Add the variable and the conditional annotation/`tls` rendering (the chart exposes `server.ingress.annotations`, `server.ingress.tls` and the TLS secret name; confirm with `helm template`); the dev default render must be byte-identical to before.
+- [ ] Verify: `ansible-lint ansible/roles/argocd`; before/after render for the dev defaults identical; prod render shows the annotation and a `tls` entry for `argocd.mgryn.cc`.
+- [ ] Document in the runbook: re-run `argocd-prod.yaml` after PR 3 merges, then `kubectl get certificate -n argocd`.
+- [ ] Commit `feat: argocd ingress certificate for prod`.
+
 ### Task 18: Roll out the platform [operator]
 
 - [ ] Cloudflare: four grey-cloud A records, `argocd` and `grafana` each to `10.0.0.111` and `10.0.0.112`. Workstation `/etc/hosts` points both names at a worker.
