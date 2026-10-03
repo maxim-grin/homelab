@@ -169,6 +169,11 @@ rename done in place would leave the Proxmox name, the guest hostname and
 the kubeadm node name disagreeing, and needs `moved` blocks (ADR 0013);
 creating the VMs fresh under the new names avoids both.
 
+Rebuilding dev from scratch is acceptable here: dev holds nothing that is
+not in git or on `nfs-dev`. The sub-4 brainstorm may therefore reopen
+the "kubeadm on Ubuntu" decision above and look for a better dev
+distribution, since the rename and the rebuild already replace the VMs.
+
 **5. jobboard in prod.** Prod overlay pinned to a tag, the dev-to-prod
 promotion flow, and `jobs.mgryn.cc` moved to prod.
 
