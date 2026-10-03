@@ -12,6 +12,45 @@
     extended: true
     label: "{{ item.name | default(ansible_loop.index) }}"
 
+# Two ways to reach a cluster: SSH to a kubeadm control plane, or a
+# kubeconfig on the workstation for Talos, which has no SSH. Neither or
+# both leaves the role guessing which credentials to trust.
+- name: Require every cluster entry to name exactly one way in
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_cluster_sources | select('in', item.keys() | list) | list | length == 1
+    fail_msg: >-
+      vault_k8s_clusters entry {{ item.name | default(ansible_loop.index) }}
+      must set exactly one of {{ vault_k8s_cluster_sources | join(' or ') }};
+      it sets {{ vault_k8s_cluster_sources | select('in', item.keys() | list) | join(' and ') | default('neither', true) }}.
+    quiet: true
+  loop: "{{ vault_k8s_clusters }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name | default(ansible_loop.index) }}"
+
+# The kubeconfig is checked here, before anything writes to Vault, rather
+# than when its cluster's turn comes: an empty path would otherwise reach
+# kubernetes.core, which can fall back to ~/.kube/config and read
+# another cluster's Secret.
+- name: Require every kubeconfig to be a file on the workstation
+  ansible.builtin.assert:
+    that:
+      - item.kubeconfig | length > 0
+      - item.kubeconfig is file
+    fail_msg: >-
+      vault_k8s_clusters entry {{ item.name }} reads its cluster through a
+      kubeconfig, and {{ item.kubeconfig | default('', true) | quote }} is
+      not a file on this machine. For prod, write terraform output -raw
+      kubeconfig from terraform/environments/prod to a temporary file and
+      pass -e vault_prod_kubeconfig=<that file>, or skip Kubernetes auth
+      with -e vault_configure_k8s_auth=false.
+    quiet: true
+  loop: "{{ vault_k8s_clusters | selectattr('kubeconfig', 'defined') }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: vault_configure | bool and vault_configure_k8s_auth | bool
+
 - name: Refuse two clusters sharing an auth_path
   ansible.builtin.assert:
     that:
