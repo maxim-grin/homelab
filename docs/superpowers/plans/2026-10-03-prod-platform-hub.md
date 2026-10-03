@@ -170,10 +170,10 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 
 ### Task 11: Bootstrap the hub [operator]
 
-- [ ] Merge PR 2. Operator: `terraform output -raw kubeconfig` to a temp file (mode 600, delete afterwards); run `argocd-dev.yaml` (rename), then `argocd-prod.yaml -e prod_kubeconfig=<tmp>`; then `kubectl apply -f argocd/base/projects.yaml` and `-f argocd/environments/prod/applications/app-of-apps.yaml`.
+- [ ] Merge PR 1 (`hub-nodes`) and PR 2 (`hub-bootstrap`) first: `root-prod` reads `main`, so applying it earlier deploys the stale prod apps and never creates the `vault-auth-token` Secret. Steps up to `argocd-prod.yaml` can run from the branch. Operator: `terraform output -raw kubeconfig` to a temp file (mode 600, delete afterwards); run `argocd-dev.yaml` (rename), then `argocd-prod.yaml -e prod_kubeconfig=<tmp>`; then `kubectl apply -f argocd/base/projects.yaml` and `-f argocd/environments/prod/applications/app-of-apps.yaml`.
 - [ ] Verify pods: `kubectl -n argocd get pods`; expected: every pod `Running` or `Completed`, `repo-server` 2/2 or 3/3 (not `Init`).
 - [ ] Wait for `argocd-config` `Synced`, then run `vault.yaml -e vault_configure=true -e vault_token=... -i inventories/shared -i inventories/dev`. Expected: `vault read auth/kubernetes-prod/config` shows `kubernetes_host https://10.0.0.110:6443`.
-- [ ] Verify AVP end to end with a throwaway Application that renders one `<path:kv-prod/data/monitoring/grafana#admin-user>`; expected: `Synced`, no `ComparisonError`. Delete the throwaway.
+- [ ] Verify AVP end to end without committing to `main`: either run the plugin directly in the repo-server's `avp` sidecar on a one-Secret manifest carrying `<path:kv-prod/data/monitoring/grafana#admin-user>` (if the sidecar carries the AVP env), or point a throwaway Application at a scratch Git branch holding that manifest. Expected: the value resolves, or `Synced` with no `ComparisonError`. Delete the Application, namespace and branch afterwards. `docs/rebuild.md` step 17.7 has the exact procedure.
 - [ ] Verify names: `/etc/hosts` maps `argocd.mgryn.cc` to a worker; login page loads over the NodePort; `dev-argocd.mgryn.cc` still lists dev's Applications `Synced`.
 - [ ] Seal drill: confirm `docs/operations.md` names `vault status` on `vault-02` (`VAULT_ADDR=https://10.0.0.133:8200`) as the first check when a prod app goes `Unknown`.
 
