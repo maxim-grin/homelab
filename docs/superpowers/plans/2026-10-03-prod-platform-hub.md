@@ -146,10 +146,10 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 - Modify: `docs/decisions/README.md` (index), `argocd/base/projects.yaml` (`sourceRepos` gains `https://prometheus-community.github.io/helm-charts`, moved here from the old Task 12 because both ArgoCDs sync `argocd/base` and a repo not yet allowed refuses its Application)
 - Delete: `argocd/environments/prod/applications/nfs.yaml` and `monitoring.yaml`. These are pre-Talos leftovers; once the operator applies `root-prod` in Task 11 they would sync from `main` and deploy stale manifests before PR 3 replaces them. Keep the overlay directories under `argocd/apps/` until PR 3 rewrites them.
 
-- [ ] Application watches `argocd/base`, project `homelab`, destination `https://kubernetes.default.svc`, namespace `argocd`.
-- [ ] ADR 0024 records: hub in prod; bootstrap via the role with an extracted kubeconfig; second Vault auth mount; `hostAliases` (or the fallback); transitional `dev-argocd` name. Leave sections for PR 3 and PR 4 to extend with their decisions.
-- [ ] Verify: `scripts/check-manifests.sh`; `pre-commit run --all-files`. Both clusters' ArgoCDs read `argocd/base`, so confirm `kustomize build argocd/base` is unchanged by this PR.
-- [ ] Commit `feat: prod argocd-config and hub ADR`.
+- [x] Application watches `argocd/base`, project `homelab`, destination `https://kubernetes.default.svc`, namespace `argocd`.
+- [x] ADR 0024 records: hub in prod; bootstrap via the role with an extracted kubeconfig; second Vault auth mount; `hostAliases` (or the fallback); transitional `dev-argocd` name. Leave sections for PR 3 and PR 4 to extend with their decisions.
+- [x] Verify: `scripts/check-manifests.sh`; `pre-commit run --all-files`. Both clusters' ArgoCDs read `argocd/base`, so confirm `kustomize build argocd/base` is unchanged by this PR.
+- [x] Commit `feat: prod argocd-config and hub ADR`.
 
 ### Task 9: Dev's ArgoCD moves to `dev-argocd.mgryn.cc`
 
