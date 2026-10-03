@@ -226,14 +226,14 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 - Consumes: StorageClass `nfs-prod`; kv-prod `monitoring/grafana` and `monitoring/alertmanager`.
 - Produces: namespace `monitoring`, Services Prometheus and Grafana, `ServiceMonitor` and `PrometheusRule` discovery for the whole cluster (selectors must not be limited to the chart's release label, or Task 20-21 rules are ignored).
 
-- [ ] Pod Security: node-exporter uses `hostNetwork`, `hostPID` and `hostPath`, which Talos's default `baseline` admission rejects. Label namespace `monitoring` `pod-security.kubernetes.io/enforce: privileged` in the Namespace manifest the `monitoring-secrets` app owns.
-- [ ] Helm values: Prometheus PVC 20Gi `nfs-prod`, `retention.size` 15GB, remote-write receiver on, rule and monitor selectors open; Grafana PVC 5Gi, admin credentials from an `existingSecret`, ingress host `grafana.mgryn.cc` with the production ClusterIssuer; Alertmanager reads its Telegram token and chat id from a mounted Secret (never an inline value). Secrets come from the separate kustomize app so no placeholder sits in a Helm values file.
-- [ ] Talos binds the controller-manager, scheduler, etcd and kube-proxy metrics endpoints to localhost, so their ServiceMonitors would sit down and fire alerts from day one: disable `kubeControllerManager`, `kubeScheduler`, `kubeEtcd` and `kubeProxy` in the values, with a comment saying a Talos machine-config patch can expose them later.
-- [ ] Alertmanager's Telegram `chat_id` is an integer in its config and cannot be read from a file, so the whole Alertmanager configuration lives in a Secret in the `monitoring-secrets` app (token and chat id as `<path:...>` placeholders) and the chart points at it with `alertmanager.alertmanagerSpec.configSecret`. Task 21 edits that Secret's routes, not the chart values.
-- [ ] Namespace ownership: the `monitoring-secrets` app owns the `monitoring` Namespace (a manifest carrying the privileged Pod Security label, sync wave before the chart); the chart Application does not create or label it. Waves: `monitoring-secrets` 4, `kube-prometheus-stack` 5.
-- [ ] `ServerSideApply` for the chart (large CRDs). Add the CRD-size caveat as a comment where it is set.
-- [ ] Verify: `helm template` (chart `91.9.0`) with the values; `kustomize build argocd/apps/monitoring-secrets/prod`; `scripts/check-manifests.sh`; grep the diff for any literal token.
-- [ ] Commit `feat: kube-prometheus-stack on the prod cluster`.
+- [x] Pod Security: node-exporter uses `hostNetwork`, `hostPID` and `hostPath`, which Talos's default `baseline` admission rejects. Label namespace `monitoring` `pod-security.kubernetes.io/enforce: privileged` in the Namespace manifest the `monitoring-secrets` app owns.
+- [x] Helm values: Prometheus PVC 20Gi `nfs-prod`, `retention.size` 15GB, remote-write receiver on, rule and monitor selectors open; Grafana PVC 5Gi, admin credentials from an `existingSecret`, ingress host `grafana.mgryn.cc` with the production ClusterIssuer; Alertmanager reads its Telegram token and chat id from a mounted Secret (never an inline value). Secrets come from the separate kustomize app so no placeholder sits in a Helm values file.
+- [x] Talos binds the controller-manager, scheduler, etcd and kube-proxy metrics endpoints to localhost, so their ServiceMonitors would sit down and fire alerts from day one: disable `kubeControllerManager`, `kubeScheduler`, `kubeEtcd` and `kubeProxy` in the values, with a comment saying a Talos machine-config patch can expose them later.
+- [x] Alertmanager's Telegram `chat_id` is an integer in its config and cannot be read from a file, so the whole Alertmanager configuration lives in a Secret in the `monitoring-secrets` app (token and chat id as `<path:...>` placeholders) and the chart points at it with `alertmanager.alertmanagerSpec.configSecret`. Task 21 edits that Secret's routes, not the chart values.
+- [x] Namespace ownership: the `monitoring-secrets` app owns the `monitoring` Namespace (a manifest carrying the privileged Pod Security label, sync wave before the chart); the chart Application does not create or label it. Waves: `monitoring-secrets` 4, `kube-prometheus-stack` 5.
+- [x] `ServerSideApply` for the chart (large CRDs). Add the CRD-size caveat as a comment where it is set.
+- [x] Verify: `helm template` (chart `91.9.0`) with the values; `kustomize build argocd/apps/monitoring-secrets/prod`; `scripts/check-manifests.sh`; grep the diff for any literal token.
+- [x] Commit `feat: kube-prometheus-stack on the prod cluster`.
 
 ### Task 17: Gatus checks and docs
 
@@ -258,6 +258,17 @@ ArgoCD's Ingress comes from the role's Helm values, not from git, so the certifi
 - [ ] Verify: `ansible-lint ansible/roles/argocd`; before/after render for the dev defaults identical; prod render shows the annotation and a `tls` entry for `argocd.mgryn.cc`.
 - [ ] Document in the runbook: re-run `argocd-prod.yaml` after PR 3 merges, then `kubectl get certificate -n argocd`.
 - [ ] Commit `feat: argocd ingress certificate for prod`.
+
+### Task 17b: Dev's Grafana moves to `dev-grafana.mgryn.cc`
+
+**Files:**
+- Modify: `argocd/apps/monitoring/dev/grafana-ingress.yaml` (host and TLS host), `argocd/apps/monitoring/dev/grafana-rooturl-dev.yaml` (root URL), `ansible/roles/glance/defaults/main.yaml` (the Grafana bookmark becomes the prod hub's `https://grafana.mgryn.cc/`; add "Grafana (dev)" -> `https://dev-grafana.mgryn.cc/`), `README.md` / `docs/operations.md` / `docs/rebuild.md` / `CLAUDE.md` lines that name dev's Grafana
+
+Prod's Grafana takes `grafana.mgryn.cc` through public DNS, and dev's Grafana already uses that name through the workstation's `/etc/hosts`, so one name would mean two services. Same reason as `dev-argocd` (ADR 0024). Dev's Prometheus keeps `prometheus.mgryn.cc`: prod exposes none.
+
+- [ ] Change every dev host occurrence (Ingress `host` and `tls.hosts`, the Grafana root URL); the TLS secret name may stay. Dev's certificate is reissued for the new name by the existing ClusterIssuer; note the DNS-01 rate-limit advice (use staging first).
+- [ ] Verify: `kustomize build argocd/apps/monitoring/dev` shows no remaining `grafana.mgryn.cc`; `scripts/check-manifests.sh`.
+- [ ] Commit `ops: dev grafana answers on dev-grafana.mgryn.cc`. Operator: update `/etc/hosts` (`dev-grafana.mgryn.cc` to a dev node), re-run the glance play.
 
 ### Task 18: Roll out the platform [operator]
 
