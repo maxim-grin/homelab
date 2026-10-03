@@ -865,6 +865,110 @@ from `secret.yaml`.
 
     9. Delete the kubeconfig: `rm "$PROD_KC"`.
 
+18. **Prod platform apps rollout** — storage, TLS, ingress and monitoring
+    on the Talos cluster, delivered by `root-prod` once PR 3 is on `main`
+    ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
+    workstation; kubectl commands use a `$PROD_KC` extracted as in step
+    17.1 (`rm "$PROD_KC"` when done).
+
+    Prerequisites: step 17 done, and `kv-prod` seeded with
+    `cert-manager/cloudflare` (the Cloudflare token), `monitoring/grafana`
+    (the admin login) and `monitoring/alertmanager` (the Telegram bot
+    token and chat id); the seed data is `secret.yaml`'s `kv-prod` block.
+
+    1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
+       `argocd` and `grafana`, each to `10.0.0.111` and to `10.0.0.112`.
+       On the workstation, point both names at a worker in `/etc/hosts`
+       (`10.0.0.111 argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
+       `grafana.mgryn.cc` line that points at a dev node: dev's Grafana is
+       now `dev-grafana.mgryn.cc`. The same applies to the old
+       `argocd.mgryn.cc` line, now `dev-argocd.mgryn.cc`.
+
+    2. Merge in order: PR 1 (hub-nodes), PR 2 (hub-bootstrap), PR 3
+       (hub-platform), each to `main`. `root-prod` reads `main`. Watch:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+       ```
+
+       Expect `argocd-config`, `nfs`, `cert-manager`,
+       `cert-manager-issuers`, `ingress-nginx`, `monitoring-secrets` and
+       `monitoring` all `Synced` and `Healthy` after about 3 minutes plus
+       chart pulls. Sync waves (nfs 0, cert-manager 1, issuers 2,
+       ingress-nginx 3, monitoring-secrets 4, monitoring 5) only order
+       creation: this ArgoCD has no Application health check, so a wave
+       does not wait for the one before it. A retry on the issuers
+       covers the missing cert-manager CRDs, and one on `monitoring`
+       covers the `monitoring` namespace that `monitoring-secrets` owns.
+
+       An Application on `Sync failed` after Vault was sealed or briefly
+       unreachable stays failed once Vault is back. Unseal (`vault
+       status` on `vault-02`), then sync it by hand: `argocd app sync
+       <name>`, or Sync in the UI.
+
+    3. Storage: `kubectl --kubeconfig "$PROD_KC" get pvc -A`. Expect
+       `Bound` on `nfs-prod` for Prometheus (20Gi) and Grafana (5Gi), none
+       `Pending`. `nfs-prod` is the default StorageClass.
+
+    4. Certificates: `kubectl --kubeconfig "$PROD_KC" get certificate -A`.
+       Expect `READY` `True` for `grafana-tls` in `monitoring`. If one
+       stays `False`, debug with the staging issuer first: point the
+       Ingress annotation `cert-manager.io/cluster-issuer` at
+       `letsencrypt-staging`. Production allows 5 failed validations per
+       hostname per hour. `kubectl describe certificate` and `kubectl get
+       challenges -A` show the reason.
+
+    5. Pod Security: `kubectl --kubeconfig "$PROD_KC" get ds -A`. Expect
+       `ingress-nginx` and the node exporter `READY` equal to `DESIRED`
+       (two workers). A pod Talos's default `baseline` policy refused
+       shows as a `FailedCreate` event, in `kubectl -n ingress-nginx
+       describe ds ingress-nginx-controller` or the node exporter's
+       namespace `monitoring`; both namespaces are labelled `privileged`.
+
+    6. Serving, from the workstation:
+
+       ```bash
+       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.111/
+       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.112/
+       ```
+
+       Expect `302` or `200` from both. Then in Grafana
+       (`https://grafana.mgryn.cc`, login `admin` and the `kv-prod` password)
+       Connections, Data sources, Prometheus, Save & test shows
+       `Connection successful`.
+
+    7. ArgoCD's own certificate. The Ingress was created in step 17 before
+       cert-manager existed, so re-run the play now that `letsencrypt-prod`
+       exists; it sets `argocd_ingress_cluster_issuer`:
+
+       ```bash
+       ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
+         -e prod_kubeconfig="$PROD_KC" --ask-vault-pass
+       kubectl --kubeconfig "$PROD_KC" get certificate -n argocd
+       ```
+
+       Expect `argocd-server-tls` `READY` `True`, then
+       `https://argocd.mgryn.cc` loads with a Let's Encrypt certificate.
+
+    8. Gatus checks for the two new names, from `ansible/`:
+
+       ```bash
+       ansible-playbook -i inventories/shared playbooks/lan_services.yaml \
+         -e @secret.yaml --ask-vault-pass --limit gatus
+       ```
+
+       Expect `argocd.mgryn.cc` and `grafana.mgryn.cc` green at
+       `https://status.hl.mgryn.cc`, in group `prod`.
+
+    9. Host headroom: `free -m` on `pve`; `available` stays above
+       1000 MiB.
+
+    **Cleaning up retained volumes.** `nfs-prod` has `reclaimPolicy:
+    Retain` and `archiveOnDelete: "true"`. Deleting a PVC leaves the PV
+    `Released` and its data directory under `/srv/nfs/prod` on `nfs-01`.
+    Nothing deletes them: `kubectl delete pv <name>`, then remove the
+    directory on `nfs-01` once the data is not wanted.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 

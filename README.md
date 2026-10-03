@@ -90,9 +90,9 @@ diagram has a static address above that pool.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                                                                                                                                          | not in git — see `docs/rebuild.md`                                                                      |
 | VMs        | k8s master + 2 workers, `claude-code` workstation                                                                                                                               | `terraform/environments/dev`                                                                            |
-| VM         | Talos prod cluster: one control plane and two workers, `.110`–`.112`; nodes only, no workloads yet                                                                              | `terraform/environments/prod`, `terraform/modules/talos-node`                                           |
+| VM         | Talos prod cluster: one control plane and two workers, `.110`–`.112`; the hub, platform apps delivered by `root-prod`                                                           | `terraform/environments/prod`, `terraform/modules/talos-node`                                           |
 | VM         | `nfs-01`, NFS for dev and prod; `nfs-prod` is exported to the prod workers only                                                                                    | `terraform/environments/shared`                                                                         |
-| VM         | `vault-02`, the Vault VM; `kv-dev` in use, `kv-prod` ready but unused                                                                                                           | `terraform/environments/shared`                                                                         |
+| VM         | `vault-02`, the Vault VM; `kv-dev` and `kv-prod` both read by AVP                                                                                                               | `terraform/environments/shared`                                                                         |
 | LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `glance` (dashboard) at `.142`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144` | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
 | OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
 | GitOps     | ArgoCD (`dev-argocd.mgryn.cc`), app-of-apps `root-dev`                                                                                                                              | `ansible/roles/argocd`, `argocd/environments/dev`                                                       |
@@ -101,13 +101,15 @@ diagram has a static address above that pool.
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare                                                                                                                  | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers`                                          |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass                                                                                                                  | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner`                                               |
 | Apps       | monitoring (Prometheus + Grafana); jobboard, the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/`                                                                                          |
+| Prod hub   | `kube-prometheus-stack` (Prometheus, Grafana, Alertmanager), cert-manager, ingress-nginx and `nfs-prod` on the Talos cluster; rollout in `docs/rebuild.md` step 18              | `argocd/environments/prod`, `argocd/apps/`                                                              |
 | Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time                                                       | `ansible/roles/vault`, `terraform/environments/shared`                                                  |
 
 **Scope.** One physical machine, one SSD, two Kubernetes clusters: `dev`
-(kubeadm, running the platform today) and `prod` (Talos, three nodes, no
-workloads yet). `prod`'s ArgoCD is bootstrapped by a playbook; the
-monitoring hub arrives in sub-project 3
-of the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
+(kubeadm, running the platform today) and `prod` (Talos, three nodes, the
+hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
+delivers the platform apps (storage, TLS, ingress, monitoring) from `main`
+once they merge; the operator's rollout checks are step 18 of
+`docs/rebuild.md`. This is sub-project 3 of the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
 ([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)).
 
 **Rebuilding** after a disk replacement or a total loss starts at
@@ -119,14 +121,15 @@ day — UIs, applying changes, shipping a jobboard version — is
 
 ## Names and TLS
 
-`jobs.mgryn.cc`, `vault.mgryn.cc` and `*.hl.mgryn.cc` are the names in
-public DNS: all three are DNS-only (grey cloud) Cloudflare records holding
+`jobs.mgryn.cc`, `vault.mgryn.cc`, `*.hl.mgryn.cc` and the prod hub's
+`argocd.mgryn.cc` and `grafana.mgryn.cc` are the names in public DNS:
+all are DNS-only (grey cloud) Cloudflare records holding
 a private IP, so any device on the LAN resolves them without a hosts
 entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
 `pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
-straight at `vault-02`. The other cluster names — `dev-argocd`, `dev-grafana`,
+straight at `vault-02`. The dev cluster names — `dev-argocd`, `dev-grafana`,
 `prometheus` — resolve through `/etc/hosts` on the workstation, pointing
 at a node IP since ingress-nginx answers on every node. Pi-hole
 (`10.0.0.140`) answers only the devices pointed at it by hand, because
@@ -138,7 +141,9 @@ Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT record
 through the Cloudflare API — but by two different components with two
 different tokens. `jobs.mgryn.cc`'s (and `dev-grafana.mgryn.cc`'s) comes from
 cert-manager, with a token held in
-Vault at `kv-dev/cert-manager/cloudflare`; `*.hl.mgryn.cc`'s comes from
+Vault at `kv-dev/cert-manager/cloudflare`, and the prod hub's from
+cert-manager on prod with `kv-prod/cert-manager/cloudflare`;
+`*.hl.mgryn.cc`'s comes from
 Traefik itself, with its own token in `secret.yaml`
 (`traefik_cloudflare_api_token`) — kept separate so either can be revoked
 without touching the other. Renewal is automatic, 30 days before expiry.
