@@ -33,8 +33,8 @@ bash pve-bootstrap.sh
 
 Name steps to run only those, for example
 `bash pve-bootstrap.sh pools talos-template`. The steps are `repos`,
-`users`, `pools`, `glance`, `lxc-template`, `ubuntu-template` and
-`talos-template`, run in that order by default. The script warns if the node is not named
+`users`, `pools`, `glance`, `pve-exporter`, `lxc-template`, `ubuntu-template`
+and `talos-template`, run in that order by default. The script warns if the node is not named
 `pve` (every tfvars file assumes it).
 
 What to expect from a run:
@@ -404,7 +404,10 @@ from `secret.yaml`.
    creates `terraform@pve` with the `TerraformProv` role and an API token,
    creates the `VM`, `Ubuntu-K8s`, `LXC` and `Talos-K8s` pools with their
    ACLs, creates the read-only `glance@pve` API token for Glance (the
-   `glance` step), and downloads the Debian 13 LXC template. Put the
+   `glance` step), creates the read-only `pve-exporter@pve` token (the
+   `pve-exporter` step: prod's Prometheus scrapes Proxmox through
+   pve-exporter for the thin-pool `data%` alert; its secret goes into the
+   `kv-prod` seed `monitoring/pve-exporter` in `secret.yaml`), and downloads the Debian 13 LXC template. Put the
    Terraform token in `dev.tfvars`, the template name the script prints in
    `shared.tfvars` as `debian_lxc_template`, and Glance's token id and
    secret in `secret.yaml` (step 15).
