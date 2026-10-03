@@ -4,7 +4,7 @@
 
 **Goal:** Turn the empty Talos prod cluster into the hub: one ArgoCD at `argocd.mgryn.cc`, one Grafana at `grafana.mgryn.cc`, with alerting.
 
-**Architecture:** The existing `roles/argocd` is run against a kubeconfig extracted from Terraform and bootstraps prod's ArgoCD, with AVP authenticating to Vault through a second Kubernetes auth mount. A merge to `main` then delivers the platform apps through `root-prod`: NFS provisioner, cert-manager, ingress-nginx, `kube-prometheus-stack`, `prometheus-pve-exporter`, alert rules. Four PRs, each cut from `main` after the previous merges.
+**Architecture:** The existing `roles/argocd` is run against a kubeconfig extracted from Terraform and bootstraps prod's ArgoCD, with AVP authenticating to Vault through a second Kubernetes auth mount. A merge to `main` then delivers the platform apps through `root-prod`: NFS provisioner, cert-manager, ingress-nginx, `kube-prometheus-stack`, `prometheus-pve-exporter`, alert rules. Four PRs. Branches are stacked (each cut from the previous branch, since the code does not depend on the earlier PR having merged) and retargeted to `main` as earlier ones merge; the owner merges in order PR 1 to PR 4.
 
 **Tech Stack:** Terraform (telmate/proxmox, siderolabs/talos), Ansible (`kubernetes.core`), ArgoCD + AVP, Helm, kustomize, Prometheus Operator, Vault.
 
@@ -103,7 +103,7 @@
 - Modify: `ansible/roles/vault/defaults/main.yaml` (`vault_k8s_clusters` gains `prod`), `ansible/roles/vault/tasks/k8s_auth_cluster.yaml`, `ansible/roles/vault/tasks/validate_clusters.yaml`, `ansible/roles/vault/templates/k8s-policy.hcl.j2` only if the policy name or mount is hard-coded
 
 **Interfaces:**
-- Consumes: the `vault-auth` ServiceAccount and `vault-auth-token` Secret in namespace `argocd`, created by `argocd/base/vault-auth-delegator.yaml` once Task 9 syncs it.
+- Consumes: the `vault-auth` ServiceAccount and `vault-auth-token` Secret in namespace `argocd`, created by `argocd/base/vault-auth-delegator.yaml` once `argocd-config` (Task 8) syncs it during Task 11.
 - Produces: auth mount `kubernetes-prod`, policy `argocd-read-prod` reading `kv-prod/data/*`, role `argocd`.
 
 The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the control plane (`control_plane_host`). Talos has no SSH. This task must teach the role a second source for a cluster with no `control_plane_host`: read the same Secret and the cluster CA through a kubeconfig on the workstation (`kubernetes.core.k8s_info`, delegated to localhost). Dev's behaviour must not change.
@@ -116,10 +116,10 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 ### Task 6: argocd role takes the auth mount and host as variables
 
 **Files:**
-- Modify: `ansible/roles/argocd/defaults/main.yaml` (`argocd_avp_config` gains the mount path; new `argocd_vault_auth_path`, default `kubernetes`; new `argocd_ingress_host`), the role's Helm values for the ingress host and ArgoCD `url`
+- Modify: `ansible/roles/argocd/defaults/main.yaml` (`argocd_avp_config` gains the mount path; new `argocd_vault_auth_path`, default `kubernetes`; new `argocd_ingress_host`, default `argocd.mgryn.cc`; new `argocd_repo_server_host_aliases`, default empty list, rendered into the chart's repo-server `hostAliases`), the role's Helm values for the ingress host and ArgoCD `url`
 
 **Interfaces:**
-- Produces: variables `argocd_vault_auth_path`, `argocd_ingress_host` that Tasks 7 and 10 set per environment. Defaults must reproduce today's dev render byte for byte except the host.
+- Produces: variables `argocd_vault_auth_path`, `argocd_ingress_host`, `argocd_repo_server_host_aliases` that Tasks 7 and 9 set per environment. Defaults must reproduce today's dev render byte for byte except the host.
 
 - [ ] Confirm which AVP setting selects the Vault auth mount (the AVP docs name it for `AVP_AUTH_TYPE: k8s`) and use that key; the value must be in the pod-annotation checksum so a change rolls the repo-server (the role already hashes `argocd_avp_config`).
 - [ ] Verify: `ansible-lint ansible/roles/argocd`; `--syntax-check` on `argocd-dev.yaml`.
@@ -135,15 +135,16 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 - Produces: the playbook the operator runs in Task 11.
 
 - [ ] Hosts `localhost`, `connection: local`, no apt/Helm-install pre-tasks (Helm and `python3-kubernetes` live on the workstation); fail early with a clear message if `prod_kubeconfig` is unset or `helm` is missing.
-- [ ] Decide the Vault name path: pods need `vault.mgryn.cc`. Preferred: repo-server `hostAliases` for `vault.mgryn.cc` with Vault's address (`host_ips['vault-02']`), set through the role's Helm values, because the CoreDNS ConfigMap on Talos is Talos-managed. Confirm the chart exposes `repoServer.hostAliases` with `helm template`; if it does not, fall back to patching CoreDNS and say which in the ADR.
+- [ ] Decide the Vault name path: pods need `vault.mgryn.cc`. Preferred: set `argocd_repo_server_host_aliases` (Task 6) to `vault.mgryn.cc` with Vault's address (`host_ips['vault-02']`) in the prod playbook, because the CoreDNS ConfigMap on Talos is Talos-managed. Confirm the chart exposes `repoServer.hostAliases` with `helm template`; if it does not, fall back to patching CoreDNS and say which in the ADR.
 - [ ] Verify: `ansible-lint ansible/playbooks/argocd-prod.yaml` and `--syntax-check -e @secret.yaml -e prod_kubeconfig=/tmp/x --ask-vault-pass`.
 - [ ] Commit `feat: argocd playbook for the prod cluster`.
 
-### Task 8: prod Applications `argocd-config`, ADR 0024
+### Task 8: prod `argocd-config`, drop stale prod Applications, project sources, ADR 0024
 
 **Files:**
 - Create: `argocd/environments/prod/applications/argocd-config.yaml` (same shape and the same two comments as dev's: no finalizer, `prune: false`), `docs/decisions/0024-hub-in-prod.md`
-- Modify: `docs/decisions/README.md` (index)
+- Modify: `docs/decisions/README.md` (index), `argocd/base/projects.yaml` (`sourceRepos` gains `https://prometheus-community.github.io/helm-charts`, moved here from the old Task 12 because both ArgoCDs sync `argocd/base` and a repo not yet allowed refuses its Application)
+- Delete: `argocd/environments/prod/applications/nfs.yaml` and `monitoring.yaml`. These are pre-Talos leftovers; once the operator applies `root-prod` in Task 11 they would sync from `main` and deploy stale manifests before PR 3 replaces them. Keep the overlay directories under `argocd/apps/` until PR 3 rewrites them.
 
 - [ ] Application watches `argocd/base`, project `homelab`, destination `https://kubernetes.default.svc`, namespace `argocd`.
 - [ ] ADR 0024 records: hub in prod; bootstrap via the role with an extracted kubeconfig; second Vault auth mount; `hostAliases` (or the fallback); transitional `dev-argocd` name. Leave sections for PR 3 and PR 4 to extend with their decisions.
@@ -180,17 +181,14 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 
 # PR 3 — platform apps (branch `hub-platform`)
 
-### Task 12: AppProject sources
+### Task 12: (folded into Task 8)
 
-**Files:**
-- Modify: `argocd/base/projects.yaml` (`sourceRepos` gains `https://prometheus-community.github.io/helm-charts`)
-
-- [ ] Verify: `kustomize build argocd/base`; commit `feat: allow the prometheus-community chart repo`. Merge this first, alone: both ArgoCDs sync `argocd/base`, and an Application whose repo is not allowed is refused.
+The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the number stays so later references hold.
 
 ### Task 13: NFS provisioner and StorageClass for prod
 
 **Files:**
-- Modify: `argocd/apps/nfs_provisioner/prod/*` and `argocd/environments/prod/applications/nfs.yaml` as needed; the StorageClass `nfs-prod` is the default class
+- Modify: `argocd/apps/nfs_provisioner/prod/*`; Create: `argocd/environments/prod/applications/nfs.yaml` (Task 8 deleted the stale one); the StorageClass `nfs-prod` is the default class
 
 **Interfaces:**
 - Produces: StorageClass `nfs-prod`, default; the provisioner's NFS server `10.0.0.<nfs-01>` and path `/srv/nfs/prod`, both taken from `host_ips` / the nfs_server role defaults, not from the old overlay.
@@ -220,7 +218,7 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 ### Task 16: `kube-prometheus-stack`, secrets app, remove the old overlay
 
 **Files:**
-- Create: `argocd/environments/prod/applications/monitoring.yaml` (replaces the existing file), `monitoring-secrets.yaml`, `argocd/apps/kube-prometheus-stack/prod/values.yaml`, `argocd/apps/monitoring-secrets/prod/` (kustomize: Secrets with `<path:...>` placeholders)
+- Create: `argocd/environments/prod/applications/monitoring.yaml` (Task 8 deleted the stale one), `monitoring-secrets.yaml`, `argocd/apps/kube-prometheus-stack/prod/values.yaml`, `argocd/apps/monitoring-secrets/prod/` (kustomize: Secrets with `<path:...>` placeholders)
 - Delete: `argocd/apps/monitoring/prod/`
 
 **Interfaces:**
@@ -274,6 +272,8 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 - [ ] After merge [operator]: in Prometheus, find the series for `local-lvm` size and usage (`pve_disk_size_bytes` and `pve_disk_usage_bytes` are the expected names; confirm in the UI) and paste them into the PR. The rule in Task 21 is written from what is observed, not from this guess.
 
 ### Task 21: Rules, SLOs and Alertmanager route
+
+**Blocked on the operator** until Task 20's observation is pasted into PR 4: the thin-pool rule expression comes from the observed series. Write the other rules and the route first; hold the pool rule until the series is known.
 
 **Files:**
 - Create: `argocd/apps/alerts/prod/` (kustomize of `PrometheusRule`s), `argocd/environments/prod/applications/alerts.yaml`
