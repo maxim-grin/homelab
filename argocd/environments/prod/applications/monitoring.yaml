@@ -33,7 +33,11 @@ spec:
     # owns the namespace and its privileged Pod Security label, and two
     # owners would fight over the labels. Waves between Applications order
     # them but do not wait for health, so this sync can still run before
-    # the namespace exists; the retry carries it past that.
+    # the namespace exists; the retry carries it past that. The retries
+    # are finite: after a sealed-Vault outage at bootstrap, when
+    # monitoring-secrets cannot render, they run out and this Application
+    # stays `Sync failed` until someone runs a manual sync once Vault is
+    # unsealed.
     retry:
       limit: 5
       backoff:

@@ -97,6 +97,9 @@ alertmanager:
 
 grafana:
   admin:
+    # Grafana reads these credentials only when it first creates its
+    # database, so rotating kv-prod monitoring/grafana later changes nothing:
+    # change the password in Grafana, or delete its PVC.
     existingSecret: grafana-admin
     userKey: admin-user
     passwordKey: admin-password
