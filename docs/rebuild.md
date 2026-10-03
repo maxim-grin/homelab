@@ -421,7 +421,13 @@ from `secret.yaml`.
 5. **Storage** — the first formats and mounts all three data disks on
    `nfs-01` and exports `nfs-dev` to the dev nodes; the second (default
    dev inventory) prepares the clients. Storage first, because everything
-   else claims PVCs from it.
+   else claims PVCs from it. `nfs-prod` is exported only to the prod
+   workers, so `host_ips` in `secret.yaml` needs `talos-w1`
+   (`10.0.0.111`) and `talos-w2` (`10.0.0.112`) before this play runs.
+   Prod nodes do not exist yet on a first pass: re-run the play with
+   `-i inventories/shared` once they do. Check with `showmount -e` on
+   `nfs-01`: the prod path lists exactly those two addresses, the dev
+   path is unchanged.
 
    ```bash
    ansible-playbook -i inventories/shared playbooks/nfs_server.yaml -e @secret.yaml --ask-vault-pass
