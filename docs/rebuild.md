@@ -567,7 +567,7 @@ from `secret.yaml`.
     ```
 
 14. **Point `/etc/hosts`** at a node IP for `dev-argocd.mgryn.cc`,
-    `grafana.mgryn.cc` and
+    `dev-grafana.mgryn.cc` and
     `prometheus.mgryn.cc`. One line per name, all pointing at the same node
     -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
     answers.

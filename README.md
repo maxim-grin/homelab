@@ -126,7 +126,7 @@ entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
 `pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
-straight at `vault-02`. The other cluster names — `argocd`, `grafana`,
+straight at `vault-02`. The other cluster names — `dev-argocd`, `dev-grafana`,
 `prometheus` — resolve through `/etc/hosts` on the workstation, pointing
 at a node IP since ingress-nginx answers on every node. Pi-hole
 (`10.0.0.140`) answers only the devices pointed at it by hand, because
@@ -136,7 +136,7 @@ router. There is no Cloudflare Tunnel.
 `jobs.mgryn.cc` and `*.hl.mgryn.cc` are served over HTTPS with their own
 Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT record
 through the Cloudflare API — but by two different components with two
-different tokens. `jobs.mgryn.cc`'s (and `grafana.mgryn.cc`'s) comes from
+different tokens. `jobs.mgryn.cc`'s (and `dev-grafana.mgryn.cc`'s) comes from
 cert-manager, with a token held in
 Vault at `kv-dev/cert-manager/cloudflare`; `*.hl.mgryn.cc`'s comes from
 Traefik itself, with its own token in `secret.yaml`
