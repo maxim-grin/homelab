@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Everything kube-prometheus-stack needs that must not sit in a Helm
+# values file: the namespace itself and the two Secrets carrying
+# <path:...> placeholders. AVP resolves those at sync time; the chart
+# Application has no plugin and references the Secrets by name.
+#
+# No `namespace:` transformer: each resource names its own namespace,
+# and the transformer would also rewrite the Namespace object.
+resources:
+  - namespace.yaml
+  - grafana-admin-secret.yaml
+  - alertmanager-config-secret.yaml

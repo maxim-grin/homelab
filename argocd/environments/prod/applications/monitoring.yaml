@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    # Wave 5: after monitoring-secrets (4) creates the namespace and the
+    # Secrets this chart references by name.
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: homelab
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 91.9.0
+      helm:
+        releaseName: monitoring
+        valueFiles:
+          - $values/argocd/apps/kube-prometheus-stack/prod/values.yaml
+    - repoURL: https://github.com/maxim-grin/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # No CreateNamespace and no managedNamespaceMetadata: monitoring-secrets
+    # owns the namespace and its privileged Pod Security label, and two
+    # owners would fight over the labels. Waves between Applications order
+    # them but do not wait for health, so this sync can still run before
+    # the namespace exists; the retry carries it past that.
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+    syncOptions:
+      # The operator's CRDs (Prometheus, Alertmanager) are larger than the
+      # 256KiB last-applied-configuration annotation client-side apply
+      # writes, so a plain apply fails with "metadata.annotations: Too
+      # long". Server-side apply keeps no such annotation.
+      - ServerSideApply=true
