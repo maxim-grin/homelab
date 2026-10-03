@@ -240,8 +240,8 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 **Files:**
 - Modify: `ansible/roles/gatus/defaults/main.yaml` (checks for `argocd.mgryn.cc` and `grafana.mgryn.cc`, each with `[CONNECTED] == true` like the others), `docs/operations.md`, `README.md` (table and Mermaid diagram), `docs/decisions/0024-hub-in-prod.md` (kube-prometheus-stack decision)
 
-- [ ] Verify: `ansible-lint ansible/roles/gatus`.
-- [ ] Commit `ops: gatus checks for the prod hub`; open the PR, draft until Task 18 passes.
+- [x] Verify: `ansible-lint ansible/roles/gatus`.
+- [x] Commit `ops: gatus checks for the prod hub`; open the PR, draft until Task 18 passes.
 
 ### Task 17a: ArgoCD's own Ingress gets a certificate (prod)
 
