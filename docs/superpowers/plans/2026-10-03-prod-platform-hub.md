@@ -34,6 +34,7 @@
 - Two ArgoCDs apply the same `argocd/base/`: the prod instance must not break dev's AppProject or the shared `vault-auth` ServiceAccount. Task 8 checks both clusters sync clean.
 - NFS exported to a subnet or to everyone by an empty client list. Task 3 checks `showmount -e` lists exactly two addresses.
 - A rule that references a metric which does not exist alerts on nothing and looks healthy. Task 20 requires the pool metric be observed in Prometheus before the rule is written.
+- Talos's default Pod Security `baseline` blocks hostPort and host namespaces: ingress-nginx and node-exporter pods are refused unless their namespaces are labelled `privileged`. Tasks 15 and 16 label them; Task 18 checks the DaemonSets reach `Ready`.
 - Telegram token, Grafana password, Cloudflare token committed as literals. Task 22 greps the diff.
 
 ---
@@ -211,7 +212,7 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 **Files:**
 - Create: `argocd/environments/prod/applications/ingress-nginx.yaml`, `argocd/apps/ingress-nginx/prod/values.yaml`
 
-- [ ] Same shape as dev (DaemonSet, host ports 80/443, `ServerSideApply`), chart pin `4.14.5`. The `argocd/apps/ingress-nginx/*` directories are Helm inputs, not kustomize overlays.
+- [ ] Same shape as dev (DaemonSet, host ports 80/443, `ServerSideApply`), chart pin `4.14.5`. **Talos enforces Pod Security `baseline` by default, which rejects `hostPort`:** the Application must label namespace `ingress-nginx` `pod-security.kubernetes.io/enforce: privileged` (Argo's `managedNamespaceMetadata`), or the DaemonSet pods are refused at admission. The `argocd/apps/ingress-nginx/*` directories are Helm inputs, not kustomize overlays.
 - [ ] Verify: `helm template` with the values; expected: a DaemonSet, no Service of type LoadBalancer.
 - [ ] Commit `feat: ingress-nginx on the prod cluster`.
 
@@ -225,6 +226,7 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 - Consumes: StorageClass `nfs-prod`; kv-prod `monitoring/grafana` and `monitoring/alertmanager`.
 - Produces: namespace `monitoring`, Services Prometheus and Grafana, `ServiceMonitor` and `PrometheusRule` discovery for the whole cluster (selectors must not be limited to the chart's release label, or Task 20-21 rules are ignored).
 
+- [ ] Pod Security: node-exporter uses `hostNetwork`, `hostPID` and `hostPath`, which Talos's default `baseline` admission rejects. Label namespace `monitoring` `pod-security.kubernetes.io/enforce: privileged` (Argo's `managedNamespaceMetadata`) in the Application.
 - [ ] Helm values: Prometheus PVC 20Gi `nfs-prod`, `retention.size` 15GB, remote-write receiver on, rule and monitor selectors open; Grafana PVC 5Gi, admin credentials from an `existingSecret`, ingress host `grafana.mgryn.cc` with the production ClusterIssuer; Alertmanager reads its Telegram token and chat id from a mounted Secret (never an inline value). Secrets come from the separate kustomize app so no placeholder sits in a Helm values file.
 - [ ] `ServerSideApply` for the chart (large CRDs). Add the CRD-size caveat as a comment where it is set.
 - [ ] Verify: `helm template` (chart `91.9.0`) with the values; `kustomize build argocd/apps/monitoring-secrets/prod`; `scripts/check-manifests.sh`; grep the diff for any literal token.
@@ -244,6 +246,7 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 - [ ] Merge PR 3. Watch `kubectl -n argocd get applications`; expected: all `Synced`/`Healthy` after about 3 minutes plus chart pulls.
 - [ ] Verify storage: `kubectl get pvc -A`; expected: `Bound` on `nfs-prod`, none `Pending`.
 - [ ] Verify certificates: `kubectl get certificate -A`; expected: `Ready=True`. Debug with the staging issuer first; production allows 5 failures per hostname per hour.
+- [ ] Verify Pod Security: `kubectl get ds -A` shows ingress-nginx and node-exporter `READY` equal to `DESIRED` (a refused pod shows as a `FailedCreate` event in `kubectl -n ingress-nginx describe ds`).
 - [ ] Verify serving: `curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.111/` and the same for `.112`; expected `302` or `200`. Grafana's Prometheus datasource: `Connection successful`.
 - [ ] `ansible-playbook ... --limit gatus`; expected: the two new endpoints green in Gatus.
 - [ ] Host check: `free -m` on `pve`; `available` still above 1000 MiB.
