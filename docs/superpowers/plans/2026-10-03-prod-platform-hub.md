@@ -165,8 +165,8 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 **Files:**
 - Modify: `docs/rebuild.md` (prod bootstrap section: extract kubeconfig, run the play, apply `argocd/base/projects.yaml` and prod's `app-of-apps.yaml` by hand as dev does, then Vault configure, then verify), `docs/operations.md` (URLs, kubeconfig extraction, break-glass NodePort), `README.md`
 
-- [ ] Write the ordered operator runbook from Task 11, including the chicken-and-egg: Vault's prod auth needs the `vault-auth` ServiceAccount, which `argocd-config` syncs without AVP; apps with placeholders sync only after Vault is configured.
-- [ ] Commit `docs: prod hub bootstrap runbook`. Open the PR (draft until Task 11 passes), then `gh pr ready`.
+- [x] Write the ordered operator runbook from Task 11, including the chicken-and-egg: Vault's prod auth needs the `vault-auth` ServiceAccount, which `argocd-config` syncs without AVP; apps with placeholders sync only after Vault is configured.
+- [x] Commit `docs: prod hub bootstrap runbook`. Open the PR (draft until Task 11 passes), then `gh pr ready`.
 
 ### Task 11: Bootstrap the hub [operator]
 
