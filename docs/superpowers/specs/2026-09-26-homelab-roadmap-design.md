@@ -162,6 +162,13 @@ Terraform apply plus one playbook. Resizing `claude-code` reboots
 the VM that agent sessions run on, so it is a targeted apply from the
 workstation while no session is running.
 
+The rebuild also renames the VMs, which are `ubuntu-k8s-master-01` and
+`ubuntu-k8s-worker-01` today, to `kubeadm-dev-cp1` and `kubeadm-dev-w1`,
+the `<distro>-<env>-<role>` pattern prod uses (`talos-prod-cp1`). A
+rename done in place would leave the Proxmox name, the guest hostname and
+the kubeadm node name disagreeing, and needs `moved` blocks (ADR 0013);
+creating the VMs fresh under the new names avoids both.
+
 **5. jobboard in prod.** Prod overlay pinned to a tag, the dev-to-prod
 promotion flow, and `jobs.mgryn.cc` moved to prod.
 
