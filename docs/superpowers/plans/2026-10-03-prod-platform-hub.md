@@ -108,10 +108,10 @@
 
 The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the control plane (`control_plane_host`). Talos has no SSH. This task must teach the role a second source for a cluster with no `control_plane_host`: read the same Secret and the cluster CA through a kubeconfig on the workstation (`kubernetes.core.k8s_info`, delegated to localhost). Dev's behaviour must not change.
 
-- [ ] Add the `prod` entry: `kv_mount: kv-prod`, `auth_path: kubernetes-prod`, `api_host: 10.0.0.110` (verbatim from the node table), policy and role names from Global Constraints.
-- [ ] Make `control_plane_host` optional in validation; require exactly one of `control_plane_host` or a kubeconfig path variable per cluster, with a failure message naming the cluster.
-- [ ] Verify: `ansible-lint ansible/roles/vault`; `--syntax-check` on `vault.yaml`; run the role in `--check` against dev and confirm no diff for the dev mount.
-- [ ] Commit `feat: vault kubernetes auth for the prod cluster`.
+- [x] Add the `prod` entry: `kv_mount: kv-prod`, `auth_path: kubernetes-prod`, `api_host: 10.0.0.110` (verbatim from the node table), policy and role names from Global Constraints.
+- [x] Make `control_plane_host` optional in validation; require exactly one of `control_plane_host` or a kubeconfig path variable per cluster, with a failure message naming the cluster.
+- [x] Verify: `ansible-lint ansible/roles/vault`; `--syntax-check` on `vault.yaml`; run the role in `--check` against dev and confirm no diff for the dev mount.
+- [x] Commit `feat: vault kubernetes auth for the prod cluster`.
 
 ### Task 6: argocd role takes the auth mount and host as variables
 
