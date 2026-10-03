@@ -290,9 +290,9 @@ Prod's Grafana takes `grafana.mgryn.cc` through public DNS, and dev's Grafana al
 **Files:**
 - Modify: `scripts/pve-bootstrap.sh` (new step `pve-exporter`, modelled on `step_glance`: user `pve-exporter@pve`, role `PVEAuditor`, token `pve-exporter`, secret printed once), `scripts/tests/pve-bootstrap.test.sh`, `docs/rebuild.md`
 
-- [ ] Add the step to `ALL_STEPS` and the usage line; add stub-test cases for create and for already-exists, as the Glance step has.
-- [ ] Verify: `scripts/tests/pve-bootstrap.test.sh` passes; `shellcheck scripts/pve-bootstrap.sh`; `scripts/check-talos-pins.sh` unchanged.
-- [ ] Commit `feat: pve-exporter token in the host script`.
+- [x] Add the step to `ALL_STEPS` and the usage line; add stub-test cases for create and for already-exists, as the Glance step has.
+- [x] Verify: `scripts/tests/pve-bootstrap.test.sh` passes; `shellcheck scripts/pve-bootstrap.sh`; `scripts/check-talos-pins.sh` unchanged.
+- [x] Commit `feat: pve-exporter token in the host script`.
 - [ ] Operator (can wait for the deferred real run of the script): run the step, put the printed secret into `secret.yaml`, seed `kv-prod/monitoring/pve-exporter`.
 
 ### Task 20: pve-exporter app, and the pool metric
