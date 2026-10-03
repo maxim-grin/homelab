@@ -743,7 +743,11 @@ from `secret.yaml`.
 
     - Prod nodes at 4G memory and `nfs-prod` exported to the prod
       workers (the hub-nodes PR applied).
-    - `kv-prod` seeded. Step 7 resolves a `kv-prod` placeholder, and
+    - PR 1 (hub-nodes) and PR 2 (hub-bootstrap) merged to `main` before
+      step 4; steps 1-3 can run from the branch. `root-prod` reads
+      `main`, so applying it earlier deploys stale apps and never
+      creates the `vault-auth` Secret.
+    - `kv-prod` seeded. Step 17.7 below resolves a `kv-prod` placeholder, and
       nothing else seeds it. With the `kv-prod` block of `secret.yaml`
       filled in (see `secret.yaml.example`), seed from `ansible/`;
       `vault_configure` stays false:
@@ -788,8 +792,10 @@ from `secret.yaml`.
        Done when every pod is `Running` or `Completed` and `repo-server`
        is not stuck in `Init`.
 
-    4. Apply the AppProject and the app-of-apps by hand, as on dev (steps
-       10 and 11); the `argocd` role does not apply them:
+    4. PR 1 (hub-nodes) and PR 2 (hub-bootstrap) are merged to `main`
+       before this step; steps 1-3 can run from the branch. Apply the
+       AppProject and the app-of-apps by hand, as on dev (steps 10 and
+       11); the `argocd` role does not apply them:
 
        ```bash
        kubectl --kubeconfig "$PROD_KC" apply -f ../argocd/base/projects.yaml
@@ -821,15 +827,41 @@ from `secret.yaml`.
        Applications read `Unknown` until this runs and clear on Argo's
        next poll.
 
-    7. Prove AVP end to end: a throwaway Application in the `homelab`
-       project that renders one
-       `<path:kv-prod/data/monitoring/grafana#admin-user>`. Expect
-       `Synced` with no `ComparisonError`. Delete it afterwards.
+    7. Prove AVP end to end. ArgoCD renders only from git and no
+       committed manifest carries a `kv-prod` placeholder, so run the
+       plugin directly in the repo-server's `avp` sidecar, which has the
+       `AVP_*` and `VAULT_*` variables (`envFrom` the
+       `argocd-vault-plugin-config` Secret) and the binary at
+       `/usr/local/bin/argocd-vault-plugin`. It logs in to Vault's
+       `kubernetes-prod` mount with the pod's ServiceAccount token. The
+       field is `admin-user`, not the password, so nothing sensitive is
+       printed. Nothing is committed or applied:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd exec -i \
+         deploy/argocd-repo-server -c avp -- \
+         argocd-vault-plugin generate - <<'EOF'
+       apiVersion: v1
+       kind: ConfigMap
+       metadata:
+         name: avp-check
+         annotations:
+           avp.kubernetes.io/path: kv-prod/data/monitoring/grafana
+       data:
+         user: <admin-user>
+       EOF
+       ```
+
+       Expect a ConfigMap whose `user` is `admin`. Failure shows as a
+       non-zero exit with an error from Vault or the login, the same one
+       an Application reports as `ComparisonError`. Check `vault status`
+       on `vault-02` first (sealed Vault), then that `kv-prod` is seeded
+       and step 6 ran.
 
     8. Check the UI. Prod has no ingress controller until PR 3, so use the
        NodePort: `http://10.0.0.111:32080` (or `.112`, or HTTPS on
-       `32443`) shows the login page. `dev-argocd.mgryn.cc` still lists
-       dev's Applications `Synced`.
+       `32443`) shows the login page. If step 2 was done,
+       `dev-argocd.mgryn.cc` still lists dev's Applications `Synced`.
 
     9. Delete the kubeconfig: `rm "$PROD_KC"`.
 
