@@ -48,10 +48,10 @@
 **Interfaces:**
 - Produces: the documented node sizes that Task 2 applies.
 
-- [ ] Branch `hub-nodes` from `main`; `pre-commit install` if `.git/hooks/commit-msg` is missing.
-- [ ] Set `w1` and `w2` memory to 4096 in `prod.tfvars.example`; update every doc that says prod runs 2G workers (grep `2G`, `2048`, `6G` in README, rebuild, operations).
-- [ ] Verify: `cd terraform/environments/prod && terraform fmt -check && terraform validate && terraform test`. Expected: all runs pass, as before.
-- [ ] Commit `docs: size prod workers at 4G for the hub`.
+- [x] Branch `hub-nodes` from `main`; `pre-commit install` if `.git/hooks/commit-msg` is missing.
+- [x] Set `w1` and `w2` memory to 4096 in `prod.tfvars.example`; update every doc that says prod runs 2G workers (grep `2G`, `2048`, `6G` in README, rebuild, operations).
+- [x] Verify: `cd terraform/environments/prod && terraform fmt -check && terraform validate && terraform test`. Expected: all runs pass, as before.
+- [x] Commit `docs: size prod workers at 4G for the hub`.
 
 ### Task 2: Apply the resize [operator]
 
