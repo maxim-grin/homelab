@@ -74,9 +74,12 @@ login comes from `kv-prod/monitoring/grafana`, Alertmanager's Telegram
 settings from `kv-prod/monitoring/alertmanager`, and cert-manager's
 Cloudflare token from `kv-prod/cert-manager/cloudflare`. Grafana reads
 the admin password only when it first creates its database: rotating the
-Vault value changes nothing afterwards. Change it in Grafana (or reset
-it with `grafana cli admin reset-admin-password` in the pod), then keep
-Vault in step. ArgoCD's own `admin` password is not in Vault: the
+Vault value changes nothing afterwards. To change it, write the database
+and then keep Vault in step:
+`kubectl --kubeconfig "$PROD_KC" -n monitoring exec
+deploy/monitoring-grafana -c grafana -- grafana cli admin
+reset-admin-password <new>` (the container is named `grafana`; the
+Deployment sits next to sidecars, so `-c` is needed). ArgoCD's own `admin` password is not in Vault: the
 bootstrap play takes its bcrypt hash from `secret.yaml`, because
 ArgoCD must be up before AVP can read anything.
 

@@ -98,8 +98,9 @@ healthy; it only orders creation (`nfs` 0, `cert-manager` 1, issuers 2,
 `ingress-nginx` 3, `monitoring-secrets` 4, `monitoring` 5). Retries on
 `cert-manager-issuers` (the CRD race) and `monitoring` (the namespace
 race) cover the gaps. They are finite: after a sealed-Vault outage the
-Application stays `Sync failed` until someone unseals Vault and syncs it
-by hand.
+Application stays `Sync failed` until someone unseals Vault and starts
+a sync by hand, with a kubectl patch of the Application's `operation`
+(a hard refresh re-compares but does not retry).
 
 The Applications for the Proxmox exporter and the alert rules come with
 the next PR, and this record gains its decisions then.

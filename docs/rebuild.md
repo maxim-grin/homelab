@@ -902,9 +902,23 @@ from `secret.yaml`.
        covers the `monitoring` namespace that `monitoring-secrets` owns.
 
        An Application on `Sync failed` after Vault was sealed or briefly
-       unreachable stays failed once Vault is back. Unseal (`vault
-       status` on `vault-02`), then sync it by hand: `argocd app sync
-       <name>`, or Sync in the UI.
+       unreachable stays failed once Vault is back, because its finite
+       retries are used up. Unseal (`vault status` on `vault-02`), then
+       start a sync by hand with kubectl alone:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd patch application <name> \
+         --type merge \
+         -p '{"operation":{"initiatedBy":{"username":"operator"},"sync":{}}}'
+       ```
+
+       An empty `sync` uses each source's `targetRevision` and the
+       Application's own `syncPolicy` options, so it works for the
+       multi-source Applications too. A hard refresh
+       (`argocd.argoproj.io/refresh=hard`) is not enough: it re-compares
+       but does not retry a sync whose retries are exhausted. The Sync
+       button in the UI, or `argocd app sync <name>` with a logged-in CLI,
+       does the same.
 
     3. Storage: `kubectl --kubeconfig "$PROD_KC" get pvc -A`. Expect
        `Bound` on `nfs-prod` for Prometheus (20Gi) and Grafana (5Gi), none
@@ -919,8 +933,9 @@ from `secret.yaml`.
        challenges -A` show the reason.
 
     5. Pod Security: `kubectl --kubeconfig "$PROD_KC" get ds -A`. Expect
-       `ingress-nginx` and the node exporter `READY` equal to `DESIRED`
-       (two workers). A pod Talos's default `baseline` policy refused
+       `ingress-nginx` `READY` equal to `DESIRED` at 2 (the two workers;
+       it has no control-plane toleration) and the node exporter at 3 (one
+       per node, control plane included). A pod Talos's default `baseline` policy refused
        shows as a `FailedCreate` event, in `kubectl -n ingress-nginx
        describe ds ingress-nginx-controller` or the node exporter's
        namespace `monitoring`; both namespaces are labelled `privileged`.
@@ -937,9 +952,13 @@ from `secret.yaml`.
        Connections, Data sources, Prometheus, Save & test shows
        `Connection successful`.
 
-    7. ArgoCD's own certificate. The Ingress was created in step 17 before
-       cert-manager existed, so re-run the play now that `letsencrypt-prod`
-       exists; it sets `argocd_ingress_cluster_issuer`:
+    7. ArgoCD's own certificate. The play already puts the
+       `letsencrypt-prod` annotation on the Ingress
+       (`argocd_ingress_cluster_issuer`), and cert-manager re-evaluates
+       Ingresses, so it usually issues on its own once the issuers are
+       Ready. Check `kubectl --kubeconfig "$PROD_KC" get certificate -n
+       argocd`; only if it shows nothing, re-run the play so the Ingress
+       is rewritten:
 
        ```bash
        ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
