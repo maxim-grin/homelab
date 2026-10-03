@@ -162,6 +162,23 @@ Terraform apply plus one playbook. Resizing `claude-code` reboots
 the VM that agent sessions run on, so it is a targeted apply from the
 workstation while no session is running.
 
+The rebuild also renames the VMs, which are `ubuntu-k8s-master-01` and
+`ubuntu-k8s-worker-01` today, to `kubeadm-dev-cp1` and `kubeadm-dev-w1`,
+the `<distro>-<env>-<role>` pattern prod uses (`talos-prod-cp1`). A
+rename done in place would leave the Proxmox name, the guest hostname and
+the kubeadm node name disagreeing, and needs `moved` blocks (ADR 0013);
+creating the VMs fresh under the new names avoids both.
+
+Rebuilding dev from scratch is acceptable here, with one exception:
+jobboard's Postgres, the only state dev holds that git does not. It lives
+on an `nfs-dev` PVC, which is deleted with the PVC, so it is dumped
+(`pg_dump`) off the cluster before the rebuild and restored into prod's
+Postgres in sub-project 5, which reuses the data. The dump goes to the
+operator's workstation, not to `nfs-01`: a copy on the same disk survives
+neither the SSD nor a rebuild drill. The sub-4 brainstorm may therefore
+reopen the "kubeadm on Ubuntu" decision above and look for a better dev
+distribution, since the rename and the rebuild already replace the VMs.
+
 **5. jobboard in prod.** Prod overlay pinned to a tag, the dev-to-prod
 promotion flow, and `jobs.mgryn.cc` moved to prod.
 
