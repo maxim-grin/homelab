@@ -124,8 +124,11 @@ Rejected:
   retention ceiling and no high availability.
 - A deleted `nfs-prod` PVC leaves a `Released` PV and a directory behind
   until the operator removes them.
-- Prod platform apps that need Vault stay `Sync failed` after a sealed
-  Vault outage at bootstrap until a manual sync.
+- After a sealed Vault outage at bootstrap, `monitoring-secrets` and
+  `cert-manager-issuers` show a `ComparisonError` and sync on their own
+  once Vault is unsealed; `monitoring`, which needs the namespace
+  `monitoring-secrets` creates, can be left `Sync failed` until a manual
+  sync.
 
 ## Related
 

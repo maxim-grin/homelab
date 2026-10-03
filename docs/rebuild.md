@@ -884,8 +884,9 @@ from `secret.yaml`.
        now `dev-grafana.mgryn.cc`. The same applies to the old
        `argocd.mgryn.cc` line, now `dev-argocd.mgryn.cc`.
 
-    2. Merge in order: PR 1 (hub-nodes), PR 2 (hub-bootstrap), PR 3
-       (hub-platform), each to `main`. `root-prod` reads `main`. Watch:
+    2. Get the platform apps onto `main`, which `root-prod` reads (on
+       the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then
+       PR 3 hub-platform, in that order). Watch:
 
        ```bash
        kubectl --kubeconfig "$PROD_KC" -n argocd get applications
@@ -901,9 +902,11 @@ from `secret.yaml`.
        covers the missing cert-manager CRDs, and one on `monitoring`
        covers the `monitoring` namespace that `monitoring-secrets` owns.
 
-       An Application on `Sync failed` after Vault was sealed or briefly
-       unreachable stays failed once Vault is back, because its finite
-       retries are used up. Unseal (`vault status` on `vault-02`), then
+       After a sealed or briefly unreachable Vault, `monitoring-secrets`
+       and `cert-manager-issuers` show a `ComparisonError` and sync on
+       their own once it is unsealed. `monitoring` needs the namespace
+       `monitoring-secrets` creates, so it can stay `Sync failed` with its
+       finite retries used up. Unseal (`vault status` on `vault-02`), then
        start a sync by hand with kubectl alone:
 
        ```bash
@@ -952,13 +955,13 @@ from `secret.yaml`.
        Connections, Data sources, Prometheus, Save & test shows
        `Connection successful`.
 
-    7. ArgoCD's own certificate. The play already puts the
-       `letsencrypt-prod` annotation on the Ingress
-       (`argocd_ingress_cluster_issuer`), and cert-manager re-evaluates
-       Ingresses, so it usually issues on its own once the issuers are
-       Ready. Check `kubectl --kubeconfig "$PROD_KC" get certificate -n
-       argocd`; only if it shows nothing, re-run the play so the Ingress
-       is rewritten:
+    7. ArgoCD's own certificate. The play puts the `letsencrypt-prod`
+       annotation on the Ingress (`argocd_ingress_cluster_issuer`). First
+       rollout: step 17 ran with code that had no annotation, so re-run
+       the play now that the issuers are Ready. Full rebuild: step 17
+       already ran with it, cert-manager issues once the issuer exists,
+       and no re-run is needed; `kubectl --kubeconfig "$PROD_KC" get
+       certificate -n argocd` shows it. If it shows nothing, re-run:
 
        ```bash
        ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \

@@ -27,7 +27,7 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 
 `dev` is the kubeadm cluster. `terraform/environments/prod` is the Talos
 cluster: three nodes through the `siderolabs/talos` provider, applied from
-the operator's workstation, no workloads until sub-project 3.
+the operator's workstation; the prod app-of-apps delivers the hub platform apps.
 `terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs.
 Their prod halves (`nfs-prod`, `kv-prod`) stay unused until the hub platform
 lands.

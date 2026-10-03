@@ -44,8 +44,9 @@ is a stop — see
 
 The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every
-node — except `jobs.mgryn.cc` and `vault.mgryn.cc`, which have DNS-only
-Cloudflare records. `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
+node — except `jobs.mgryn.cc`, `vault.mgryn.cc`, `argocd.mgryn.cc` and
+`grafana.mgryn.cc`, which have DNS-only Cloudflare records (the last two
+are grey-cloud A records, two each, to the prod workers). `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
 
 ## Prod hub ArgoCD
 
@@ -75,11 +76,11 @@ settings from `kv-prod/monitoring/alertmanager`, and cert-manager's
 Cloudflare token from `kv-prod/cert-manager/cloudflare`. Grafana reads
 the admin password only when it first creates its database: rotating the
 Vault value changes nothing afterwards. To change it, write the database
-and then keep Vault in step:
-`kubectl --kubeconfig "$PROD_KC" -n monitoring exec
-deploy/monitoring-grafana -c grafana -- grafana cli admin
-reset-admin-password <new>` (the container is named `grafana`; the
-Deployment sits next to sidecars, so `-c` is needed). ArgoCD's own `admin` password is not in Vault: the
+and then keep Vault in step. The command reads the new password from
+stdin, so it stays out of shell history:
+`read -rs NEWPW; printf '%s' "$NEWPW" | kubectl --kubeconfig "$PROD_KC"
+-n monitoring exec -i deploy/monitoring-grafana -c grafana -- grafana
+cli admin reset-admin-password --password-from-stdin`. ArgoCD's own `admin` password is not in Vault: the
 bootstrap play takes its bcrypt hash from `secret.yaml`, because
 ArgoCD must be up before AVP can read anything.
 
