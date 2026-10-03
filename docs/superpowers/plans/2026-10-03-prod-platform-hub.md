@@ -321,9 +321,9 @@ Prod's Grafana takes `grafana.mgryn.cc` through public DNS, and dev's Grafana al
 
 ### Task 22: Docs, review, land
 
-- [ ] Extend ADR 0024 with the pve-exporter decision; README table and diagram; `docs/operations.md` alert and silence procedures.
-- [ ] Verify: `grep -rEn "token|password|secret" $(git diff main --name-only)` shows only placeholders and doc prose; `pre-commit run --all-files`.
-- [ ] Commit `docs: alerting runbook for the prod hub`; open the PR.
+- [x] Extend ADR 0024 with the pve-exporter decision; README table and diagram; `docs/operations.md` alert and silence procedures.
+- [x] Verify: `grep -rEn "token|password|secret" $(git diff main --name-only)` shows only placeholders and doc prose; `pre-commit run --all-files`.
+- [x] Commit `docs: alerting runbook for the prod hub`; open the PR.
 
 ### Task 23: Prove alerting [operator]
 
