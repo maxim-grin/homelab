@@ -254,10 +254,10 @@ The `sourceRepos` change ships with PR 2 in Task 8. Nothing to do here; the numb
 
 ArgoCD's Ingress comes from the role's Helm values, not from git, so the certificate only appears when the operator re-runs `argocd-prod.yaml` after PR 3 merges; cert-manager does not exist when the playbook first runs.
 
-- [ ] Add the variable and the conditional annotation/`tls` rendering (the chart exposes `server.ingress.annotations`, `server.ingress.tls` and the TLS secret name; confirm with `helm template`); the dev default render must be byte-identical to before.
-- [ ] Verify: `ansible-lint ansible/roles/argocd`; before/after render for the dev defaults identical; prod render shows the annotation and a `tls` entry for `argocd.mgryn.cc`.
-- [ ] Document in the runbook: re-run `argocd-prod.yaml` after PR 3 merges, then `kubectl get certificate -n argocd`.
-- [ ] Commit `feat: argocd ingress certificate for prod`.
+- [x] Add the variable and the conditional annotation/`tls` rendering (the chart exposes `server.ingress.annotations`, `server.ingress.tls` and the TLS secret name; confirm with `helm template`); the dev default render must be byte-identical to before.
+- [x] Verify: `ansible-lint ansible/roles/argocd`; before/after render for the dev defaults identical; prod render shows the annotation and a `tls` entry for `argocd.mgryn.cc`.
+- [x] Document in the runbook: re-run `argocd-prod.yaml` after PR 3 merges, then `kubectl get certificate -n argocd`.
+- [x] Commit `feat: argocd ingress certificate for prod`.
 
 ### Task 17b: Dev's Grafana moves to `dev-grafana.mgryn.cc`
 
@@ -266,8 +266,8 @@ ArgoCD's Ingress comes from the role's Helm values, not from git, so the certifi
 
 Prod's Grafana takes `grafana.mgryn.cc` through public DNS, and dev's Grafana already uses that name through the workstation's `/etc/hosts`, so one name would mean two services. Same reason as `dev-argocd` (ADR 0024). Dev's Prometheus keeps `prometheus.mgryn.cc`: prod exposes none.
 
-- [ ] Change every dev host occurrence (Ingress `host` and `tls.hosts`, the Grafana root URL); the TLS secret name may stay. Dev's certificate is reissued for the new name by the existing ClusterIssuer; note the DNS-01 rate-limit advice (use staging first).
-- [ ] Verify: `kustomize build argocd/apps/monitoring/dev` shows no remaining `grafana.mgryn.cc`; `scripts/check-manifests.sh`.
+- [x] Change every dev host occurrence (Ingress `host` and `tls.hosts`, the Grafana root URL); the TLS secret name may stay. Dev's certificate is reissued for the new name by the existing ClusterIssuer; note the DNS-01 rate-limit advice (use staging first).
+- [x] Verify: `kustomize build argocd/apps/monitoring/dev` shows no remaining `grafana.mgryn.cc`; `scripts/check-manifests.sh`.
 - [ ] Commit `ops: dev grafana answers on dev-grafana.mgryn.cc`. Operator: update `/etc/hosts` (`dev-grafana.mgryn.cc` to a dev node), re-run the glance play.
 
 ### Task 18: Roll out the platform [operator]
