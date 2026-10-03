@@ -184,8 +184,8 @@ supersedes a record in `docs/decisions/` in the same PR.
   Each share is its own disk on `nfs-01` (`scsi1` dev, `scsi2` prod,
   `scsi3` backups), mounted by label; the `nfs_server` role refuses to
   mount over a non-empty directory, and `nfs-server` will not start until
-  all three disks are mounted. `nfs-prod` has no export line until prod
-  has nodes — an
+  all three disks are mounted. `nfs-prod` is exported to the two prod
+  workers only (`talos-w1`, `talos-w2`) — an
   export with no client list is exported to everyone. (ADR
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This

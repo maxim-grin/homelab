@@ -38,9 +38,13 @@ nfs_server_dev_nodes:
   - worker-02
 nfs_server_dev_clients: "{{ nfs_server_dev_nodes | map('extract', host_ips) | list }}"
 
-# Empty until a prod cluster exists. An empty list means no export line at
-# all -- see templates/exports.j2.
-nfs_server_prod_clients: []
+# The two prod Talos workers only, never the control plane and never the
+# subnet. Names are keys of host_ips in secret.yaml. An empty list would mean
+# no export line at all -- see templates/exports.j2.
+nfs_server_prod_nodes:
+  - talos-w1
+  - talos-w2
+nfs_server_prod_clients: "{{ nfs_server_prod_nodes | map('extract', host_ips) | list }}"
 
 # The Vault VM alone. Not the cluster subnet, not the k8s nodes: a snapshot
 # of Vault is every secret it holds, and the only machine that needs to read
