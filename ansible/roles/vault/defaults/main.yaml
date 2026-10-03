@@ -65,9 +65,13 @@ vault_kv_mounts:
   - kv-dev
   - kv-prod
 
-# One entry per cluster that reads this Vault. control_plane_host lives in
-# inventories/dev, so a run with vault_configure=true needs
-# -i inventories/shared -i inventories/dev.
+# One entry per cluster that reads this Vault, each reached by exactly one
+# of two keys. control_plane_host is a kubeadm node the role reads over SSH;
+# it lives in inventories/dev, so a run with vault_configure=true needs
+# -i inventories/shared -i inventories/dev. kubeconfig is a file on the
+# operator's workstation, read there with kubernetes.core: Talos has no
+# SSH. Prod's comes from -e vault_prod_kubeconfig=<path to the output of
+# terraform output -raw kubeconfig in environments/prod>; ~ is expanded.
 vault_k8s_clusters:
   - name: dev
     kv_mount: kv-dev
@@ -78,6 +82,20 @@ vault_k8s_clusters:
     role_name: argocd
     service_account_names: ["argocd-repo-server"]
     service_account_namespaces: ["argocd"]
+  - name: prod
+    kv_mount: kv-prod
+    auth_path: kubernetes-prod
+    api_host: 10.0.0.110
+    kubeconfig: "{{ vault_prod_kubeconfig | default('') }}"
+    policy_name: argocd-read-prod
+    role_name: argocd
+    service_account_names: ["argocd-repo-server"]
+    service_account_namespaces: ["argocd"]
+
+# Which of vault_k8s_clusters a configure run writes Kubernetes auth for;
+# all of them unless narrowed. A run for dev alone, which needs no prod
+# kubeconfig, passes -e '{"vault_k8s_cluster_names":["dev"]}'.
+vault_k8s_cluster_names: "{{ vault_k8s_clusters | map(attribute='name') | list }}"
 
 vault_snapshot_src: "{{ host_ips['nfs-01'] }}:/srv/nfs/backups"
 vault_snapshot_dir: /mnt/vault-backups

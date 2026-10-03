@@ -545,7 +545,7 @@ from `secret.yaml`.
     ```bash
     ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
       -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-      -e vault_token=<root token>
+      -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
     ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
     ```
 
@@ -566,7 +566,7 @@ from `secret.yaml`.
     ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-14. **Point `/etc/hosts`** at a node IP for `argocd.mgryn.cc`,
+14. **Point `/etc/hosts`** at a node IP for `dev-argocd.mgryn.cc`,
     `grafana.mgryn.cc` and
     `prometheus.mgryn.cc`. One line per name, all pointing at the same node
     -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
@@ -732,6 +732,139 @@ from `secret.yaml`.
     `qm reboot <vmid>` on `pve` (a guest-level `talosctl reboot` does not pick
     up the new size), then `kubectl uncordon`.
 
+17. **Bootstrap the prod hub** — ArgoCD on the Talos cluster, with Vault's
+    prod auth ([ADR 0024](decisions/0024-hub-in-prod.md)). Every command
+    runs on the operator's workstation, which needs `helm`, `kubectl` and
+    the python `kubernetes` package for the Ansible controller's Python.
+    Ansible has no SSH target on Talos; it talks to the cluster API
+    through a kubeconfig.
+
+    Prerequisites:
+
+    - Prod nodes at 4G memory and `nfs-prod` exported to the prod
+      workers (the hub-nodes PR applied).
+    - PR 1 (hub-nodes) and PR 2 (hub-bootstrap) merged to `main` before
+      step 4; steps 1-3 can run from the branch. `root-prod` reads
+      `main`, so applying it earlier deploys stale apps and never
+      creates the `vault-auth` Secret.
+    - `kv-prod` seeded. Step 17.7 below resolves a `kv-prod` placeholder, and
+      nothing else seeds it. With the `kv-prod` block of `secret.yaml`
+      filled in (see `secret.yaml.example`), seed from `ansible/`;
+      `vault_configure` stays false:
+
+      ```bash
+      ansible-playbook -i inventories/shared playbooks/vault.yaml \
+        -e @secret.yaml --ask-vault-pass -e vault_seed=true \
+        -e vault_token=<root token>
+      ```
+
+      The play also re-runs the install, TLS and service tasks, which are
+      idempotent; a service restart would seal Vault, so check
+      `vault status` afterwards. Check the seed on `vault-02` without
+      printing the password:
+      `vault kv get -field=admin-user kv-prod/monitoring/grafana` prints
+      `admin`.
+
+    1. Extract the kubeconfig into a mode-600 temp file. It is a sensitive
+       Terraform output and is never kept on disk beyond this run:
+
+       ```bash
+       cd terraform/environments/prod
+       umask 077; PROD_KC="$(mktemp)"
+       terraform output -raw kubeconfig > "$PROD_KC"
+       cd ../../../ansible
+       ```
+
+    2. Optional, first: re-run `playbooks/argocd-dev.yaml -e @secret.yaml
+       --ask-vault-pass` so dev's ArgoCD answers as `dev-argocd.mgryn.cc`
+       (the rename that frees `argocd.mgryn.cc` for the hub), and add
+       `dev-argocd.mgryn.cc` to `/etc/hosts` pointing at a dev node IP.
+
+    3. Deploy ArgoCD. `prod_kubeconfig` is required; the play fails fast
+       without it:
+
+       ```bash
+       ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
+         -e prod_kubeconfig="$PROD_KC" --ask-vault-pass
+       kubectl --kubeconfig "$PROD_KC" -n argocd get pods
+       ```
+
+       Done when every pod is `Running` or `Completed` and `repo-server`
+       is not stuck in `Init`.
+
+    4. PR 1 (hub-nodes) and PR 2 (hub-bootstrap) are merged to `main`
+       before this step; steps 1-3 can run from the branch. Apply the
+       AppProject and the app-of-apps by hand, as on dev (steps 10 and
+       11); the `argocd` role does not apply them:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" apply -f ../argocd/base/projects.yaml
+       kubectl --kubeconfig "$PROD_KC" apply \
+         -f ../argocd/environments/prod/applications/app-of-apps.yaml
+       ```
+
+    5. Wait for `argocd-config` to be `Synced`. It creates the
+       `vault-auth` ServiceAccount and Secret that Vault's prod auth
+       reads. This is the chicken-and-egg: Vault's prod auth needs that
+       Secret, and Applications with `<path:...>` placeholders sync only
+       after Vault is configured. `argocd/base` has no placeholders, so
+       `argocd-config` syncs without AVP.
+
+    6. Configure Vault's prod auth mount. Prod's reviewer JWT and CA come
+       from the kubeconfig, not SSH, so `inventories/dev` is not needed
+       for a prod-only run; `vault_seed` is not needed either:
+
+       ```bash
+       ansible-playbook -i inventories/shared playbooks/vault.yaml \
+         -e @secret.yaml --ask-vault-pass -e vault_configure=true \
+         -e vault_token=<root token> \
+         -e '{"vault_k8s_cluster_names":["prod"]}' \
+         -e vault_prod_kubeconfig="$PROD_KC"
+       ```
+
+       Done when `vault read auth/kubernetes-prod/config` on `vault-02`
+       shows `kubernetes_host https://10.0.0.110:6443`. Placeholder
+       Applications read `Unknown` until this runs and clear on Argo's
+       next poll.
+
+    7. Prove AVP end to end. ArgoCD renders only from git and no
+       committed manifest carries a `kv-prod` placeholder, so run the
+       plugin directly in the repo-server's `avp` sidecar, which has the
+       `AVP_*` and `VAULT_*` variables (`envFrom` the
+       `argocd-vault-plugin-config` Secret) and the binary at
+       `/usr/local/bin/argocd-vault-plugin`. It logs in to Vault's
+       `kubernetes-prod` mount with the pod's ServiceAccount token. The
+       field is `admin-user`, not the password, so nothing sensitive is
+       printed. Nothing is committed or applied:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd exec -i \
+         deploy/argocd-repo-server -c avp -- \
+         argocd-vault-plugin generate - <<'EOF'
+       apiVersion: v1
+       kind: ConfigMap
+       metadata:
+         name: avp-check
+         annotations:
+           avp.kubernetes.io/path: kv-prod/data/monitoring/grafana
+       data:
+         user: <admin-user>
+       EOF
+       ```
+
+       Expect a ConfigMap whose `user` is `admin`. Failure shows as a
+       non-zero exit with an error from Vault or the login, the same one
+       an Application reports as `ComparisonError`. Check `vault status`
+       on `vault-02` first (sealed Vault), then that `kv-prod` is seeded
+       and step 6 ran.
+
+    8. Check the UI. Prod has no ingress controller until PR 3, so use the
+       NodePort: `http://10.0.0.111:32080` (or `.112`, or HTTPS on
+       `32443`) shows the login page. If step 2 was done,
+       `dev-argocd.mgryn.cc` still lists dev's Applications `Synced`.
+
+    9. Delete the kubeconfig: `rm "$PROD_KC"`.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
@@ -787,7 +920,7 @@ kubectl -n argocd get secret vault-auth-token
 # The KV store is already seeded, so no seed.
 ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=false \
-  -e vault_token=<root token>
+  -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
 ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
 ```
 

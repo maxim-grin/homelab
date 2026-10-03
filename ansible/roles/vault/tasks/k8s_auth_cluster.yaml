@@ -5,6 +5,7 @@
   delegate_to: "{{ cluster.control_plane_host }}"
   become: true
   register: vault_k8s_ca
+  when: cluster.control_plane_host is defined
 
 # vault_k8s_jwt.stdout is the base64 of a non-expiring credential that
 # holds system:auth-delegator (cluster-wide TokenReview power), so this
@@ -29,6 +30,7 @@
   changed_when: false
   failed_when: false
   no_log: true
+  when: cluster.control_plane_host is defined
 
 - name: Require the token reviewer JWT to have been read
   ansible.builtin.assert:
@@ -43,6 +45,79 @@
       secret vault-auth-token -o jsonpath={.data.token}
       An empty value with rc 0 means the Secret exists but the token
       controller has not populated it yet.
+  when: cluster.control_plane_host is defined
+
+# Talos has no SSH and no admin.conf on disk, so a cluster with a
+# kubeconfig instead of a control_plane_host is read from the workstation.
+# become: false because the play escalates for vault-02, and sudo on the
+# workstation is neither needed nor wanted. The CA comes from
+# kube-root-ca.crt, which the controller manager publishes on every
+# cluster, kubeadm or Talos: it is the CA pods are told to trust for the
+# API server, read through the same authenticated client as the Secret,
+# and needs no parsing of the kubeconfig, which may name a CA file or skip
+# verification instead of embedding certificate-authority-data.
+- name: "Read through its kubeconfig the CA certificate for {{ cluster.name }}"
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ cluster.kubeconfig | expanduser }}"
+    kind: ConfigMap
+    namespace: kube-system
+    name: kube-root-ca.crt
+  delegate_to: localhost
+  become: false
+  register: vault_k8s_kc_ca
+  when: cluster.kubeconfig is defined
+
+- name: "Require a CA certificate read for {{ cluster.name }}"
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_kc_ca.resources | length == 1
+      - vault_k8s_kc_ca.resources[0].data['ca.crt'] | default('') | length > 0
+    fail_msg: >-
+      The kube-root-ca.crt ConfigMap in kube-system on {{ cluster.name }}
+      is missing or empty. The controller manager publishes it once the
+      control plane is up; check kubectl --kubeconfig
+      {{ cluster.kubeconfig | expanduser | quote }} -n kube-system get configmap
+      kube-root-ca.crt.
+    quiet: true
+  when: cluster.kubeconfig is defined
+
+# Same credential and same reasoning as the SSH read above: no_log, with
+# failed_when: false so the assert after it can say what went wrong.
+- name: "Read through its kubeconfig the token reviewer JWT for {{ cluster.name }}"
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ cluster.kubeconfig | expanduser }}"
+    kind: Secret
+    namespace: argocd
+    name: vault-auth-token
+  delegate_to: localhost
+  become: false
+  register: vault_k8s_kc_jwt
+  failed_when: false
+  no_log: true
+  when: cluster.kubeconfig is defined
+
+# Every lookup is guarded with default() so a missing Secret or an empty
+# data block fails the assert instead of erroring inside the template,
+# and only lengths are tested, so nothing printed carries the token.
+- name: "Require a token reviewer JWT read for {{ cluster.name }}"
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_kc_jwt is not failed
+      - vault_k8s_kc_jwt.resources | default([]) | length == 1
+      - ((vault_k8s_kc_jwt.resources | default([{}], true) | first).data | default({}, true)).token | default('', true) | length > 0
+    fail_msg: >-
+      Could not read the token reviewer JWT for {{ cluster.name }}. The
+      preceding task is no_log because its output is a non-expiring
+      cluster credential, so run this by hand to see the real error:
+      kubectl --kubeconfig {{ cluster.kubeconfig | expanduser | quote }} -n argocd get
+      secret vault-auth-token -o jsonpath={.data.token}
+      The Secret comes from argocd/base/vault-auth-delegator.yaml and
+      exists only after {{ cluster.name }}'s argocd-config Application has
+      synced; wait for that, then re-run with -e vault_configure=true. An
+      empty value means the Secret exists but the token controller has not
+      populated it yet.
+    quiet: true
+  when: cluster.kubeconfig is defined
 
 - name: List the auth methods
   ansible.builtin.uri:
@@ -76,8 +151,13 @@
     body_format: json
     body:
       kubernetes_host: "https://{{ cluster.api_host }}:6443"
-      kubernetes_ca_cert: "{{ vault_k8s_ca.content | b64decode }}"
-      token_reviewer_jwt: "{{ vault_k8s_jwt.stdout | b64decode }}"
+      # One source per cluster; the other's registered result is a skip.
+      kubernetes_ca_cert: >-
+        {{ (vault_k8s_ca.content | b64decode) if cluster.control_plane_host is defined
+           else vault_k8s_kc_ca.resources[0].data['ca.crt'] }}
+      token_reviewer_jwt: >-
+        {{ (vault_k8s_jwt.stdout if cluster.control_plane_host is defined
+           else vault_k8s_kc_jwt.resources[0].data.token) | b64decode }}
       # Vault is not running in the cluster, so there is no local
       # ServiceAccount token for it to fall back on. Without this it tries
       # one anyway and fails with a message that does not say so.

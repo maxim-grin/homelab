@@ -3,6 +3,7 @@
   hosts: k8s_control_plane
   gather_facts: false
   vars:
+    argocd_ingress_host: dev-argocd.mgryn.cc
     argocd_nodeport_enabled: true
     argocd_nodeport_http_port: 32080
     argocd_nodeport_https_port: 32443

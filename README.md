@@ -95,7 +95,8 @@ diagram has a static address above that pool.
 | VM         | `vault-02`, the Vault VM; `kv-dev` in use, `kv-prod` ready but unused                                                                                                           | `terraform/environments/shared`                                                                         |
 | LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `glance` (dashboard) at `.142`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144` | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
 | OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
-| GitOps     | ArgoCD (`argocd.mgryn.cc`), app-of-apps `root-dev`                                                                                                                              | `ansible/roles/argocd`, `argocd/environments/dev`                                                       |
+| GitOps     | ArgoCD (`dev-argocd.mgryn.cc`), app-of-apps `root-dev`                                                                                                                              | `ansible/roles/argocd`, `argocd/environments/dev`                                                       |
+| GitOps     | ArgoCD on the Talos cluster, bootstrapped by `playbooks/argocd-prod.yaml`, app-of-apps `root-prod`; the hub for later PRs ([ADR 0024](docs/decisions/0024-hub-in-prod.md))          | `ansible/playbooks/argocd-prod.yaml`, `argocd/environments/prod`                                        |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                                                                                   | `argocd/apps/ingress-nginx`                                                                             |
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare                                                                                                                  | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers`                                          |
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass                                                                                                                  | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner`                                               |
@@ -104,7 +105,8 @@ diagram has a static address above that pool.
 
 **Scope.** One physical machine, one SSD, two Kubernetes clusters: `dev`
 (kubeadm, running the platform today) and `prod` (Talos, three nodes, no
-workloads yet). `prod`'s ArgoCD and monitoring hub arrives in sub-project 3
+workloads yet). `prod`'s ArgoCD is bootstrapped by a playbook; the
+monitoring hub arrives in sub-project 3
 of the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
 ([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)).
 
