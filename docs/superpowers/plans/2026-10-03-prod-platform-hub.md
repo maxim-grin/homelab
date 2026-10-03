@@ -156,9 +156,9 @@ The dev entry reads the reviewer JWT and CA over SSH with `kubectl` on the contr
 **Files:**
 - Modify: `ansible/playbooks/argocd-dev.yaml` (sets `argocd_ingress_host: dev-argocd.mgryn.cc`), any dev Ingress or ConfigMap that names `argocd.mgryn.cc`, `ansible/roles/glance/defaults/main.yaml` if it links the old name, `docs/operations.md`, `docs/rebuild.md`, `README.md`
 
-- [ ] `grep -rn "argocd.mgryn.cc"` outside `docs/superpowers`; change each hit that means dev.
-- [ ] Verify: `ansible-lint`, syntax check on `argocd-dev.yaml`, `scripts/check-manifests.sh`.
-- [ ] Commit `ops: dev argocd answers on dev-argocd.mgryn.cc`.
+- [x] `grep -rn "argocd.mgryn.cc"` outside `docs/superpowers`; change each hit that means dev.
+- [x] Verify: `ansible-lint`, syntax check on `argocd-dev.yaml`, `scripts/check-manifests.sh`.
+- [x] Commit `ops: dev argocd answers on dev-argocd.mgryn.cc`.
 
 ### Task 10: Docs for the bootstrap
 
