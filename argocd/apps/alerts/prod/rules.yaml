@@ -1,0 +1,295 @@
+# Alert rules the kube-prometheus-stack chart does not ship. Its default
+# rules already cover node not ready (KubeNodeNotReady) and crash-looping
+# pods (KubePodCrashLooping), so they are not repeated here: a second
+# copy would only send every such alert twice.
+#
+# Cluster-agnostic on purpose: no `cluster` label value and no namespace
+# is pinned except where a rule is about one specific workload
+# (cert-manager, the NFS provisioner, ingress-nginx). When sub-project 4
+# brings dev's metrics here, these rules cover them without a rewrite.
+#
+# Severity follows the chart's convention, which the Alertmanager route in
+# monitoring-secrets reads: `critical` is a page, `warning` a ticket.
+#
+# Open selectors on the monitoring chart (ruleSelector: {}) pick these up
+# without a release label.
+#
+# Pending: a thin-pool `data%` above 80% rule over the pve-exporter
+# `local-lvm` series (expected pve_disk_size_bytes / pve_disk_usage_bytes,
+# unconfirmed) waits for the operator to observe the series on the live
+# Prometheus.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alerts
+spec:
+  groups:
+    - name: cert-manager
+      rules:
+        # cert-manager renews a Let's Encrypt certificate 30 days before
+        # it expires, so one still inside 14 days means renewal has been
+        # failing for two weeks. The `> 0` guard: cert-manager reports 0
+        # for a Certificate never issued (no NotAfter yet), which would
+        # read as expired decades ago; CertificateNotReady covers that one.
+        - alert: CertificateExpiringSoon
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds > 0) - time()
+              < 14 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} expires within 14 days
+            description: >-
+              Certificate {{ $labels.namespace }}/{{ $labels.name }}
+              (issuer {{ $labels.issuer_name }}) expires in
+              {{ $value | humanizeDuration }} and has not been renewed.
+            runbook: >-
+              kubectl -n {{ $labels.namespace }} describe certificate
+              {{ $labels.name }}, then its CertificateRequest and Order.
+              Debug against letsencrypt-staging: production allows 5
+              failed validations per hostname per hour.
+        # Unknown is included: a Certificate stuck mid-issuance never
+        # reaches False. DNS-01 takes minutes, hence the 15m.
+        - alert: CertificateNotReady
+          expr: |
+            certmanager_certificate_ready_status{condition=~"False|Unknown"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} is not ready
+            description: >-
+              Certificate {{ $labels.namespace }}/{{ $labels.name }} has
+              had Ready={{ $labels.condition }} for 15 minutes; the
+              Ingress using it serves an old or missing certificate.
+            runbook: >-
+              kubectl -n {{ $labels.namespace }} describe certificate
+              {{ $labels.name }}; for DNS-01, check the Cloudflare token
+              in Vault and the issuer's status.
+
+    - name: nfs-provisioner
+      rules:
+        # The chart's KubeDeploymentReplicasMismatch would also catch
+        # this, generically and after 15 minutes. This one names the
+        # consequence. Existing volumes stay mounted; only new PVCs on
+        # nfs-dev / nfs-prod sit Pending, and the apps above them read
+        # as broken for unrelated reasons. The regex covers prod's
+        # -prod and dev's -dev Deployment.
+        - alert: NfsProvisionerUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{namespace="nfs-system", deployment=~"nfs-client-provisioner.*"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: NFS provisioner {{ $labels.deployment }} has no available replica
+            description: >-
+              {{ $labels.deployment }} in nfs-system has had no available
+              replica for 5 minutes. New PVCs on its StorageClass stay
+              Pending until it is back.
+            runbook: >-
+              kubectl -n nfs-system describe deployment
+              {{ $labels.deployment }}; if the pod cannot mount, check
+              the export on nfs-01 with showmount -e.
+
+    - name: prometheus-storage
+      rules:
+        # Against the TSDB's own sizes, not kubelet_volume_stats_*: on an
+        # nfs-subdir PV the kubelet reports the whole nfs-prod share's
+        # filesystem, not the 20Gi claim.
+        #
+        # Size retention counts blocks, WAL and head chunks together, so
+        # this sums all three, and divides by the limit Prometheus itself
+        # reports (prod's `retentionSize: 15GB`, i.e. 15 GiB) rather than a
+        # copy of it here. `> 0` drops a Prometheus with no size limit.
+        #
+        # Once size retention binds, this stays firing, on purpose: size,
+        # not the 10d time limit, now decides how much history is kept.
+        # That is a ticket (repeated every 12h by the route), not a page.
+        - alert: PrometheusStorageNearRetentionSize
+          expr: |
+            (
+                prometheus_tsdb_storage_blocks_bytes
+              + prometheus_tsdb_wal_storage_size_bytes
+              + prometheus_tsdb_head_chunks_storage_size_bytes
+            )
+            / (prometheus_tsdb_retention_limit_bytes > 0)
+              > 0.8
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: Prometheus {{ $labels.pod }} TSDB above 80% of its retention size
+            description: >-
+              Prometheus {{ $labels.namespace }}/{{ $labels.pod }} uses
+              {{ $value | humanizePercentage }} of its size-based
+              retention limit. At the limit it deletes history younger
+              than the 10 day time limit.
+            runbook: >-
+              Find the series growing fastest (topk over
+              scrape_series_added) and drop them, or raise retentionSize
+              and the 20Gi claim together.
+
+    # A target that vanishes (a chart upgrade renames a label, the
+    # PodMonitor stops matching) has no `up` series at all, so the chart's
+    # TargetDown (`up == 0`) stays quiet, and so do the certificate and SLO
+    # rules above, which then look healthy. These watch `up` itself, not
+    # the certificate or request series, which are legitimately empty
+    # with no Certificates or no traffic. The job label is the operator's
+    # default for a PodMonitor, `<namespace>/<name>` (podmonitors.yaml).
+    - name: scrape-targets
+      rules:
+        - alert: IngressNginxMetricsAbsent
+          expr: |
+            absent(up{job="monitoring/ingress-nginx-controller"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: No ingress-nginx controller is being scraped
+            description: >-
+              No target of the monitoring/ingress-nginx-controller
+              PodMonitor has been up for 15 minutes. The ingress SLO
+              alerts are blind until it is back.
+            runbook: >-
+              Check the PodMonitor's selector against the controller
+              pods' labels and that controller.metrics.enabled is still
+              true in the ingress-nginx values.
+        - alert: CertManagerMetricsAbsent
+          expr: |
+            absent(up{job="monitoring/cert-manager-controller"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: The cert-manager controller is not being scraped
+            description: >-
+              No target of the monitoring/cert-manager-controller
+              PodMonitor has been up for 15 minutes. The certificate
+              alerts are blind until it is back.
+            runbook: >-
+              Check the PodMonitor's selector and the http-metrics port
+              against the cert-manager controller pod.
+---
+# Ingress availability SLO: 99% of requests answered without a 5xx over
+# 30 days, so the error budget is 1%. Multi-window, multi-burn-rate alerts
+# (the Google SRE workbook's): a page when the budget burns 14.4x too fast
+# over both 1h and 5m (2% of the month's budget in an hour), a ticket at
+# 6x over both 6h and 30m (5% in six hours). The long window proves the
+# burn is real; the short one makes the alert resolve soon after it stops.
+#
+# The source is ingress-nginx's nginx_ingress_controller_requests counter,
+# labelled per request with `status` (the HTTP code, or `5xx` with
+# --report-status-classes; the regex matches both), `namespace` and
+# `ingress` of the Ingress that served it, and `host` while
+# --metrics-per-host is on (the default). Ratios are per Ingress.
+#
+# Zero traffic: the denominator keeps only Ingresses with requests in the
+# window (`> 0`), so an idle one yields no ratio at all, rather than 0/0,
+# and cannot fire. An Ingress with traffic but no 5xx series yet gets its
+# total times 0 as the numerator, an explicit 0 with the same labels.
+# `or vector(0)` would not do here: it carries no labels, so it would match
+# no Ingress in the division.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ingress-slo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alerts
+spec:
+  groups:
+    - name: ingress-slo-recording
+      rules:
+        - record: ingress:request_error_ratio:rate5m
+          expr: |
+            (
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!="", status=~"5.."}[5m]))
+              or
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[5m])) * 0
+            )
+            /
+            (sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[5m])) > 0)
+        - record: ingress:request_error_ratio:rate30m
+          expr: |
+            (
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!="", status=~"5.."}[30m]))
+              or
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[30m])) * 0
+            )
+            /
+            (sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[30m])) > 0)
+        - record: ingress:request_error_ratio:rate1h
+          expr: |
+            (
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!="", status=~"5.."}[1h]))
+              or
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[1h])) * 0
+            )
+            /
+            (sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[1h])) > 0)
+        - record: ingress:request_error_ratio:rate6h
+          expr: |
+            (
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!="", status=~"5.."}[6h]))
+              or
+                sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[6h])) * 0
+            )
+            /
+            (sum by (cluster, namespace, ingress) (rate(nginx_ingress_controller_requests{ingress!=""}[6h])) > 0)
+
+    - name: ingress-slo-alerts
+      rules:
+        # 14.4 * 0.01 = 0.144: 14.4x the 1% budget.
+        #
+        # Both burn alerts need a floor of requests in their long window
+        # (30 in 1h here, 60 in 6h below): on a quiet homelab Ingress a
+        # handful of 502s is a large ratio and not worth a page. `on`
+        # includes `cluster`, which matches as empty while this Prometheus
+        # has no such label.
+        - alert: IngressErrorBudgetBurnFast
+          expr: |
+            ingress:request_error_ratio:rate1h > 14.4 * 0.01
+            and
+            ingress:request_error_ratio:rate5m > 14.4 * 0.01
+            and on (cluster, namespace, ingress)
+            sum by (cluster, namespace, ingress) (increase(nginx_ingress_controller_requests{ingress!=""}[1h])) >= 30
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: Ingress {{ $labels.namespace }}/{{ $labels.ingress }} is burning its error budget fast
+            description: >-
+              {{ $value | humanizePercentage }} of requests to
+              {{ $labels.namespace }}/{{ $labels.ingress }} returned 5xx
+              over the last hour (budget 1%). At this rate the 30-day
+              budget is gone in about two days.
+            runbook: >-
+              kubectl -n {{ $labels.namespace }} get pods,endpoints;
+              a 502/503 with no endpoints means the backend is down,
+              not ingress-nginx.
+        # 6 * 0.01 = 0.06: 6x the 1% budget.
+        - alert: IngressErrorBudgetBurnSlow
+          expr: |
+            ingress:request_error_ratio:rate6h > 6 * 0.01
+            and
+            ingress:request_error_ratio:rate30m > 6 * 0.01
+            and on (cluster, namespace, ingress)
+            sum by (cluster, namespace, ingress) (increase(nginx_ingress_controller_requests{ingress!=""}[6h])) >= 60
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Ingress {{ $labels.namespace }}/{{ $labels.ingress }} is burning its error budget
+            description: >-
+              {{ $value | humanizePercentage }} of requests to
+              {{ $labels.namespace }}/{{ $labels.ingress }} returned 5xx
+              over the last 6 hours (budget 1%). At this rate the 30-day
+              budget is gone in five days.
+            runbook: >-
+              Look for a backend that restarts or times out under load:
+              kubectl -n {{ $labels.namespace }} get pods, then its logs.
