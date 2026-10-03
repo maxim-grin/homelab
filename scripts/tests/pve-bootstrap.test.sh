@@ -225,7 +225,10 @@ test_exporter_first_run() {
   assert_calls_contain 'pveum aclmod / -user pve-exporter@pve -role PVEAuditor'
   assert_calls_contain 'pveum user token add pve-exporter@pve pve-exporter --privsep 0'
   assert_out_contains "$FAKE_TOKEN"
-  assert_out_contains 'pve_exporter_token_id: "pve-exporter@pve!pve-exporter"'
+  assert_out_contains 'monitoring/pve-exporter PVE_USER: "pve-exporter@pve"'
+  assert_out_contains 'monitoring/pve-exporter PVE_TOKEN_NAME: "pve-exporter"'
+  assert_out_lacks 'pve_exporter_token_id'
+  assert_out_lacks 'pve-exporter@pve!pve-exporter"'
 }
 
 test_exporter_token_exists() {

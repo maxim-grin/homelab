@@ -293,7 +293,8 @@ step_pve_exporter() {
     run pveum user token add "$EXPORTER_USER" "$EXPORTER_TOKEN" --privsep 0
     note_created "token $EXPORTER_USER!$EXPORTER_TOKEN"
   fi
-  SECRETS+=("pve_exporter_token_id: \"$EXPORTER_USER!$EXPORTER_TOKEN\"")
+  SECRETS+=("kv-prod monitoring/pve-exporter PVE_USER: \"$EXPORTER_USER\"")
+  SECRETS+=("kv-prod monitoring/pve-exporter PVE_TOKEN_NAME: \"$EXPORTER_TOKEN\"")
 }
 
 step_pools() {
