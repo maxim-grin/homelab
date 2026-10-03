@@ -27,7 +27,7 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 
 `dev` is the kubeadm cluster. `terraform/environments/prod` is the Talos
 cluster: three nodes through the `siderolabs/talos` provider, applied from
-the operator's workstation, no workloads until sub-project 3.
+the operator's workstation; the prod app-of-apps delivers the hub platform apps.
 `terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs.
 Their prod halves (`nfs-prod`, `kv-prod`) stay unused until the hub platform
 lands.
@@ -190,7 +190,7 @@ supersedes a record in `docs/decisions/` in the same PR.
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
   is bare metal with no LoadBalancer and no MetalLB. The cluster's own
-  names (`dev-argocd.`, `grafana.`, `prometheus.mgryn.cc`) resolve via
+  names (`dev-argocd.`, `dev-grafana.`, `prometheus.mgryn.cc`) resolve via
   `/etc/hosts` on the workstation; `argocd.mgryn.cc` is the prod hub.
   `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.

@@ -91,6 +91,16 @@ gatus_endpoints:
     group: dev
     url: https://jobs.mgryn.cc/
     conditions: ["[CONNECTED] == true", "[STATUS] < 400"]
+  # The prod hub: grey-cloud records point both names at the two prod
+  # workers, and ingress-nginx answers on both.
+  - name: argocd.mgryn.cc
+    group: prod
+    url: https://argocd.mgryn.cc/
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400"]
+  - name: grafana.mgryn.cc
+    group: prod
+    url: https://grafana.mgryn.cc/
+    conditions: ["[CONNECTED] == true", "[STATUS] < 400"]
   - name: Router
     group: network
     url: "icmp://{{ gatus_router }}"

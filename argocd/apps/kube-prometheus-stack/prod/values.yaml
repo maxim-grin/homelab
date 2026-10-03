@@ -1,0 +1,171 @@
+# kube-prometheus-stack for the prod cluster: the operator, its CRDs,
+# Prometheus, Alertmanager, Grafana, kube-state-metrics and
+# node-exporter.
+#
+# No credential and no <path:...> placeholder belongs in this file: the
+# chart Application has no AVP plugin. The Grafana admin Secret and the
+# whole Alertmanager config come from the monitoring-secrets
+# Application, which also owns the `monitoring` namespace.
+#
+# Requests and limits are sized for two 4 GiB workers that also run
+# ArgoCD, ingress-nginx and cert-manager. Memory limits only, no CPU
+# limits: a CPU limit throttles a scrape or a query into a timeout,
+# memory is what would starve the neighbours.
+
+# Talos binds the controller-manager, scheduler, etcd and kube-proxy
+# metrics to localhost, so their ServiceMonitors would find every target
+# down and fire alerts from day one. A Talos machine-config patch can
+# expose them later; then these come back on.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  # The sidecar the operator adds to Prometheus and Alertmanager; left
+  # unset, the chart passes 0, which means no request and no limit.
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
+
+prometheus:
+  # Reached through Grafana only: no Ingress, as the spec decides.
+  ingress:
+    enabled: false
+  prometheusSpec:
+    # Open selectors: pick up every ServiceMonitor, PodMonitor, Probe and
+    # PrometheusRule in any namespace, not only those carrying this
+    # release's label. Rules committed later, in their own Applications,
+    # would otherwise be silently ignored.
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+    # Dev's Prometheus will remote-write here (sub-project 4); the
+    # receiver is on now so that only the sender has to be added.
+    enableRemoteWriteReceiver: true
+
+    # Size-based retention below the 20Gi claim, so the TSDB can never
+    # fill the nfs-prod share; the chart's time-based 10d still applies,
+    # whichever comes first.
+    retentionSize: 15GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: nfs-prod
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 20Gi
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1536Mi
+
+alertmanager:
+  ingress:
+    enabled: false
+  alertmanagerSpec:
+    # The Secret from the monitoring-secrets Application. useExistingSecret
+    # stops the chart rendering its own (unused) config Secret.
+    useExistingSecret: true
+    configSecret: alertmanager-config
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
+
+grafana:
+  admin:
+    # Grafana reads these credentials only when it first creates its
+    # database, so rotating kv-prod monitoring/grafana later changes nothing:
+    # change the password in Grafana, or delete its PVC.
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: nfs-prod
+    accessModes: [ReadWriteOnce]
+    size: 5Gi
+
+  # Recreate, not a rolling update: an NFS volume does not enforce
+  # ReadWriteOnce, so a second pod would open the same SQLite database
+  # on NFS while the first still writes it.
+  deploymentStrategy:
+    type: Recreate
+
+  # A `helm test` Pod. ArgoCD never runs helm tests, so it would only
+  # sit in the rendered output.
+  testFramework:
+    enabled: false
+
+  grafana.ini:
+    server:
+      root_url: https://grafana.mgryn.cc
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - grafana.mgryn.cc
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.mgryn.cc
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # Applies to both sidecars, the dashboard and the datasource watchers.
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 48Mi
+      limits:
+        memory: 96Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+# One per node, control plane included (the chart tolerates NoSchedule).
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi

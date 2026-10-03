@@ -35,15 +35,18 @@ is a stop — see
 | `https://jobs.mgryn.cc`                                                                          | jobboard; HTTP 308s to HTTPS                                                                        | cert-manager |
 | `http://dev-argocd.mgryn.cc`                                                                     | ArgoCD UI (dev; `argocd.mgryn.cc` is the prod hub)                                                  | none         |
 | `http://10.0.0.111:32080`                                                                        | ArgoCD UI (prod), NodePort break-glass on a prod worker; `.112` and HTTPS `32443` work too            | none         |
-| `https://grafana.mgryn.cc`                                                                       | Grafana; HTTP 308s to HTTPS                                                                         | cert-manager |
+| `https://argocd.mgryn.cc`                                                                        | ArgoCD UI (prod hub); HTTP 308s to HTTPS                                                              | cert-manager |
+| `https://grafana.mgryn.cc`                                                                       | Grafana (prod hub); HTTP 308s to HTTPS                                                                | cert-manager |
+| `https://dev-grafana.mgryn.cc`                                                                  | Grafana (dev); HTTP 308s to HTTPS                                                                     | cert-manager |
 | `http://prometheus.mgryn.cc`                                                                     | Prometheus, basic auth from ingress-nginx — Prometheus ships none; login in `vault_kv` as `kv-dev/monitoring/prometheus` | none         |
 | `https://vault.mgryn.cc:8200`                                                                    | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA   |
 | `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc`, `lan.hl.mgryn.cc`, `home.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus, LAN Orangutan, Glance                                               | Traefik      |
 
 The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every
-node — except `jobs.mgryn.cc` and `vault.mgryn.cc`, which have DNS-only
-Cloudflare records. `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
+node — except `jobs.mgryn.cc`, `vault.mgryn.cc`, `argocd.mgryn.cc` and
+`grafana.mgryn.cc`, which have DNS-only Cloudflare records (the last two
+are grey-cloud A records, two each, to the prod workers). `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
 
 ## Prod hub ArgoCD
 
@@ -66,8 +69,23 @@ in place, and only the sync status turns `Unknown`. Unseal, and the
 Application clears on Argo's next poll. If Vault is unsealed, read the
 `ComparisonError` condition for AVP's stderr.
 
-**Break-glass UI.** When the ingress is broken, or before PR 3 gives prod
-one, the ArgoCD server is also a NodePort: `http://10.0.0.111:32080`, or
+**Prod credentials.** Nothing secret is committed for the prod hub; AVP
+resolves `<path:kv-prod/...>` placeholders at sync time. Grafana's admin
+login comes from `kv-prod/monitoring/grafana`, Alertmanager's Telegram
+settings from `kv-prod/monitoring/alertmanager`, and cert-manager's
+Cloudflare token from `kv-prod/cert-manager/cloudflare`. Grafana reads
+the admin password only when it first creates its database: rotating the
+Vault value changes nothing afterwards. To change it, write the database
+and then keep Vault in step. The command reads the new password from
+stdin, so it stays out of shell history:
+`read -rs NEWPW; printf '%s' "$NEWPW" | kubectl --kubeconfig "$PROD_KC"
+-n monitoring exec -i deploy/monitoring-grafana -c grafana -- grafana
+cli admin reset-admin-password --password-from-stdin`. ArgoCD's own `admin` password is not in Vault: the
+bootstrap play takes its bcrypt hash from `secret.yaml`, because
+ArgoCD must be up before AVP can read anything.
+
+**Break-glass UI.** When the ingress is broken, the ArgoCD server is also
+a NodePort: `http://10.0.0.111:32080`, or
 `.112`, HTTPS on `32443`. Bootstrapping the hub is in
 [rebuild.md](rebuild.md), step 17
 ([ADR 0024](decisions/0024-hub-in-prod.md)).
