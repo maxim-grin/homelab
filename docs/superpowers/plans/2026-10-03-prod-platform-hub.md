@@ -73,11 +73,11 @@
 - Consumes: `host_ips` keys. New keys `talos-w1` (`10.0.0.111`) and `talos-w2` (`10.0.0.112`).
 - Produces: an export line for `/srv/nfs/prod` limited to those two addresses.
 
-- [ ] Add a `nfs_server_prod_nodes` list of the two keys and derive `nfs_server_prod_clients` the same way the dev clients are derived; update the "empty until a prod cluster exists" comment.
-- [ ] Add the two `host_ips` entries to `secret.yaml.example`; operator adds them to `secret.yaml`.
-- [ ] Verify: `ansible-lint ansible/roles/nfs_server` and `ansible-playbook ansible/playbooks/nfs_server.yaml --syntax-check -e @secret.yaml --ask-vault-pass`.
+- [x] Add a `nfs_server_prod_nodes` list of the two keys and derive `nfs_server_prod_clients` the same way the dev clients are derived; update the "empty until a prod cluster exists" comment.
+- [x] Add the two `host_ips` entries to `secret.yaml.example`; operator adds them to `secret.yaml`.
+- [x] Verify: `ansible-lint ansible/roles/nfs_server` and `ansible-playbook ansible/playbooks/nfs_server.yaml --syntax-check -e @secret.yaml --ask-vault-pass`.
 - [ ] Operator runs the playbook with `-i inventories/shared`. Then `showmount -e 10.0.0.<nfs-01>`: the prod path lists exactly `10.0.0.111` and `10.0.0.112`; the dev path is unchanged. `exportfs -v` on `nfs-01` shows `no_root_squash` on both.
-- [ ] Commit `ops: export nfs-prod to the prod workers`.
+- [x] Commit `ops: export nfs-prod to the prod workers`.
 
 ### Task 4: kv-prod seed entries
 
