@@ -406,7 +406,8 @@ from `secret.yaml`.
    ACLs, creates the read-only `glance@pve` API token for Glance (the
    `glance` step), creates the read-only `pve-exporter@pve` token (the
    `pve-exporter` step: prod's Prometheus scrapes Proxmox through
-   pve-exporter for the thin-pool `data%` alert; its secret goes into the
+   pve-exporter for the thin-pool `data%` (the alert rule is held until
+   the series is observed, step 19.5); its secret goes into the
    `kv-prod` seed `monitoring/pve-exporter` in `secret.yaml`), and downloads the Debian 13 LXC template. Put the
    Terraform token in `dev.tfvars`, the template name the script prints in
    `shared.tfvars` as `debian_lxc_template`, and Glance's token id and
@@ -876,8 +877,10 @@ from `secret.yaml`.
 
     Prerequisites: step 17 done, and `kv-prod` seeded with
     `cert-manager/cloudflare` (the Cloudflare token), `monitoring/grafana`
-    (the admin login) and `monitoring/alertmanager` (the Telegram bot
-    token and chat id); the seed data is `secret.yaml`'s `kv-prod` block.
+    (the admin login), `monitoring/alertmanager` (the Telegram bot
+    token and chat id) and `monitoring/pve-exporter` (its token and the
+    Proxmox address, step 19; a full rebuild already has the PR 4 apps on
+    `main`); the seed data is `secret.yaml`'s `kv-prod` block.
 
     1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
        `argocd` and `grafana`, each to `10.0.0.111` and to `10.0.0.112`.
@@ -998,31 +1001,42 @@ from `secret.yaml`.
     delivered by `root-prod` once PR 4 (hub-alerting) is on `main`
     ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
     workstation, with `$PROD_KC` extracted as in step 17.1
-    (`rm "$PROD_KC"` when done). Prerequisite: step 18 done.
+    (`rm "$PROD_KC"` when done). Prerequisite: step 18 done. On a full
+    rebuild everything here is already on `main`: do 2 and 3, then 4 on.
 
-    1. The exporter's Proxmox token. On the Proxmox host, as root, run
-       the script's `pve-exporter` step alone:
+    1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, are in
+       wave 6, after `monitoring` (5) and `monitoring-secrets` (4), which
+       own the CRDs and the namespace; both carry finite retries for the
+       race. Until Vault holds `monitoring/pve-exporter`, `pve-exporter`
+       shows a `ComparisonError`: expected and harmless. AVP fails at
+       comparison, not at sync, so no retry is consumed, and it syncs on
+       its own once Vault is seeded. A sealed Vault is handled as in
+       step 18.2.
+
+    2. The exporter's Proxmox token. The script step only reaches the
+       host from `main`, so refresh the script on the Proxmox host first
+       (the download in section 1), then, as root, run the step alone:
 
        ```bash
+       wget -O pve-bootstrap.sh https://raw.githubusercontent.com/maxim-grin/homelab/main/scripts/pve-bootstrap.sh
        bash pve-bootstrap.sh pve-exporter
        ```
 
        It creates `pve-exporter@pve` with the `PVEAuditor` role (read
-       only) and a token named `pve-exporter`, and prints the token
-       secret once. Copy it into `secret.yaml`'s `kv-prod` block, under
-       `monitoring/pve-exporter`: `PVE_USER` (`pve-exporter@pve`),
-       `PVE_TOKEN_NAME` (`pve-exporter`), `PVE_TOKEN_VALUE` (the printed
+       only) and a token named `pve-exporter`, prints the token secret
+       once, then prints the user and token name as separate fields. If
+       the secret was not copied, delete the token (`pveum user token
+       remove pve-exporter@pve pve-exporter`) and run the step again.
+
+    3. Seed Vault. In `secret.yaml`'s `kv-prod` block, under
+       `monitoring/pve-exporter`, set `PVE_USER` (`pve-exporter@pve`),
+       `PVE_TOKEN_NAME` (`pve-exporter`, the name alone, not
+       `pve-exporter@pve!pve-exporter`), `PVE_TOKEN_VALUE` (the printed
        secret) and `PVE_TARGET` (the Proxmox host's address). Then seed
-       Vault with the command in step 17's prerequisites. If the secret
-       was not copied, delete the token (`pveum user token remove
-       pve-exporter@pve pve-exporter`) and run the step again.
+       Vault with the command in step 17's prerequisites.
 
-    2. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, are in
-       wave 6, after `monitoring` (5) and `monitoring-secrets` (4), which
-       own the CRDs and the namespace; both carry finite retries for the
-       race, and a sealed Vault is handled as in step 18.2.
-
-    3. Targets. Expect `pve-exporter` and `alerts` `Synced` and `Healthy`:
+    4. Targets. Expect `pve-exporter` and `alerts` `Synced` and `Healthy`
+       within a few minutes:
 
        ```bash
        kubectl --kubeconfig "$PROD_KC" -n argocd get applications
@@ -1033,11 +1047,13 @@ from `secret.yaml`.
 
        The `pve-exporter` pod is `Ready`. On `http://localhost:9090/targets`
        the pve-exporter, `monitoring/ingress-nginx-controller` and
-       `monitoring/cert-manager-controller` targets are `UP`. A pve-exporter
-       target that is `DOWN` with a 401 means the token fields in Vault are
-       wrong; with a timeout, `PVE_TARGET` is.
+       `monitoring/cert-manager-controller` targets are `UP`. A
+       pve-exporter target that is `DOWN` (an HTTP 500 or a timeout; a
+       wrong token and a wrong `PVE_TARGET` look alike from Prometheus)
+       is explained by the exporter's log:
+       `kubectl --kubeconfig "$PROD_KC" -n monitoring logs deploy/pve-exporter`.
 
-    4. The pool rule, held until the series is seen. In Prometheus, query
+    5. The pool rule, held until the series is seen. In Prometheus, query
        for the `local-lvm` storage series. Expected `pve_disk_size_bytes`
        and `pve_disk_usage_bytes` with an `id` like
        `storage/<node>/local-lvm`; that is unconfirmed. Paste the series
@@ -1046,7 +1062,7 @@ from `secret.yaml`.
        `argocd/apps/alerts/prod/rules.yaml`, with a `promtool check
        rules` and a `promtool test rules` unit test, and merge.
 
-    5. Prove Telegram. With Alertmanager port-forwarded
+    6. Prove Telegram. With Alertmanager port-forwarded
        (`svc/monitoring-kube-prometheus-alertmanager 9093`), `Watchdog`
        is firing:
 
@@ -1058,14 +1074,15 @@ from `secret.yaml`.
 
        Expect a Telegram message headed `TICKET testalert in monitoring`
        within about 2 minutes (30s group wait plus delivery). `Watchdog`
-       itself never reaches Telegram. Remove the test alert: let it
-       expire, or silence it with `amtool silence add alertname=testalert
-       --duration 10m --comment test --alertmanager.url=http://localhost:9093`.
-       A `RESOLVED` message follows when it ends. No message: the
+       itself never reaches Telegram. Let the test alert expire on its
+       own: it resolves after Alertmanager's resolve timeout (about 5
+       minutes) and a `RESOLVED` message follows a group interval (5
+       minutes) later. Do not silence it to clean up: a silenced alert
+       resolves while muted and no `RESOLVED` is sent. No message: the
        checklist in `docs/operations.md`, "A Telegram message does not
        arrive".
 
-    6. Record the thin pool's `data%` (`lvs -o lv_name,data_percent pve`,
+    7. Record the thin pool's `data%` (`lvs -o lv_name,data_percent pve`,
        the `data` volume) and `free -m` on `pve`, with `available` above
        1000 MiB, in the PR that adds the pool rule.
 

@@ -95,12 +95,17 @@ reason.
 **Sync waves order, they do not gate.** This ArgoCD has no Application
 health check, so a wave does not wait for the previous Application to be
 healthy; it only orders creation (`nfs` 0, `cert-manager` 1, issuers 2,
-`ingress-nginx` 3, `monitoring-secrets` 4, `monitoring` 5). Retries on
-`cert-manager-issuers` (the CRD race) and `monitoring` (the namespace
-race) cover the gaps. They are finite: after a sealed-Vault outage the
-Application stays `Sync failed` until someone unseals Vault and starts
-a sync by hand, with a kubectl patch of the Application's `operation`
-(a hard refresh re-compares but does not retry).
+`ingress-nginx` 3, `monitoring-secrets` 4, `monitoring` 5,
+`pve-exporter` and `alerts` 6). Retries on `cert-manager-issuers` (the
+CRD race), `monitoring` (the namespace race) and the two wave 6
+Applications (the CRDs `monitoring` installs) cover the gaps. They are
+finite: after a sealed-Vault outage on a from-scratch rebuild,
+`monitoring`, `pve-exporter` and `alerts` all stay `Sync failed` until
+someone unseals Vault and starts a sync by hand, with a kubectl patch
+of the Application's `operation` (a hard refresh re-compares but does
+not retry). A wave 6 Application whose Vault fields are not yet seeded
+shows a `ComparisonError` instead, which consumes no retry and clears
+once Vault is seeded.
 
 **The Proxmox thin pool reaches Prometheus through `pve-exporter`.**
 The Proxmox host is the one machine whose `data%` on `local-lvm` can

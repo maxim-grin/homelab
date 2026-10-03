@@ -126,7 +126,7 @@ Rules this repo defines, in `argocd/apps/alerts/prod/rules.yaml`:
 The two burn alerts need at least 30 (1h) and 60 (6h) requests in their
 long window, so a quiet Ingress cannot fire them. A `data%` alert for the
 Proxmox thin pool is not defined yet: it waits for the operator to
-observe the `pve-exporter` series (`docs/rebuild.md` step 19.4).
+observe the `pve-exporter` series (`docs/rebuild.md` step 19.5).
 
 **Inspecting and silencing.** Alertmanager and Prometheus have no
 Ingress. Port-forward from the operator's workstation, with `$PROD_KC`
@@ -150,9 +150,17 @@ kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
 `argocd/apps/monitoring-secrets/prod/alertmanager-config-secret.yaml`.
 Change it in a pull request; the merge deploys it. Keep `chat_id`
 unquoted: AVP substitutes a bare integer, and a quoted one is a string
-that Alertmanager rejects. Alertmanager keeps running the old
-configuration if the new one fails to parse, so after a merge check its
-log for `Loading configuration file failed`.
+that Alertmanager rejects. With `configSecret` and no
+`AlertmanagerConfig` selectors, prometheus-operator v0.94.1 copies the
+Secret's `alertmanager.yaml` into its generated Secret as it is (read
+from `pkg/alertmanager/operator.go`); it does not parse it, so a bad
+file is not reported by the operator. After a merge check that
+Alertmanager took it: the `alertmanager` and `config-reloader`
+containers' logs in `alertmanager-monitoring-kube-prometheus-alertmanager-0`,
+and the `Reconciled` condition of the Alertmanager resource
+(`kubectl --kubeconfig "$PROD_KC" -n monitoring get alertmanager -o
+yaml`, `status.conditions`). That condition covers the operator's own
+work, not the file's syntax, so it is no proof of a good config.
 
 **A Telegram message does not arrive.** In order:
 
