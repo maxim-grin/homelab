@@ -4,7 +4,8 @@
 # Configure reaches each cluster's control plane, which lives in
 # inventories/dev, so it needs both:
 #   ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
-#     -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true -e vault_token=<root>
+#     -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true -e vault_token=<root> \
+#     -e '{"vault_k8s_cluster_names":["dev"]}'
 - name: Install and configure HashiCorp Vault
   hosts: vault
   become: true

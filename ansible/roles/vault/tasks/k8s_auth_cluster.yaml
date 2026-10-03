@@ -58,7 +58,7 @@
 # verification instead of embedding certificate-authority-data.
 - name: "Read through its kubeconfig the CA certificate for {{ cluster.name }}"
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ cluster.kubeconfig }}"
+    kubeconfig: "{{ cluster.kubeconfig | expanduser }}"
     kind: ConfigMap
     namespace: kube-system
     name: kube-root-ca.crt
@@ -76,7 +76,7 @@
       The kube-root-ca.crt ConfigMap in kube-system on {{ cluster.name }}
       is missing or empty. The controller manager publishes it once the
       control plane is up; check kubectl --kubeconfig
-      {{ cluster.kubeconfig | quote }} -n kube-system get configmap
+      {{ cluster.kubeconfig | expanduser | quote }} -n kube-system get configmap
       kube-root-ca.crt.
     quiet: true
   when: cluster.kubeconfig is defined
@@ -85,7 +85,7 @@
 # failed_when: false so the assert after it can say what went wrong.
 - name: "Read through its kubeconfig the token reviewer JWT for {{ cluster.name }}"
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ cluster.kubeconfig }}"
+    kubeconfig: "{{ cluster.kubeconfig | expanduser }}"
     kind: Secret
     namespace: argocd
     name: vault-auth-token
@@ -109,7 +109,7 @@
       Could not read the token reviewer JWT for {{ cluster.name }}. The
       preceding task is no_log because its output is a non-expiring
       cluster credential, so run this by hand to see the real error:
-      kubectl --kubeconfig {{ cluster.kubeconfig | quote }} -n argocd get
+      kubectl --kubeconfig {{ cluster.kubeconfig | expanduser | quote }} -n argocd get
       secret vault-auth-token -o jsonpath={.data.token}
       The Secret comes from argocd/base/vault-auth-delegator.yaml and
       exists only after {{ cluster.name }}'s argocd-config Application has

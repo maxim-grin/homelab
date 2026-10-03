@@ -71,9 +71,7 @@ vault_kv_mounts:
 # -i inventories/shared -i inventories/dev. kubeconfig is a file on the
 # operator's workstation, read there with kubernetes.core: Talos has no
 # SSH. Prod's comes from -e vault_prod_kubeconfig=<path to the output of
-# terraform output -raw kubeconfig in environments/prod>; a configure run
-# without it fails, or skips Kubernetes auth with
-# -e vault_configure_k8s_auth=false.
+# terraform output -raw kubeconfig in environments/prod>; ~ is expanded.
 vault_k8s_clusters:
   - name: dev
     kv_mount: kv-dev
@@ -93,6 +91,11 @@ vault_k8s_clusters:
     role_name: argocd
     service_account_names: ["argocd-repo-server"]
     service_account_namespaces: ["argocd"]
+
+# Which of vault_k8s_clusters a configure run writes Kubernetes auth for;
+# all of them unless narrowed. A run for dev alone, which needs no prod
+# kubeconfig, passes -e '{"vault_k8s_cluster_names":["dev"]}'.
+vault_k8s_cluster_names: "{{ vault_k8s_clusters | map(attribute='name') | list }}"
 
 vault_snapshot_src: "{{ host_ips['nfs-01'] }}:/srv/nfs/backups"
 vault_snapshot_dir: /mnt/vault-backups

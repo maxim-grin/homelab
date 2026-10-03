@@ -545,7 +545,7 @@ from `secret.yaml`.
     ```bash
     ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
       -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-      -e vault_token=<root token>
+      -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
     ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
     ```
 
@@ -787,7 +787,7 @@ kubectl -n argocd get secret vault-auth-token
 # The KV store is already seeded, so no seed.
 ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=false \
-  -e vault_token=<root token>
+  -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
 ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
 ```
 

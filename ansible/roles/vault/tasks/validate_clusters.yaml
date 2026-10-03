@@ -29,24 +29,42 @@
     extended: true
     label: "{{ item.name | default(ansible_loop.index) }}"
 
+- name: Require every selected cluster to be in vault_k8s_clusters
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_cluster_names is not string
+      - vault_k8s_cluster_names | difference(vault_k8s_clusters | map(attribute='name')) | length == 0
+    fail_msg: >-
+      vault_k8s_cluster_names
+      {{ 'is a string, not a list' if vault_k8s_cluster_names is string
+      else 'names ' ~ (vault_k8s_cluster_names | difference(vault_k8s_clusters | map(attribute='name')) | join(', '))
+      ~ ', which vault_k8s_clusters does not have' }}.
+      Pass it as JSON, e.g. -e '{"vault_k8s_cluster_names":["dev"]}'.
+      Valid names: {{ vault_k8s_clusters | map(attribute='name') | join(', ') }}.
+    quiet: true
+
 # The kubeconfig is checked here, before anything writes to Vault, rather
 # than when its cluster's turn comes: an empty path would otherwise reach
 # kubernetes.core, which can fall back to ~/.kube/config and read
-# another cluster's Secret.
-- name: Require every kubeconfig to be a file on the workstation
+# another cluster's Secret. Only selected clusters are checked, so a run
+# for dev alone needs no prod kubeconfig.
+- name: Require every selected kubeconfig to be a file on the workstation
   ansible.builtin.assert:
     that:
       - item.kubeconfig | length > 0
-      - item.kubeconfig is file
+      - item.kubeconfig | expanduser is file
     fail_msg: >-
       vault_k8s_clusters entry {{ item.name }} reads its cluster through a
       kubeconfig, and {{ item.kubeconfig | default('', true) | quote }} is
       not a file on this machine. For prod, write terraform output -raw
       kubeconfig from terraform/environments/prod to a temporary file and
-      pass -e vault_prod_kubeconfig=<that file>, or skip Kubernetes auth
-      with -e vault_configure_k8s_auth=false.
+      pass -e vault_prod_kubeconfig=<that file>. If this run is meant for
+      some clusters only, name them, e.g.
+      -e '{"vault_k8s_cluster_names":["dev"]}'.
     quiet: true
-  loop: "{{ vault_k8s_clusters | selectattr('kubeconfig', 'defined') }}"
+  loop: >-
+    {{ vault_k8s_clusters | selectattr('name', 'in', vault_k8s_cluster_names)
+       | selectattr('kubeconfig', 'defined') }}
   loop_control:
     label: "{{ item.name }}"
   when: vault_configure | bool and vault_configure_k8s_auth | bool
@@ -59,6 +77,15 @@
       Two vault_k8s_clusters entries share an auth_path. The second would
       overwrite the first's kubernetes_host, pointing one cluster's ArgoCD
       at the other's API server.
+
+- name: Refuse two clusters sharing a policy_name
+  ansible.builtin.assert:
+    that:
+      - vault_k8s_clusters | map(attribute='policy_name') | unique | length == vault_k8s_clusters | length
+    fail_msg: >-
+      Two vault_k8s_clusters entries share a policy_name. The second's
+      policy would overwrite the first's, granting one cluster's ArgoCD
+      the other's kv_mount.
 
 - name: Refuse two clusters sharing a kv_mount
   ansible.builtin.assert:
