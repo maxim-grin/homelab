@@ -1,8 +1,12 @@
 ---
+# delegate_to is templated before `when` is evaluated, so on a cluster with
+# no control_plane_host (prod: Talos has no SSH) a bare
+# `{{ cluster.control_plane_host }}` fails the task instead of skipping it.
+# The default keeps the template valid; the `when` still skips the task.
 - name: "Read the CA certificate for {{ cluster.name }}"
   ansible.builtin.slurp:
     src: /etc/kubernetes/pki/ca.crt
-  delegate_to: "{{ cluster.control_plane_host }}"
+  delegate_to: "{{ cluster.control_plane_host | default(inventory_hostname) }}"
   become: true
   register: vault_k8s_ca
   when: cluster.control_plane_host is defined
@@ -24,7 +28,7 @@
     cmd: >-
       kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd
       get secret vault-auth-token -o jsonpath={.data.token}
-  delegate_to: "{{ cluster.control_plane_host }}"
+  delegate_to: "{{ cluster.control_plane_host | default(inventory_hostname) }}"
   become: true
   register: vault_k8s_jwt
   changed_when: false
