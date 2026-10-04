@@ -34,9 +34,12 @@ spec:
       # before any Ingress can be admitted. Without ServerSideApply the
       # webhook configuration and its CA bundle race on resync.
       - ServerSideApply=true
-  # Talos enforces Pod Security `baseline` cluster-wide, which rejects
-  # hostPort. The controller binds host ports 80/443, so this namespace
-  # alone is labelled `privileged`. No other namespace needs it.
-  managedNamespaceMetadata:
-    labels:
-      pod-security.kubernetes.io/enforce: privileged
+    # Talos enforces Pod Security `baseline` cluster-wide, which rejects
+    # hostPort. The controller binds host ports 80/443, so this namespace
+    # alone is labelled `privileged`. No other namespace needs it.
+    # This key belongs under syncPolicy: one level up it is silently
+    # ignored, the namespace stays unlabelled and the DaemonSet's pods are
+    # refused at admission.
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: privileged
