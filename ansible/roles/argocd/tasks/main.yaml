@@ -92,11 +92,14 @@
 - name: Look up the Redis Secret
   # argocd_helm_values turns the chart's redisSecretInit hook off (see the
   # comment there), so the role owns this Secret. Looked up first so the
-  # task below creates it only when absent: regenerating the password on
+  # create below runs only when it is absent: regenerating the password on
   # a re-run would leave redis and the argocd components on different
   # passwords until every one of them restarted. A cluster installed
   # while the hook was still on already has the hook's Secret and keeps it.
+  # no_log because the registered result carries the Secret's data, which
+  # -v would print; the next task reduces it to a state word.
   when: argocd_install_method == 'helm'
+  no_log: true
   kubernetes.core.k8s_info:
     kind: Secret
     name: argocd-redis
@@ -104,14 +107,46 @@
     kubeconfig: "{{ argocd_context_kubeconfig }}"
   register: argocd_redis_secret
 
+- name: Reduce the Redis Secret lookup to its state
+  # absent, valid (a non-empty auth key) or invalid. Only this word is used
+  # from here on, so no later task can print the password by referring to
+  # the registered lookup. Still no_log: the task itself reads the data.
+  when: argocd_install_method == 'helm'
+  no_log: true
+  ansible.builtin.set_fact:
+    argocd_redis_secret_state: >-
+      {{ 'absent' if argocd_redis_secret.resources | length == 0
+      else 'valid' if (argocd_redis_secret.resources[0].data | default({},
+      true)).auth | default('', true) | length > 0
+      else 'invalid' }}
+
+- name: Require a usable Redis Secret
+  # A Secret that exists without a non-empty auth key is never overwritten:
+  # the role cannot tell whether something else relies on it. Left alone,
+  # redis would sit in CreateContainerConfigError, so stop here instead.
+  when: argocd_install_method == 'helm'
+  ansible.builtin.assert:
+    that:
+      - argocd_redis_secret_state != 'invalid'
+    quiet: true
+    fail_msg: >-
+      Secret argocd-redis in namespace {{ argocd_namespace }} exists but has
+      no non-empty `auth` key, which redis and every argocd component read
+      as the Redis password. Delete it (kubectl -n {{ argocd_namespace }}
+      delete secret argocd-redis) and re-run: the role then creates it with
+      a new password. Pods read it only at start, so then run kubectl -n
+      {{ argocd_namespace }} rollout restart deploy,sts.
+
 - name: Create the Redis Secret
   # Before the Helm deploy: redis will not start without it. Name and key
   # are what the chart's redis Deployment hard-codes and what the hook's
   # `argocd admin redis-initial-password` wrote (16 alphanumerics; 32
-  # here). no_log keeps the generated password out of the task output.
+  # here). no_log keeps the generated password out of the task output --
+  # and also hides the API error if the create fails; to see that, re-run
+  # a scratch copy of this task without no_log.
   when:
     - argocd_install_method == 'helm'
-    - argocd_redis_secret.resources | length == 0
+    - argocd_redis_secret_state == 'absent'
   no_log: true
   kubernetes.core.k8s:
     state: present
@@ -128,9 +163,9 @@
           {{ lookup('ansible.builtin.password', '/dev/null', length=32,
           chars=['ascii_letters', 'digits']) }}
 
-- name: Read the local Helm version
-  # The deploy below must know whether this workstation runs Helm 3 or
-  # Helm 4; see its server_side comment.
+- name: Read the Helm version
+  # The deploy below must know whether the machine running this play has
+  # Helm 3 or Helm 4; see its server_side comment.
   when: argocd_install_method == 'helm'
   ansible.builtin.command: helm version --short
   register: argocd_helm_version
