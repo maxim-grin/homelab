@@ -19,7 +19,10 @@ done
 # Built-in Kubernetes schemas plus the datreeio catalogue for CRDs
 # (Application, AppProject, ClusterIssuer, ServiceMonitor, ...).
 CRD_SCHEMAS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-apps_dir=argocd/environments/dev/applications
+# Every environment's Application CRs, not only dev's: a mistake in a prod
+# Application (a key at the wrong level, which -strict rejects) reaches the
+# cluster as a silently ignored field.
+app_files=(argocd/environments/*/applications/*.yaml)
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -53,7 +56,7 @@ echo "== helm"
 # Helm sources sit under spec.sources[] (multi-source) or spec.source.
 chart_source='(.spec.sources[]?, .spec.source) | select(. != null) | select(.chart)'
 rendered=0
-for app in "$apps_dir"/*.yaml; do
+for app in "${app_files[@]}"; do
   # A source with `chart:` is a Helm source; the plain git source is not.
   count=$(yq "[$chart_source] | length" "$app")
   [ "$count" -gt 0 ] || continue
@@ -93,7 +96,7 @@ done
 
 echo "== argocd resources"
 # Not the kustomization.yaml files: those are not Kubernetes objects.
-mapfile -t plain < <(find argocd/base "$apps_dir" -name '*.yaml' ! -name kustomization.yaml | sort)
+mapfile -t plain < <(find argocd/base argocd/environments -name '*.yaml' ! -name kustomization.yaml | sort)
 schema_check "${plain[@]}" || fail "kubeconform argocd resources"
 
 if [ "$failed" -ne 0 ]; then
