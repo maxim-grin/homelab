@@ -489,7 +489,8 @@ from `secret.yaml`.
    runs, `ansible/roles/argocd` also creates the `cmp-plugin` ConfigMap and
    `argocd-vault-plugin-config` Secret that the argocd-vault-plugin (AVP)
    sidecar in `argocd-repo-server` needs — that ordering is what keeps
-   `argocd-repo-server` out of `Init`. The Helm task does not wait, so on
+   `argocd-repo-server` out of `Init` — and the `argocd-redis` Secret,
+   only if it does not exist yet, in place of the chart's hook Job. The Helm task does not wait, so on
    an upgrade where the new repo-server wedges, the old pod keeps serving
    and the playbook still reports `changed`; confirm
    `kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-repo-server`
@@ -737,7 +738,12 @@ from `secret.yaml`.
     runs on the operator's workstation, which needs `helm`, `kubectl` and
     the python `kubernetes` package for the Ansible controller's Python.
     Ansible has no SSH target on Talos; it talks to the cluster API
-    through a kubeconfig.
+    through a kubeconfig. Helm 3.22 and Helm 4 both work: the role turns
+    off the chart's `redisSecretInit` hook Job, whose wait timed out
+    under Helm 4, and creates the `argocd-redis` Secret itself only when
+    it is missing; on Helm 4 it deploys with `--server-side=false`, so its
+    NodePort patch to the chart's `argocd-server` Service does not fail
+    the next upgrade with a field-manager conflict.
 
     Prerequisites:
 
