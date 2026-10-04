@@ -218,6 +218,48 @@ test_glance_token_exists() {
   assert_out_contains "already exists"
 }
 
+test_exporter_first_run() {
+  run_script pve-exporter
+  assert_rc 0
+  assert_calls_contain 'pveum user add pve-exporter@pve'
+  assert_calls_contain 'pveum aclmod / -user pve-exporter@pve -role PVEAuditor'
+  assert_calls_contain 'pveum user token add pve-exporter@pve pve-exporter --privsep 0'
+  assert_out_contains "$FAKE_TOKEN"
+  assert_out_contains 'monitoring/pve-exporter PVE_USER: "pve-exporter@pve"'
+  assert_out_contains 'monitoring/pve-exporter PVE_TOKEN_NAME: "pve-exporter"'
+  assert_out_lacks 'pve_exporter_token_id'
+  assert_out_lacks 'pve-exporter@pve!pve-exporter"'
+}
+
+test_exporter_token_exists() {
+  mkdir -p "$S/users" "$S/tokens"
+  touch "$S/users/pve-exporter@pve" "$S/tokens/pve-exporter@pve!pve-exporter"
+  printf 'pve-exporter@pve / 1 PVEAuditor user\n' > "$S/acl"
+  run_script pve-exporter
+  assert_rc 0
+  assert_calls_lack 'pveum user add'
+  assert_calls_lack 'user token add'
+  assert_calls_lack 'pveum aclmod'
+  assert_out_lacks "$FAKE_TOKEN"
+  assert_out_contains "already exists"
+  assert_out_contains "to rotate: pveum user token remove pve-exporter@pve pve-exporter"
+}
+
+test_exporter_dry_run() {
+  run_script --dry-run pve-exporter
+  assert_rc 0
+  assert_calls_lack 'pveum (user add|aclmod|user token add)'
+  assert_out_contains "+ "
+}
+
+test_exporter_in_step_list() {
+  run_script --help
+  assert_rc 0
+  assert_out_contains 'pve-exporter'
+  run_script nosuchstep
+  assert_out_contains 'glance pve-exporter lxc-template'
+}
+
 test_pools_idempotent() {
   local p
   run_script pools

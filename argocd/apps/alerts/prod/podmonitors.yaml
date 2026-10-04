@@ -1,0 +1,66 @@
+# Scrape targets the rules in rules.yaml read. kube-prometheus-stack has
+# no annotation-based scrape jobs, so the prometheus.io/* annotations both
+# charts set do nothing on prod; without these the ingress SLOs and the
+# certificate rules would evaluate to nothing and look healthy.
+#
+# PodMonitors, not ServiceMonitors: they select the pods directly, so they
+# do not depend on either chart keeping a metrics Service. They live here,
+# not in the charts' values (`serviceMonitor.enabled`), because those
+# Applications sync in waves 1 and 3, before the monitoring chart brings
+# the CRD in wave 5, and their syncs would fail permanently.
+#
+# honorLabels: both exporters label each series with the `namespace` of
+# the object it describes (the Ingress, the Certificate). Without this,
+# Prometheus would rename that to `exported_namespace` and set
+# `namespace` to the exporter's own, and every alert would group under
+# ingress-nginx or cert-manager instead of the namespace that owns the
+# broken thing. The controllers' own pod and namespace stay readable in
+# `pod` and, for ingress-nginx, `controller_namespace`.
+#
+# Open selectors on the monitoring chart (see its values) pick these up
+# without a release label.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ingress-nginx-controller
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+spec:
+  namespaceSelector:
+    matchNames: [ingress-nginx]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+  podMetricsEndpoints:
+    # Matched against the pod's *declared* container ports. The chart
+    # declares 10254, and passes --enable-metrics, only while
+    # `controller.metrics.enabled` is true in the ingress-nginx values;
+    # with it off there are no request metrics and no target, and
+    # IngressNginxMetricsAbsent fires. By number so a renamed port
+    # (`controller.metrics.portName`) does not drop it.
+    - portNumber: 10254
+      path: /metrics
+      honorLabels: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cert-manager-controller
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cert-manager
+spec:
+  namespaceSelector:
+    matchNames: [cert-manager]
+  # The controller only: the cainjector and webhook also listen on 9402
+  # but carry none of the certmanager_certificate_* series.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-manager
+      app.kubernetes.io/component: controller
+  podMetricsEndpoints:
+    - port: http-metrics
+      path: /metrics
+      honorLabels: true

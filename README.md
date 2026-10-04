@@ -102,14 +102,15 @@ diagram has a static address above that pool.
 | Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass                                                                                                                  | `ansible/roles/nfs_server`, `argocd/apps/nfs_provisioner`                                               |
 | Apps       | monitoring (Prometheus + Grafana); jobboard, the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/`                                                                                          |
 | Prod hub   | `kube-prometheus-stack` (Prometheus, Grafana, Alertmanager), cert-manager, ingress-nginx and `nfs-prod` on the Talos cluster; rollout in `docs/rebuild.md` step 18              | `argocd/environments/prod`, `argocd/apps/`                                                              |
+| Alerting   | `pve-exporter` (Proxmox metrics), PodMonitors and rules (`alerts`), Alertmanager to Telegram; runs after the rollout in `docs/rebuild.md` step 19                               | `argocd/apps/pve-exporter`, `argocd/apps/alerts`, `argocd/apps/monitoring-secrets`                      |
 | Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time                                                       | `ansible/roles/vault`, `terraform/environments/shared`                                                  |
 
 **Scope.** One physical machine, one SSD, two Kubernetes clusters: `dev`
 (kubeadm, running the platform today) and `prod` (Talos, three nodes, the
 hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
-delivers the platform apps (storage, TLS, ingress, monitoring) from `main`
-once they merge; the operator's rollout checks are step 18 of
-`docs/rebuild.md`. This is sub-project 3 of the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
+delivers the platform apps (storage, TLS, ingress, monitoring, alerting)
+from `main` once they merge; the operator's rollout checks are steps 18
+and 19 of `docs/rebuild.md`. This is sub-project 3 of the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
 ([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)).
 
 **Rebuilding** after a disk replacement or a total loss starts at

@@ -95,15 +95,81 @@ reason.
 **Sync waves order, they do not gate.** This ArgoCD has no Application
 health check, so a wave does not wait for the previous Application to be
 healthy; it only orders creation (`nfs` 0, `cert-manager` 1, issuers 2,
-`ingress-nginx` 3, `monitoring-secrets` 4, `monitoring` 5). Retries on
-`cert-manager-issuers` (the CRD race) and `monitoring` (the namespace
-race) cover the gaps. They are finite: after a sealed-Vault outage the
-Application stays `Sync failed` until someone unseals Vault and starts
-a sync by hand, with a kubectl patch of the Application's `operation`
-(a hard refresh re-compares but does not retry).
+`ingress-nginx` 3, `monitoring-secrets` 4, `monitoring` 5,
+`pve-exporter` and `alerts` 6). Retries on `cert-manager-issuers` (the
+CRD race), `monitoring` (the namespace race) and the two wave 6
+Applications (the CRDs `monitoring` installs) cover the gaps. They are
+finite: after a sealed-Vault outage on a from-scratch rebuild,
+`monitoring`, `pve-exporter` and `alerts` all stay `Sync failed` until
+someone unseals Vault and starts a sync by hand, with a kubectl patch
+of the Application's `operation` (a hard refresh re-compares but does
+not retry). A wave 6 Application whose Vault fields are not yet seeded
+shows a `ComparisonError` instead, which consumes no retry and clears
+once Vault is seeded.
 
-The Applications for the Proxmox exporter and the alert rules come with
-the next PR, and this record gains its decisions then.
+**The Proxmox thin pool reaches Prometheus through `pve-exporter`.**
+The Proxmox host is the one machine whose `data%` on `local-lvm` can
+fill the SSD under every VM, and nothing in the cluster sees it. The
+`pve-exporter` Application (wave 6) runs the exporter in `monitoring`
+and a `ServiceMonitor` scrapes its `/pve` path with the host as the
+`target` parameter. Its credentials are a read-only `PVEAuditor` token
+for `pve-exporter@pve`, created by the `pve-exporter` step of
+`scripts/pve-bootstrap.sh` and shown once. The token fields and the
+scrape target are `<path:kv-prod/data/monitoring/pve-exporter#...>`
+placeholders: the host's address is recorded only in the encrypted
+`secret.yaml`, so it comes from Vault, not from a committed manifest.
+
+**PodMonitors for what nothing else scrapes.** `kube-prometheus-stack`
+has no annotation-based scrape jobs, so the `prometheus.io/*`
+annotations on ingress-nginx and cert-manager are ignored. The `alerts`
+Application (wave 6) carries a `PodMonitor` for each: ingress-nginx's
+metrics port 10254, which needs `controller.metrics.enabled`, and
+cert-manager's `http-metrics` port 9402.
+
+**Our rules cover only what the chart's defaults do not.** The chart
+already alerts on a node not ready and a crash-looping pod; a second
+copy would send each of those twice. The `alerts` Application adds
+certificate expiry within 14 days and certificates not ready, an
+unavailable NFS provisioner, Prometheus storage, an availability SLO on
+each Ingress, and absence of the two scrape targets.
+
+**Prometheus storage is measured from its own TSDB.** The rule sums the
+head chunks, the WAL and the blocks and divides by
+`prometheus_tsdb_retention_limit_bytes`, alerting above 80%. It does not
+use `kubelet_volume_stats_*`: on an `nfs-subdir` PV the kubelet reports
+the filesystem of the whole `nfs-prod` share, not the 20Gi claim, so the
+ratio would be wrong. Size retention counts all three components, which
+is why the sum is not blocks alone.
+
+**Absence alerts guard the scrape targets.** A target that vanishes (a
+chart upgrade renames a label, a PodMonitor stops matching) leaves no
+`up` series, so the chart's `TargetDown` stays quiet and the
+certificate and SLO rules look healthy. `IngressNginxMetricsAbsent` and
+`CertManagerMetricsAbsent` fire when no target of the PodMonitor has
+been up for 15 minutes.
+
+**The SLO has a request-rate floor.** Ingress availability is 99% over
+30 days. A page fires at 14.4 times the budget over 5m and 1h, a ticket
+at 6 times over 30m and 6h. Each also needs a minimum of requests in
+its long window (30 in 1h, 60 in 6h): on a quiet homelab Ingress a few
+502s are a large ratio and not worth a page.
+
+**The thin-pool rule is held.** The expected series are
+`pve_disk_size_bytes` and `pve_disk_usage_bytes` with an `id` like
+`storage/<node>/local-lvm`, but that is unconfirmed, and a rule written
+against a guessed name stays silent without ever failing. The operator
+observes the series on the live Prometheus first, in the alerting
+rollout (`docs/rebuild.md` step 19); a follow-up PR then adds the rule,
+with its `promtool` test. Until then only a comment in `rules.yaml`
+names it.
+
+**Alertmanager's route.** Alerts group by `alertname` and `namespace`.
+The Telegram message's header comes from the highest severity firing in
+the group: `PAGE` for `critical`, `TICKET` for `warning`, `RESOLVED`
+once the group resolves. A message lists at most six alerts, because
+Telegram rejects text cut mid-tag at 4096 characters. `Watchdog` and
+`InfoInhibitor` go to a `null` receiver; only `critical` alerts repeat
+sooner than the 12h default.
 
 Rejected:
 
@@ -119,6 +185,12 @@ Rejected:
   then dev has its own ArgoCD.
 - Prod's reviewer JWT Secret exists only after prod's `argocd-config`
   syncs, so Vault's prod auth is configured after the first sync.
+- A silent Telegram does not prove a healthy cluster: `Watchdog` is
+  routed to nowhere, so a dead Alertmanager or a bad Vault render shows
+  only as the absence of messages. The operator's proof is a test alert
+  (`docs/rebuild.md` step 19).
+- The thin pool has no alert until the held rule lands; watch `data%`
+  by hand in the meantime.
 - Prod's Prometheus is a single replica on NFS: an NFS outage or a
   corrupt TSDB loses metrics, not the cluster; the cost is a lower
   retention ceiling and no high availability.

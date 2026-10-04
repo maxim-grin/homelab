@@ -49,9 +49,12 @@ controller:
   # disabled -- hostPort is the entry point for traffic). It defaults to
   # enabled: true on its own. The prometheus.io/* annotations below are
   # harmless but unused on prod: kube-prometheus-stack has no
-  # annotation-based scrape jobs, so nothing scrapes this Service yet. A
-  # ServiceMonitor will, added by the alerting PR in an Application that
-  # syncs after the monitoring chart, so its CRD exists. Do not set
+  # annotation-based scrape jobs, so nothing scrapes this Service. The
+  # `ingress-nginx-controller` PodMonitor in the `alerts` Application
+  # (argocd/apps/alerts/prod) scrapes the pods directly; it needs
+  # `metrics.enabled: true` below, which declares port 10254 and passes
+  # --enable-metrics, and it syncs after the monitoring chart, so its
+  # CRD exists. Do not set
   # `serviceMonitor.enabled` here: this Application syncs before the CRD
   # exists and the sync would fail permanently.
   metrics:
