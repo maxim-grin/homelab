@@ -489,8 +489,9 @@ from `secret.yaml`.
    runs, `ansible/roles/argocd` also creates the `cmp-plugin` ConfigMap and
    `argocd-vault-plugin-config` Secret that the argocd-vault-plugin (AVP)
    sidecar in `argocd-repo-server` needs — that ordering is what keeps
-   `argocd-repo-server` out of `Init` — and the `argocd-redis` Secret,
-   only if it does not exist yet, in place of the chart's hook Job. The Helm task does not wait, so on
+   `argocd-repo-server` out of `Init`. It also creates the `argocd-redis`
+   Secret when it is missing, in place of the chart's hook Job (step 17
+   explains why). The Helm task does not wait, so on
    an upgrade where the new repo-server wedges, the old pod keeps serving
    and the playbook still reports `changed`; confirm
    `kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-repo-server`
@@ -743,7 +744,12 @@ from `secret.yaml`.
     under Helm 4, and creates the `argocd-redis` Secret itself only when
     it is missing; on Helm 4 it deploys with `--server-side=false`, so its
     NodePort patch to the chart's `argocd-server` Service does not fail
-    the next upgrade with a field-manager conflict.
+    the next upgrade with a field-manager conflict. Helm 4 also needs
+    `kubernetes.core` 6.5.0 or later (`ansible-galaxy collection install
+    -r ansible/requirements.yml` brings the pinned 6.6.0); Helm 3 needs
+    nothing extra. A cluster installed while the hook was on keeps its
+    ServiceAccount, Role and RoleBinding, harmless leftovers:
+    `kubectl -n argocd delete sa,role,rolebinding argocd-redis-secret-init`.
 
     Prerequisites:
 
