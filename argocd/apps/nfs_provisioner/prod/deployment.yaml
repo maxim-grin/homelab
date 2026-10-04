@@ -1,3 +1,8 @@
+# NFS_SERVER and the volume's server/path are literal because ArgoCD renders
+# from git and the volume's nfs.server takes no ConfigMap reference. 10.0.0.131
+# is nfs-01 (the same server dev uses; RFC1918, so nothing routable is
+# exposed). /srv/nfs/prod is its prod share, exported only to the two
+# prod workers.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -46,6 +46,65 @@ they are rewritten.
 repository in `sourceRepos`: both ArgoCDs sync `argocd/base`, and an
 Application whose repository is not allowed is refused.
 
+**Platform apps.** Prod's `root-prod` delivers `nfs`, `cert-manager`,
+`cert-manager-issuers`, `ingress-nginx`, `monitoring-secrets` and
+`monitoring`. `nfs-prod` is the default StorageClass and keeps
+`reclaimPolicy: Retain` with `archiveOnDelete: "true"`: a deleted PVC
+leaves its directory on `nfs-01` and the PV `Released`, so a mistaken
+delete loses nothing, and cleaning up is manual. `ingress-nginx` is a
+DaemonSet on host ports 80/443 on the two workers, as on dev; Cloudflare
+carries grey-cloud records for `argocd.mgryn.cc` and `grafana.mgryn.cc`
+to both. Dev's Grafana is renamed `dev-grafana.mgryn.cc`, freeing the
+name for the hub.
+
+**`kube-prometheus-stack` replaces hand-rolled monitoring.** The chart
+brings the Prometheus Operator and its CRDs: `ServiceMonitor` and
+`PrometheusRule` objects are discovered across namespaces, so later PRs
+add scrapes and alerts next to the thing they watch, and Grafana's
+sidecar loads dashboards and datasources from labelled ConfigMaps. The
+pre-Talos hand-written manifests are not reused. Prometheus runs one
+replica on a 20Gi `nfs-prod` volume with `retentionSize` 15GB, under the
+share, and the remote-write receiver on for the dev spoke later.
+Prometheus's TSDB on NFS is not an upstream-supported store; the
+design accepts it for a single replica with retention capped below the
+volume. Grafana gets 5Gi on `nfs-prod` and a `letsencrypt-prod`
+certificate.
+
+**Alertmanager's configuration is a Secret rendered by AVP.** The
+`monitoring-secrets` Application owns an `alertmanager-config` Secret,
+which the chart reads through `configSecret`. The Telegram chat id is an
+integer with no `_file` variant, so it cannot be read from a mounted
+file; AVP substitutes the placeholder inside the whole configuration
+before Alertmanager parses it, leaving a bare integer. The same Application creates the
+`monitoring` Namespace and the `grafana-admin` Secret. Grafana reads the
+admin password only when it first creates its database, so rotating the
+Vault value afterwards changes nothing.
+
+**Pod Security.** Talos's default admission policy is `baseline`, which
+rejects `hostPort` and host namespaces. The `ingress-nginx` namespace
+(host ports) and the `monitoring` namespace (the node exporter's host
+network and `hostPath` mounts) are labelled `pod-security.kubernetes.io/enforce:
+privileged`; no other namespace is. A refused pod shows as a
+`FailedCreate` event on its DaemonSet.
+
+**Scrapes Talos hides.** The controller-manager, scheduler, etcd and
+kube-proxy scrapes are disabled: Talos binds their metrics to
+localhost, so the targets would be permanently down and alert for no
+reason.
+
+**Sync waves order, they do not gate.** This ArgoCD has no Application
+health check, so a wave does not wait for the previous Application to be
+healthy; it only orders creation (`nfs` 0, `cert-manager` 1, issuers 2,
+`ingress-nginx` 3, `monitoring-secrets` 4, `monitoring` 5). Retries on
+`cert-manager-issuers` (the CRD race) and `monitoring` (the namespace
+race) cover the gaps. They are finite: after a sealed-Vault outage the
+Application stays `Sync failed` until someone unseals Vault and starts
+a sync by hand, with a kubectl patch of the Application's `operation`
+(a hard refresh re-compares but does not retry).
+
+The Applications for the Proxmox exporter and the alert rules come with
+the next PR, and this record gains its decisions then.
+
 Rejected:
 
 - **ArgoCD in `shared`**: not a cluster.
@@ -60,7 +119,16 @@ Rejected:
   then dev has its own ArgoCD.
 - Prod's reviewer JWT Secret exists only after prod's `argocd-config`
   syncs, so Vault's prod auth is configured after the first sync.
-- Later PRs extend this record with the monitoring decisions.
+- Prod's Prometheus is a single replica on NFS: an NFS outage or a
+  corrupt TSDB loses metrics, not the cluster; the cost is a lower
+  retention ceiling and no high availability.
+- A deleted `nfs-prod` PVC leaves a `Released` PV and a directory behind
+  until the operator removes them.
+- After a sealed Vault outage at bootstrap, `monitoring-secrets` and
+  `cert-manager-issuers` show a `ComparisonError` and sync on their own
+  once Vault is unsealed; `monitoring`, which needs the namespace
+  `monitoring-secrets` creates, can be left `Sync failed` until a manual
+  sync.
 
 ## Related
 

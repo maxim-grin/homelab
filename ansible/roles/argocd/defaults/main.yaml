@@ -153,6 +153,11 @@ argocd_avp_config:
 argocd_vault_auth_path: kubernetes
 # Host the ingress serves ArgoCD on; dev and prod differ.
 argocd_ingress_host: argocd.mgryn.cc
+# ClusterIssuer cert-manager uses for the server Ingress's certificate. Empty
+# (dev) renders no annotation and no tls block, exactly the chart defaults.
+# When set, the Ingress carries cert-manager.io/cluster-issuer and a tls
+# entry for argocd_ingress_host, secret argocd-server-tls (the chart's name).
+argocd_ingress_cluster_issuer: ""
 # Extra /etc/hosts entries for the argocd pods, list of {ip, hostnames}.
 # AVP in the repo-server pod must resolve vault.mgryn.cc, and on Talos the
 # CoreDNS ConfigMap is Talos-managed, so it cannot carry a hosts block.
@@ -179,6 +184,13 @@ argocd_helm_values:
       enabled: true
       ingressClassName: nginx
       hostname: "{{ argocd_ingress_host }}"
+      # Chart's own defaults ({} and false) when no issuer is set.
+      annotations: >-
+        {{ {'cert-manager.io/cluster-issuer': argocd_ingress_cluster_issuer}
+        if argocd_ingress_cluster_issuer | length > 0 else {} }}
+      # A boolean in this chart: it builds the tls entry for `hostname`
+      # with secretName argocd-server-tls.
+      tls: "{{ argocd_ingress_cluster_issuer | length > 0 }}"
   repoServer:
     # The avp sidecar below authenticates to Vault with this pod's
     # ServiceAccount JWT (Vault role "argocd" is bound to

@@ -1,0 +1,64 @@
+---
+# Two issuers, both DNS-01 through Cloudflare, differing only in the ACME
+# endpoint they talk to.
+#
+# Staging exists because Let's Encrypt rate-limits *failed* validations
+# (5 per account per hostname per hour) and issuance (50 certificates per
+# registered domain per week). DNS-01 has several ways to be quietly
+# misconfigured -- a token missing Zone:Read, the wrong zone selected, a
+# resolver answering from the split-horizon A record instead of the
+# challenge TXT -- and finding them against the production endpoint burns
+# a limited resource. Staging's certificates chain to an untrusted root,
+# so the browser still warns; that is the point. It proves the plumbing,
+# not the trust.
+#
+# Both are committed so switching is a one-line annotation change on the
+# Ingress rather than an edit to the issuer that is currently working.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@mgryn.cc
+    # Where cert-manager stores the ACME account key it registers. Not the
+    # certificate, and not something to pre-create -- cert-manager writes
+    # it on first use, into its own namespace, because a ClusterIssuer's
+    # secrets resolve against --cluster-resource-namespace.
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: API_TOKEN
+        # Scoped to the one zone this token can write. Without a selector
+        # the solver would be offered for any name cert-manager is asked
+        # to issue, including one this token has no permission over, and
+        # the failure would read as a Cloudflare error rather than as a
+        # missing solver.
+        selector:
+          dnsZones:
+            - mgryn.cc
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@mgryn.cc
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: API_TOKEN
+        selector:
+          dnsZones:
+            - mgryn.cc
