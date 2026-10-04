@@ -212,7 +212,7 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
    ```bash
    ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
      -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-     -e vault_token=<root token>
+     -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
    ```
 
    `vault_seed` replays `vault_kv` from `secret.yaml` into the mounts it

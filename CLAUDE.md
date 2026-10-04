@@ -190,8 +190,8 @@ supersedes a record in `docs/decisions/` in the same PR.
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
   is bare metal with no LoadBalancer and no MetalLB. The cluster's own
-  names (`argocd.`, `grafana.`, `prometheus.mgryn.cc`) resolve via
-  `/etc/hosts` on the workstation.
+  names (`dev-argocd.`, `grafana.`, `prometheus.mgryn.cc`) resolve via
+  `/etc/hosts` on the workstation; `argocd.mgryn.cc` is the prod hub.
   `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at

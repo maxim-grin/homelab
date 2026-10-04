@@ -140,11 +140,29 @@ argocd_avp_config:
   AVP_TYPE: vault
   AVP_AUTH_TYPE: k8s
   AVP_K8S_ROLE: argocd
+  # AVP wants the full login prefix, "auth/<mount>", not the bare mount
+  # name; "auth/kubernetes" is AVP's own default, so dev is unchanged. Inside
+  # this dict so the checksum below rolls the repo-server when it changes.
+  AVP_K8S_MOUNT_PATH: "auth/{{ argocd_vault_auth_path }}"
   VAULT_ADDR: "https://{{ argocd_vault_address }}:8200"
   # Points at the vault-ca ConfigMap mounted into the avp sidecar below.
   VAULT_CACERT: /etc/vault-ca/ca.crt
 
+# Bare name of the Vault Kubernetes-auth mount the avp sidecar logs in to.
+# Each cluster has its own mount (prod sets kubernetes-prod).
+argocd_vault_auth_path: kubernetes
+# Host the ingress serves ArgoCD on; dev and prod differ.
+argocd_ingress_host: argocd.mgryn.cc
+# Extra /etc/hosts entries for the argocd pods, list of {ip, hostnames}.
+# AVP in the repo-server pod must resolve vault.mgryn.cc, and on Talos the
+# CoreDNS ConfigMap is Talos-managed, so it cannot carry a hosts block.
+argocd_host_aliases: []
+
 argocd_helm_values:
+  # The chart exposes hostAliases only under global (repoServer.hostAliases
+  # is silently ignored), so every argocd pod gets them, not just repo-server.
+  global:
+    hostAliases: "{{ argocd_host_aliases }}"
   configs:
     secret:
       argocdServerAdminPassword: "{{ argocd_admin_password_hash }}"
@@ -160,7 +178,7 @@ argocd_helm_values:
     ingress:
       enabled: true
       ingressClassName: nginx
-      hostname: argocd.mgryn.cc
+      hostname: "{{ argocd_ingress_host }}"
   repoServer:
     # The avp sidecar below authenticates to Vault with this pod's
     # ServiceAccount JWT (Vault role "argocd" is bound to

@@ -1,0 +1,107 @@
+---
+# Deploy ArgoCD onto the prod Talos cluster.
+#
+# Runs on the operator's workstation against the cluster API; there is no
+# SSH target. Helm and the python `kubernetes` package must be installed
+# locally. The kubeconfig comes from Terraform, never from disk:
+#
+#   cd terraform/environments/prod
+#   umask 077; terraform output -raw kubeconfig > "$(mktemp)"   # mode 600
+#   cd ../../../ansible
+#   ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
+#     -e prod_kubeconfig=<tmpfile> --ask-vault-pass
+#   rm <tmpfile>
+#
+# It does not apply argocd/base/projects.yaml or the app-of-apps; the
+# operator does that by hand afterwards, as on dev.
+- name: Deploy ArgoCD to prod cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  # ansible.cfg turns become on globally; there is nothing to escalate to
+  # on the workstation and the role needs no root.
+  become: false
+  vars:
+    argocd_vault_auth_path: kubernetes-prod
+    argocd_ingress_host: argocd.mgryn.cc
+    # Break-glass way into the UI when the ingress is broken.
+    argocd_nodeport_enabled: true
+    argocd_context_kubeconfig: "{{ prod_kubeconfig | default('') | expanduser }}"
+    # Pods cannot resolve vault.mgryn.cc: the router's DNS rebind
+    # protection answers empty for a public name pointing at a private IP.
+    # Talos manages the CoreDNS ConfigMap, so a hosts block there is not an
+    # option; the alias on the argocd pods is the pod-level fix.
+    argocd_host_aliases:
+      - ip: "{{ host_ips['vault-02'] }}"
+        hostnames:
+          - vault.mgryn.cc
+
+  pre_tasks:
+    - name: Require prod_kubeconfig
+      ansible.builtin.assert:
+        that:
+          - prod_kubeconfig is defined
+          - prod_kubeconfig | length > 0
+        quiet: true
+        fail_msg: >-
+          prod_kubeconfig is not set. Pass -e prod_kubeconfig=<file>, a mode
+          600 file written by `terraform output -raw kubeconfig` in
+          terraform/environments/prod.
+
+    - name: Stat the kubeconfig
+      ansible.builtin.stat:
+        path: "{{ prod_kubeconfig | expanduser }}"
+      register: prod_kubeconfig_stat
+
+    - name: Require the kubeconfig to exist
+      ansible.builtin.assert:
+        that: prod_kubeconfig_stat.stat.isreg | default(false)
+        quiet: true
+        fail_msg: >-
+          prod_kubeconfig={{ prod_kubeconfig }} is not an existing file.
+          Write it with `terraform output -raw kubeconfig` in
+          terraform/environments/prod.
+
+    - name: Check that Helm is installed
+      ansible.builtin.command: helm version
+      register: helm_check
+      changed_when: false
+      failed_when: false
+
+    - name: Require Helm
+      ansible.builtin.assert:
+        that: helm_check.rc == 0
+        quiet: true
+        fail_msg: >-
+          helm is not on PATH. Install it on this workstation
+          (https://helm.sh/docs/intro/install/), then re-run.
+
+    - name: Check that the python kubernetes package is importable
+      ansible.builtin.command: "{{ ansible_playbook_python }} -c 'import kubernetes'"
+      register: k8s_py_check
+      changed_when: false
+      failed_when: false
+
+    - name: Require the python kubernetes package
+      ansible.builtin.assert:
+        that: k8s_py_check.rc == 0
+        quiet: true
+        fail_msg: >-
+          The python `kubernetes` package is missing for
+          {{ ansible_playbook_python }}, and the kubernetes.core modules
+          need it. Run `pip install kubernetes` in that environment.
+
+    - name: Require the secrets the role needs
+      ansible.builtin.assert:
+        that:
+          - argocd_admin_password_hash is defined
+          - argocd_admin_password_hash | length > 0
+          - host_ips is defined
+          - host_ips['vault-02'] is defined
+        quiet: true
+        fail_msg: >-
+          argocd_admin_password_hash and host_ips['vault-02'] come from
+          secret.yaml. Pass -e @secret.yaml --ask-vault-pass.
+
+  roles:
+    - role: argocd
