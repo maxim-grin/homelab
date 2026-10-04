@@ -16,6 +16,6 @@ gateway = "10.0.0.1"
 
 talos_nodes = {
   cp1 = { role = "controlplane", vmid = 3101, ip = "10.0.0.110", memory = 2048 }
-  w1  = { role = "worker", vmid = 3201, ip = "10.0.0.111", memory = 2048 }
-  w2  = { role = "worker", vmid = 3202, ip = "10.0.0.112", memory = 2048 }
+  w1  = { role = "worker", vmid = 3201, ip = "10.0.0.111", memory = 4096 }
+  w2  = { role = "worker", vmid = 3202, ip = "10.0.0.112", memory = 4096 }
 }

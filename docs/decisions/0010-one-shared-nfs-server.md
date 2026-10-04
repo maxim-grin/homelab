@@ -41,3 +41,6 @@ server's IP stayed the same — the migration itself was not a no-op.
 [#31](https://github.com/maxim-grin/homelab/pull/31),
 [#37](https://github.com/maxim-grin/homelab/pull/37); CLAUDE.md "nfs-dev"
 and "`nfs-dev`'s share path" bullets.
+
+Update 2026-10-03: `nfs-prod` is now exported to `talos-w1` and
+`talos-w2` only; the decision is unchanged.
