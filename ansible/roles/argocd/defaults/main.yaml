@@ -168,6 +168,18 @@ argocd_helm_values:
   # is silently ignored), so every argocd pod gets them, not just repo-server.
   global:
     hostAliases: "{{ argocd_host_aliases }}"
+  # Off because the role creates the argocd-redis Secret itself (tasks/
+  # main.yaml, "Create the Redis Secret"). Left on, the chart creates it
+  # from a pre-install/pre-upgrade hook Job, and Helm 4 waits on every
+  # hook through its kstatus watcher: a prod upgrade failed there, the
+  # watcher reporting the Job "InProgress" until the 5m timeout while
+  # kubectl showed it Complete in 4s. With this off the chart renders no
+  # hooks at all, so neither Helm 3 nor Helm 4 has a hook to wait on.
+  # Side effect: the chart then marks the REDIS_PASSWORD secretKeyRef in
+  # the argocd pods optional (redis itself still requires it), so the
+  # Secret must exist before the deploy -- which the role guarantees.
+  redisSecretInit:
+    enabled: false
   configs:
     secret:
       argocdServerAdminPassword: "{{ argocd_admin_password_hash }}"

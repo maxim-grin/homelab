@@ -89,6 +89,45 @@
       data:
         ca.crt: "{{ argocd_vault_ca_cert }}"
 
+- name: Look up the Redis Secret
+  # argocd_helm_values turns the chart's redisSecretInit hook off (see the
+  # comment there), so the role owns this Secret. Looked up first so the
+  # task below creates it only when absent: regenerating the password on
+  # a re-run would leave redis and the argocd components on different
+  # passwords until every one of them restarted. A cluster installed
+  # while the hook was still on already has the hook's Secret and keeps it.
+  when: argocd_install_method == 'helm'
+  kubernetes.core.k8s_info:
+    kind: Secret
+    name: argocd-redis
+    namespace: "{{ argocd_namespace }}"
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+  register: argocd_redis_secret
+
+- name: Create the Redis Secret
+  # Before the Helm deploy: redis will not start without it. Name and key
+  # are what the chart's redis Deployment hard-codes and what the hook's
+  # `argocd admin redis-initial-password` wrote (16 alphanumerics; 32
+  # here). no_log keeps the generated password out of the task output.
+  when:
+    - argocd_install_method == 'helm'
+    - argocd_redis_secret.resources | length == 0
+  no_log: true
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-redis
+        namespace: "{{ argocd_namespace }}"
+      type: Opaque
+      stringData:
+        auth: >-
+          {{ lookup('ansible.builtin.password', '/dev/null', length=32,
+          chars=['ascii_letters', 'digits']) }}
+
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
   kubernetes.core.helm:
