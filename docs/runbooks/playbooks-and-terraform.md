@@ -308,6 +308,30 @@ rm "$PROD_TMP"
 Expect: `vault read auth/kubernetes-prod/config` on `vault-02` shows
 `kubernetes_host https://10.0.0.110:6443`. If not: [checks.md](checks.md).
 
+### Widen prod's policy to read kv-dev
+
+When: `extra_kv_mounts` for prod changed in `roles/vault/defaults/main.yaml`
+(the hub's ArgoCD renders dev apps, so `argocd-read-prod` also reads
+`kv-dev/`). Re-run [Configure prod](#configure-prod) as written; it rewrites
+the policy. Dev's `argocd-read` is untouched. Then check on `vault-02`, with
+a short-lived token carrying only the prod policy; the token never prints a
+secret value.
+
+```bash
+export VAULT_ADDR=https://10.0.0.133:8200
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
+vault policy read argocd-read-prod
+PROD_ROLE_TOKEN="$(vault token create -policy=argocd-read-prod -ttl=5m -field=token)"
+VAULT_TOKEN="$PROD_ROLE_TOKEN" vault kv list kv-dev/monitoring
+VAULT_TOKEN="$PROD_ROLE_TOKEN" vault kv list kv-prod/monitoring
+unset VAULT_TOKEN PROD_ROLE_TOKEN
+```
+
+Expect: the policy names `kv-prod/` and `kv-dev/` data and metadata paths,
+and both `kv list` calls print names. If not: `permission denied` on
+`kv-dev` means the policy was not rewritten; re-run configure prod and
+check the play for `Write the policy for prod`.
+
 ## LAN services
 
 `lan_services.yaml` builds the LAN LXCs from `inventories/shared`, in

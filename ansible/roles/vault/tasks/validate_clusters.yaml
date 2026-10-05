@@ -102,3 +102,20 @@
     fail_msg: >-
       A vault_k8s_clusters kv_mount is not in vault_kv_mounts:
       {{ vault_k8s_clusters | map(attribute='kv_mount') | difference(vault_kv_mounts) | join(', ') }}.
+
+- name: Require every extra_kv_mounts entry to be a created mount, not the cluster's own
+  ansible.builtin.assert:
+    that:
+      - item.extra_kv_mounts | default([]) is not string
+      - item.extra_kv_mounts | default([]) | difference(vault_kv_mounts) | length == 0
+      - item.kv_mount not in item.extra_kv_mounts | default([])
+    fail_msg: >-
+      vault_k8s_clusters entry {{ item.name }} has a bad extra_kv_mounts:
+      every entry must be in vault_kv_mounts
+      ({{ vault_kv_mounts | join(', ') }}) and must not repeat its own
+      kv_mount ({{ item.kv_mount }}). It lists
+      {{ item.extra_kv_mounts | default([]) }}.
+    quiet: true
+  loop: "{{ vault_k8s_clusters }}"
+  loop_control:
+    label: "{{ item.name | default('?') }}"
