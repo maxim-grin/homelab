@@ -232,26 +232,40 @@ render over 90 seconds means raising the repo-server's exec timeout
 
 ### Verify the ApplicationSet
 
-When: after any change to
-`argocd/environments/prod/applications/appset.yaml` or a config entry, from
-a checkout of the branch. This is the only proof that Argo accepts the
-templated `env` selector inside the matrix; `scripts/check-appsets.sh`
-expands the set with `yq`, not with Argo's own generators. The git
-generator reads its repository, so a scratch entry has to be on a pushed
-branch: set `revision` in a local copy of the set to that branch. That
-edit is a scratch change: revert it and never commit it.
-`argocd` is the CLI, logged in to prod or run with `--core`.
+When: BEFORE merging any change to
+`argocd/environments/prod/applications/appset.yaml` or a config entry,
+including the PR that adds the set. This is the only proof that Argo
+accepts the templated `env` selector inside the matrix and drops empty
+configs; `scripts/check-appsets.sh` expands the set with `yq`, not with
+Argo's own generators. The git generator reads its repository at
+`revision`, so run it against the pushed branch, never `main`: before the
+merge `main` has no `config.yaml`, and the check passes falsely. Set
+`revision` in the local copy of the set to the branch; that edit is a
+scratch change: revert it and never commit it. `argocd` is the CLI,
+logged in to prod or run with `--core`.
 
 ```bash
+# scratch: point the git generator at the pushed branch (never commit this)
+yq -i '.spec.generators[0].matrix.generators[0].git.revision = "<branch>"' \
+  argocd/environments/prod/applications/appset.yaml
 argocd appset generate argocd/environments/prod/applications/appset.yaml
+# with one scratch entry (env: prod, namespace, createNamespace,
+# serverSideApply) in one app's config.yaml, pushed to the branch:
+argocd appset generate argocd/environments/prod/applications/appset.yaml
+git checkout -- argocd/environments/prod/applications/appset.yaml
 ```
 
-Expect: while every `config.yaml` is `[]`, no Applications. With one
-scratch entry (`env: prod`, a `namespace`) in one app's config, exactly one
-Application, `prod-<dir>`, with source path `argocd/apps/<dir>/prod`.
+Expect: while every `config.yaml` is `[]`, no Applications and no error
+(no `ErrorOccurred` condition, nothing about a missing `env` key). With
+the one scratch entry, exactly one Application, `prod-<dir>`, with source
+path `argocd/apps/<dir>/prod`. Remove the scratch entry from the branch
+before merging.
 
-If not: an error naming the selector or a template key is the finding;
-fix the set before it reaches `main`.
+If not: `map has no entry for key "env"` means empty configs are not
+dropped: the git child's `selector` (`env` `Exists`) is missing or not
+honoured ([ADR 0026](../decisions/0026-uniform-apps.md) names the
+fallback). Any other error naming the selector or a template key is the
+finding; fix the set before it reaches `main`.
 
 ### Roll an app into the set
 

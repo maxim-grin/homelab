@@ -17,7 +17,13 @@
 #   - the set has `goTemplate: true` and a matrix of a git-files generator
 #     over argocd/apps/*/config.yaml (each entry is one parameter set) and a
 #     cluster generator selecting `argocd.argoproj.io/secret-type: cluster`
-#     and `env: "{{.env}}"`, so the env filtering is structural.
+#     and `env: "{{.env}}"`, so the env filtering is structural. The git
+#     child carries selector matchExpressions env Exists: Argo makes an
+#     empty config one parameter set without `env`, which the selector
+#     drops (this check models `[]` as producing nothing).
+#   - the template destination is `name: "{{.name}}"`, and no entry uses a
+#     key the generators set themselves (name, server, nameNormalized,
+#     metadata, path).
 #   - the template may use only {{.name}} (cluster name), {{.path.basename}}
 #     (the app directory) and {{.env}} in metadata.name and source.path, and
 #     must render `<cluster>-<dir>` and `argocd/apps/<dir>/<env>`.
@@ -128,6 +134,14 @@ filtered=$(yq '[.spec.generators[].matrix.generators[].clusters | select(. != nu
   | select(.selector.matchLabels["argocd.argoproj.io/secret-type"] == "cluster" and .selector.matchLabels.env == "{{.env}}")] | length' "$set_file")
 [ "$filtered" -gt 0 ] \
   || fail "set does not filter clusters by env: the cluster generator needs matchLabels argocd.argoproj.io/secret-type: cluster and env: \"{{.env}}\""
+# Argo's git files generator turns an empty (`[]`) config into one parameter
+# set holding only path.*; the cluster child's `{{.env}}` then fails under
+# missingkey=error and the matrix aborts, generating nothing for any app.
+# A post-selector on the git child drops those before the cluster child.
+dropped=$(yq '[.spec.generators[].matrix.generators[] | select(has("git"))
+  | .selector.matchExpressions[]? | select(.key == "env" and .operator == "Exists")] | length' "$set_file")
+[ "$dropped" -gt 0 ] \
+  || fail "set does not drop empty configs: the git child generator needs selector.matchExpressions [{key: env, operator: Exists}] (an empty config yields a parameter set without env)"
 
 # The template is {metadata, spec}; spec carries syncPolicy, never the
 # template itself or a spec-level lookalike.
@@ -196,6 +210,12 @@ render() { # TEMPLATE CLUSTER ENV DIR
 }
 
 name_tpl=$(yq '.spec.template.metadata.name' "$set_file")
+# By name, so the AppProject's `name: prod`/`name: dev` destinations and the
+# cluster Secrets decide where each Application goes.
+if [ "$(yq '.spec.template.spec.destination.name // ""' "$set_file")" != '{{.name}}' ] \
+  || [ "$(yq '.spec.template.spec.destination | has("server")' "$set_file")" != false ]; then
+  fail "$set_file: template destination must be name: \"{{.name}}\" (the cluster generator's name), with no server"
+fi
 path_tpl=$(yq '.spec.template.spec.source.path' "$set_file")
 
 # AppProject destinations: a cluster is allowed by `name` or by `server`.
@@ -230,6 +250,13 @@ for cfg in "${configs[@]}"; do
     for k in createNamespace serverSideApply; do
       [ "$(yq ".[$i] | has(\"$k\")" "$cfg")" = true ] \
         || { fail "$cfg entry $i has no $k (the set's templatePatch reads it; with missingkey=error the whole set stops generating)"; missing=1; }
+    done
+    # The matrix merges each entry with the cluster generator's and the git
+    # generator's own parameters; an entry key of the same name would
+    # shadow or be shadowed by them.
+    for k in name server nameNormalized metadata path; do
+      [ "$(yq ".[$i] | has(\"$k\")" "$cfg")" = false ] \
+        || { fail "$cfg entry $i: key '$k' collides with a generator parameter (cluster: name, server, nameNormalized, metadata; git: path)"; missing=1; }
     done
     [ "$missing" -eq 0 ] || continue
     matched=0

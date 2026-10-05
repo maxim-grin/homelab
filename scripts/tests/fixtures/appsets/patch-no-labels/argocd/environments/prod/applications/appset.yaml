@@ -4,8 +4,9 @@ metadata:
   name: apps
   namespace: argocd
   annotations:
-    # Wave 0: created after the cluster Secrets (`clusters`, wave -1)
-    # within root-prod's sync.
+    # Wave 0 orders only within root-prod's sync, and the cluster Secrets
+    # (`clusters`, wave -1) do not hold it back. That is harmless: the
+    # set re-runs its generators when a cluster Secret changes.
     argocd.argoproj.io/sync-wave: "0"
     # Deleting the set deletes every generated Application, and their
     # finalizers delete the workloads. root-prod must never prune or
@@ -20,7 +21,8 @@ spec:
     # The generator never deletes an Application: an empty or broken
     # generator would otherwise remove them all, and their resources
     # finalizer would cascade-delete what they run. Retiring an app is a
-    # deliberate delete. This does not cover deleting the set itself.
+    # deliberate delete, after the entry is removed (else it is recreated).
+    # This does not cover deleting the set itself.
     applicationsSync: create-update
     # If the set is deleted anyway, its Applications go but the resources
     # they manage stay.
@@ -30,7 +32,7 @@ spec:
     # argocd/apps/<dir>/config.yaml is one parameter set (`env`,
     # `namespace`, ...; `path.basename` is <dir>); the cluster
     # generator then keeps only the cluster whose `env` label matches the
-    # entry. A config of `[]` yields nothing.
+    # entry.
     - matrix:
         generators:
           - git:
@@ -38,6 +40,15 @@ spec:
               revision: main
               files:
                 - path: argocd/apps/*/config.yaml
+            # A config of `[]` is turned by the git generator into one
+            # parameter set holding only path.*; without this the cluster
+            # child's `{{.env}}` fails under missingkey=error and the matrix
+            # generates nothing for any app. Dropped here, `[]` yields
+            # nothing.
+            selector:
+              matchExpressions:
+                - key: env
+                  operator: Exists
           - clusters:
               selector:
                 matchLabels:

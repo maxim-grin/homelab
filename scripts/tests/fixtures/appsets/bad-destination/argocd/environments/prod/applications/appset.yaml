@@ -19,6 +19,10 @@ spec:
               revision: main
               files:
                 - path: argocd/apps/*/config.yaml
+            selector:
+              matchExpressions:
+                - key: env
+                  operator: Exists
           - clusters:
               selector:
                 matchLabels:

@@ -47,6 +47,10 @@ expect missing-keys 1 'entry 1 has no namespace'
 expect missing-keys 1 'entry 2 has no createNamespace'
 expect missing-keys 1 'entry 3 has no serverSideApply'
 expect nested-config 1 'nested deeper than argocd/apps/<dir>/'
+expect no-empty-filter 1 'set does not drop empty configs'
+expect mixed-empty 0 'prod-nfs-provisioner'
+expect key-collision 1 "key 'name' collides with a generator parameter"
+expect bad-dest-name 1 'destination must be name: "{{.name}}"'
 
 # A tree with no set at all is skipped, not failed.
 empty="$(mktemp -d)"

@@ -329,14 +329,22 @@ Task 3's check also fails on an entry missing `env`, `namespace`,
 `config.yaml` nested deeper than `argocd/apps/<dir>/` (the generator's
 glob could reach it).
 
-**Operator (after merge, before Task 10):** on the Mac,
-`argocd appset generate argocd/environments/prod/applications/appset.yaml`
-(or the equivalent against the live set) lists no Applications while every
-config is `[]`; with one scratch config entry it lists exactly
-`prod-<dir>`. This is the only proof that Argo accepts the templated
-`env: '{{.env}}'` selector inside the matrix; if it does not, the filter
-moves to a post-selector or per-env config files and the plan is revised
-before any rollout.
+The git child generator carries a post-selector (`matchExpressions:
+env Exists`): Argo turns an empty `[]` config into one parameter set
+holding only `path.*`, and without the selector the cluster child's
+`{{.env}}` fails under `missingkey=error`, the matrix aborts and nothing
+is generated for any app. Task 3's check asserts the selector ("set does
+not drop empty configs").
+
+**Operator (BEFORE merge):** on the Mac, the
+[Verify the ApplicationSet](../../runbooks/checks.md#verify-the-applicationset)
+entry, with `revision` set to the pushed branch (scratch edit, never
+committed): no Applications and no error condition while every config is
+`[]`; with one scratch config entry exactly `prod-<dir>`. Against `main`
+it passes falsely (no `config.yaml` there before the merge). This is the
+only proof that Argo accepts the templated selector and the post-selector
+inside the matrix; if it does not, ADR 0026's fallback applies and the
+plan is revised before merge.
 
 ### Task 6: Vault policy and hub access
 

@@ -1,0 +1,5 @@
+- env: prod
+  namespace: monitoring
+  createNamespace: false
+  serverSideApply: true
+  name: other

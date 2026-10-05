@@ -36,9 +36,19 @@ is a matrix of a git-files generator over `argocd/apps/*/config.yaml` and
 the cluster generator selecting `env: '{{.env}}'`. Each `config.yaml` is a
 top-level list with one entry per env the app deploys to (`env`,
 `namespace`, `createNamespace`, `serverSideApply`, optionally
-`namespaceLabels`); `[]` deploys nothing. The git-files generator makes
-each entry one parameter set, so the cluster selector filters
-structurally. The Application is named `<cluster>-<dir>`; the directory
+`namespaceLabels`). The git-files generator makes each entry one
+parameter set, so the cluster selector filters structurally. `[]`
+deploys nothing only because of a post-selector on the git child
+(`matchExpressions: env Exists`): Argo turns an empty config into one
+parameter set holding only `path.*`, and without the selector the
+cluster child's `{{.env}}` fails under `missingkey=error`, the matrix
+aborts and the set generates nothing for any app. If Argo rejects the
+selector, the fallback is to drop `missingkey=error` and read the key as
+`{{ dig "env" "" . }}`, which renders an empty value that matches no
+cluster Secret (a bare `{{.env}}` without the option renders
+`<no value>`, not a valid label value).
+
+The Application is named `<cluster>-<dir>`; the directory
 `nfs_provisioner` is renamed `nfs-provisioner`, because an underscore is
 not a valid Application name. A `templatePatch` adds `syncOptions`
 (`CreateNamespace`, `ServerSideApply`) and `managedNamespaceMetadata`
