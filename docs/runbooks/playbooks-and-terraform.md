@@ -58,10 +58,14 @@ If not: [rebuild.md](../rebuild.md) covers growing a disk (`growpart`,
 
 ### Resize a node
 
-When: you changed `memory` (or cores) of a VM and applied. The module sets
+When: you changed `memory` (or cores) of a VM and applied. The `talos-node`,
+`nfs-server` and `vault-vm` modules (Talos nodes, `nfs-01`, `vault-02`) set
 `automatic_reboot = false`, so the apply ends with the VM "needs to be
-rebooted" and keeps the old size until restarted. One node at a time; for a
-cluster node `kubectl drain` first and `kubectl uncordon` after. `<vmid>` is
+rebooted" and keeps the old size until restarted. The dev VMs (`ubuntu-vm`,
+`ubuntu-k8s` modules) do not set it and follow the provider default, so they
+may reboot during the apply itself: drain a dev node before applying. One node
+at a time; for a cluster node `kubectl drain` first and `kubectl uncordon`
+after. `<vmid>` is
 the node's vmid, in `ansible/secret.yaml` under `proxmox_vm_ids`; run on `pve`.
 
 ```bash
@@ -89,7 +93,7 @@ inventory is `inventories/dev`; `shared` and `prod` runs need `-i`.
 | `coredns_hosts.yaml`  | default (dev)                                 | none                                                                     | pin `vault.mgryn.cc` in CoreDNS; after every kubeadm upgrade|
 | `nfs_server.yaml`     | `-i inventories/shared`                       | none                                                                     | provision `nfs-01`, before `nfs_setup.yaml`                  |
 | `nfs_setup.yaml`      | default (dev)                                 | none                                                                     | `nfs-common` on the dev nodes, after `nfs_server.yaml`       |
-| `vault.yaml`          | `-i inventories/shared` (+ `-i inventories/dev` for dev configure) | `vault_configure`, `vault_seed`, `vault_token`, `vault_k8s_cluster_names`, `vault_prod_kubeconfig` (see [Vault playbook](#vault-playbook)) | install, seed, configure `vault-02` |
+| `vault.yaml`          | `-i inventories/shared` (+ `-i inventories/dev` for dev configure) | none for install; seed, configure dev and configure prod each take their own set of `vault_seed`, `vault_configure`, `vault_token`, `vault_k8s_cluster_names`, `vault_prod_kubeconfig` (see [Vault playbook](#vault-playbook)) | install, seed, configure `vault-02` |
 | `lan_services.yaml`   | `-i inventories/shared`                       | none; `--limit <service>` for one                                        | the LAN LXCs, see [LAN services](#lan-services)              |
 | `support_tools.yaml`  | default (dev)                                 | none; `support_tools_enabled: true` in `group_vars/all.yaml`             | kubectl aliases and helpers on the control plane             |
 | `workstation.yaml`    | default (dev)                                 | none                                                                     | toolchain on `claude-code-01`                                |
@@ -154,19 +158,19 @@ When: first prod bootstrap, or to re-run after the platform PR merges (the
 Ingress `letsencrypt-prod` annotation comes from this playbook). It runs on the
 operator's workstation against the cluster API and needs Helm and the python
 `kubernetes` package locally. The kubeconfig comes from Terraform into a
-mode 600 temp file, never kept on disk. `PROD_KC` here is that temp file. The
+mode 600 temp file, never kept on disk. `PROD_TMP` here is that temp file, not the README-convention `$PROD_TMP` path. The
 play does not apply `argocd/base/projects.yaml` or the app-of-apps; apply
 those by hand afterwards.
 
 ```bash
 cd terraform/environments/prod
-umask 077; PROD_KC="$(mktemp)"
-terraform output -raw kubeconfig > "$PROD_KC"
+umask 077; PROD_TMP="$(mktemp)"
+terraform output -raw kubeconfig > "$PROD_TMP"
 cd ../../../ansible
 ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
-  -e prod_kubeconfig="$PROD_KC" --ask-vault-pass
-kubectl --kubeconfig "$PROD_KC" -n argocd get pods
-rm "$PROD_KC"
+  -e prod_kubeconfig="$PROD_TMP" --ask-vault-pass
+kubectl --kubeconfig "$PROD_TMP" -n argocd get pods
+rm "$PROD_TMP"
 ```
 
 Expect: pods `Running` or `Completed`, `repo-server` not in `Init`. If not:
@@ -220,11 +224,8 @@ Claude login.
 `vault.yaml` targets the `vault` group (`vault-02`), which lives in
 `inventories/shared`. Its jobs differ in inventory and variables. Where a
 command needs the root token, read it without echo so it stays out of shell
-history (`<root token>` in the older docs), and unset it afterwards:
-
-```bash
-read -rs VAULT_TOKEN
-```
+history (`<root token>` in the older docs). Each block below prompts for it
+and unsets it, so blocks run independently.
 
 ### Install and TLS
 
@@ -247,6 +248,7 @@ When: fill `kv-dev/` and `kv-prod/` from the `vault_kv` block of
 service tasks, which are idempotent, but a service restart seals Vault.
 
 ```bash
+read -rs VAULT_TOKEN
 ansible-playbook -i inventories/shared playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_seed=true \
   -e vault_token="$VAULT_TOKEN"
@@ -264,6 +266,7 @@ reached over SSH and lives in `inventories/dev`, so both inventories are
 needed. This also seeds.
 
 ```bash
+read -rs VAULT_TOKEN
 ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
   -e vault_token="$VAULT_TOKEN" -e '{"vault_k8s_cluster_names":["dev"]}'
@@ -279,16 +282,22 @@ not synced yet; wait and re-run.
 When: after prod's `argocd-config` is `Synced` (it creates the `vault-auth`
 ServiceAccount and Secret). Prod has no SSH: its reviewer JWT and CA come from
 the kubeconfig on the operator's workstation, so `inventories/shared` alone
-suffices. `PROD_KC` is the mode 600 kubeconfig file from
-[Deploy ArgoCD to prod](#deploy-argocd-to-prod).
+suffices. The block fetches a fresh mode 600 kubeconfig from Terraform and
+removes it afterwards.
 
 ```bash
+cd terraform/environments/prod
+umask 077; PROD_TMP="$(mktemp)"
+terraform output -raw kubeconfig > "$PROD_TMP"
+cd ../../../ansible
+read -rs VAULT_TOKEN
 ansible-playbook -i inventories/shared playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true \
   -e vault_token="$VAULT_TOKEN" \
   -e '{"vault_k8s_cluster_names":["prod"]}' \
-  -e vault_prod_kubeconfig="$PROD_KC"
+  -e vault_prod_kubeconfig="$PROD_TMP"
 unset VAULT_TOKEN
+rm "$PROD_TMP"
 ```
 
 Expect: `vault read auth/kubernetes-prod/config` on `vault-02` shows
