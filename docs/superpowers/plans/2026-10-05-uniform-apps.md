@@ -360,6 +360,17 @@ renders them.
 (`prometheus.ingress`, `enabled: false` today),
 `argocd/apps/monitoring-secrets/prod/` (an htpasswd Secret).
 
+Rulings from the pre-flight (2026-10-05): `prometheus.mgryn.cc` is also
+the host of dev's own Prometheus Ingress today (basic auth from the
+`prometheus-basic-auth` Secret, `argocd/apps/monitoring/dev/`), resolved
+on the operator's workstation through `/etc/hosts`. The spec's name stays:
+the clash is only with that workstation line, until sub-4 retires dev's
+Prometheus; note it in the operator checklist. The prod Ingress exposes
+ONLY the path `/api/v1/write` (pathType Exact), so prod's UI and query API
+stay unreachable and the sender's credential can only write. Mirror dev's
+pattern for the auth annotations and the Secret name `prometheus-basic-auth`
+(key `auth`).
+
 - [ ] Step 1: Enable the ingress for `prometheus.mgryn.cc`,
   `ingressClassName: nginx`, the cert-manager annotation for the
   production issuer, basic-auth annotations naming the new Secret, and a
