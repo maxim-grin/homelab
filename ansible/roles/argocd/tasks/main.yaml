@@ -89,6 +89,89 @@
       data:
         ca.crt: "{{ argocd_vault_ca_cert }}"
 
+- name: Look up the Redis Secret
+  # argocd_helm_values turns the chart's redisSecretInit hook off (see the
+  # comment there), so the role owns this Secret. Looked up first so the
+  # create below runs only when it is absent: regenerating the password on
+  # a re-run would leave redis and the argocd components on different
+  # passwords until every one of them restarted. A cluster installed
+  # while the hook was still on already has the hook's Secret and keeps it.
+  # no_log because the registered result carries the Secret's data, which
+  # -v would print; the next task reduces it to a state word.
+  when: argocd_install_method == 'helm'
+  no_log: true
+  kubernetes.core.k8s_info:
+    kind: Secret
+    name: argocd-redis
+    namespace: "{{ argocd_namespace }}"
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+  register: argocd_redis_secret
+
+- name: Reduce the Redis Secret lookup to its state
+  # absent, valid (a non-empty auth key) or invalid. Only this word is used
+  # from here on, so no later task can print the password by referring to
+  # the registered lookup. Still no_log: the task itself reads the data.
+  when: argocd_install_method == 'helm'
+  no_log: true
+  ansible.builtin.set_fact:
+    argocd_redis_secret_state: >-
+      {{ 'absent' if argocd_redis_secret.resources | length == 0
+      else 'valid' if (argocd_redis_secret.resources[0].data | default({},
+      true)).auth | default('', true) | length > 0
+      else 'invalid' }}
+
+- name: Require a usable Redis Secret
+  # A Secret that exists without a non-empty auth key is never overwritten:
+  # the role cannot tell whether something else relies on it. Left alone,
+  # redis would sit in CreateContainerConfigError, so stop here instead.
+  when: argocd_install_method == 'helm'
+  ansible.builtin.assert:
+    that:
+      - argocd_redis_secret_state != 'invalid'
+    quiet: true
+    fail_msg: >-
+      Secret argocd-redis in namespace {{ argocd_namespace }} exists but has
+      no non-empty `auth` key, which redis and every argocd component read
+      as the Redis password. Delete it (kubectl -n {{ argocd_namespace }}
+      delete secret argocd-redis) and re-run: the role then creates it with
+      a new password. Pods read it only at start, so then run kubectl -n
+      {{ argocd_namespace }} rollout restart deploy,sts.
+
+- name: Create the Redis Secret
+  # Before the Helm deploy: redis will not start without it. Name and key
+  # are what the chart's redis Deployment hard-codes and what the hook's
+  # `argocd admin redis-initial-password` wrote (16 alphanumerics; 32
+  # here). no_log keeps the generated password out of the task output --
+  # and also hides the API error if the create fails; to see that, re-run
+  # a scratch copy of this task without no_log.
+  when:
+    - argocd_install_method == 'helm'
+    - argocd_redis_secret_state == 'absent'
+  no_log: true
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ argocd_context_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-redis
+        namespace: "{{ argocd_namespace }}"
+      type: Opaque
+      stringData:
+        auth: >-
+          {{ lookup('ansible.builtin.password', '/dev/null', length=32,
+          chars=['ascii_letters', 'digits']) }}
+
+- name: Read the Helm version
+  # The deploy below must know whether the machine running this play has
+  # Helm 3 or Helm 4; see its server_side comment.
+  when: argocd_install_method == 'helm'
+  ansible.builtin.command: helm version --short
+  register: argocd_helm_version
+  changed_when: false
+  check_mode: false
+
 - name: Deploy ArgoCD via Helm
   when: argocd_install_method == 'helm'
   kubernetes.core.helm:
@@ -100,6 +183,19 @@
     create_namespace: false
     chart_version: "{{ argocd_version }}"
     values: "{{ argocd_helm_values | default({}) }}"
+    # Client-side apply on Helm 4, which is what Helm 3 always does. Helm 4
+    # installs with server-side apply and keeps it on upgrade, and the
+    # NodePort task at the end of this role patches the chart's own
+    # argocd-server Service (type, selector, nodePorts). Under server-side
+    # apply that patch's field manager owns those fields, so the next
+    # upgrade fails: "Apply failed with 2 conflicts: conflicts with
+    # OpenAPI-Generator: .spec.selector, .spec.type". Client-side apply
+    # three-way-merges around the patch as Helm 3 does, and moves a release
+    # first installed server-side back to client-side on its next upgrade.
+    # Omitted on Helm 3: the module rejects server_side there, and Helm 3
+    # has no server-side mode to turn off.
+    server_side: >-
+      {{ omit if argocd_helm_version.stdout is match('v3\.') else 'false' }}
 
 - name: Ensure ArgoCD server service is exposed via NodePort
   when: argocd_nodeport_enabled
