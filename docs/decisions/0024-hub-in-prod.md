@@ -1,6 +1,6 @@
 # 0024. The hub platform runs in prod; dev is a spoke
 
-**Status:** Accepted (2026-10-03)
+**Status:** Accepted (2026-10-03); partly superseded by [0026](0026-uniform-apps.md)
 
 ## Context
 
