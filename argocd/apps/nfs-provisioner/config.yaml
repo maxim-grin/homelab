@@ -1,13 +1,17 @@
 # Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
-# deploys nfs-provisioner: one list entry per env, each generating `<cluster>-nfs-provisioner`
-# from argocd/apps/nfs-provisioner/<env>. `[]` deploys it nowhere; the rollout PR
-# uncomments the entry below.
+# deploys this app: one list entry per env, each generating
+# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` deploys it
+# nowhere; the rollout PR uncomments the entry below.
+#
+# Ordering: the nfs-prod StorageClass (the default) must exist before any
+# app's PVC binds; PVCs created earlier sit Pending until it does.
+# Generated Applications all start at once (the set creates them, so sync
+# waves order nothing). The set's retry (limit 10, backoff 30s x2, max
+# 5m: about 37 minutes) carries a sync that runs before its dependency is
+# ready; after that, sync the app by hand.
 #
 # - env: prod
 #   namespace: nfs-system
-#   # Wave 0: the nfs-prod StorageClass (the default) must exist before
-#   # any PVC in a later wave.
-#   wave: 0
 #   createNamespace: true
 #   serverSideApply: false
 []

@@ -4,8 +4,9 @@ metadata:
   name: clusters
   namespace: argocd
   annotations:
-    # Wave -1: the cluster Secrets exist before the set (wave 0) selects
-    # clusters by their `env` label.
+    # Wave -1 orders creation within root-prod's sync only: it does not
+    # hold the set (wave 0) back. Nothing depends on it either way: the
+    # set re-runs its generators when a cluster Secret changes.
     argocd.argoproj.io/sync-wave: "-1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io

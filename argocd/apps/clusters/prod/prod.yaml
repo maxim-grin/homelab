@@ -14,6 +14,8 @@ metadata:
     env: prod
 type: Opaque
 stringData:
+  # Renaming this later makes the set generate duplicate Applications
+  # `<newname>-<dir>` beside the old `prod-<dir>` ones.
   name: prod
   server: https://kubernetes.default.svc
   config: '{"tlsClientConfig":{"insecure":false}}'

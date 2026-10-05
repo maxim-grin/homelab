@@ -1,15 +1,18 @@
 # Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
-# deploys kube-prometheus-stack: one list entry per env, each generating `<cluster>-kube-prometheus-stack`
-# from argocd/apps/kube-prometheus-stack/<env>. `[]` deploys it nowhere; the rollout PR
-# uncomments the entry below.
+# deploys this app: one list entry per env, each generating
+# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` deploys it
+# nowhere; the rollout PR uncomments the entry below.
+#
+# Ordering: after monitoring-secrets, which creates the `monitoring`
+# namespace and the Secrets this chart references by name; before alerts
+# and pve-exporter, which need its CRDs.
+# Generated Applications all start at once (the set creates them, so sync
+# waves order nothing). The set's retry (limit 10, backoff 30s x2, max
+# 5m: about 37 minutes) carries a sync that runs before its dependency is
+# ready; after that, sync the app by hand.
 #
 # - env: prod
 #   namespace: monitoring
-#   # Wave 5: after monitoring-secrets (4) creates the namespace and the
-#   # Secrets this chart references by name. Waves order creation but do
-#   # not wait for health, so this sync can still run before the
-#   # namespace exists; the set's retry carries it past that.
-#   wave: 5
 #   # No CreateNamespace and no namespaceLabels: monitoring-secrets owns
 #   # the namespace and its privileged Pod Security label, and two owners
 #   # would fight over the labels.

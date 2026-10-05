@@ -1,13 +1,17 @@
 # Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
-# deploys cert-manager: one list entry per env, each generating `<cluster>-cert-manager`
-# from argocd/apps/cert-manager/<env>. `[]` deploys it nowhere; the rollout PR
-# uncomments the entry below.
+# deploys this app: one list entry per env, each generating
+# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` deploys it
+# nowhere; the rollout PR uncomments the entry below.
+#
+# Ordering: before cert-manager-issuers, whose ClusterIssuers need the
+# CRDs installed here.
+# Generated Applications all start at once (the set creates them, so sync
+# waves order nothing). The set's retry (limit 10, backoff 30s x2, max
+# 5m: about 37 minutes) carries a sync that runs before its dependency is
+# ready; after that, sync the app by hand.
 #
 # - env: prod
 #   namespace: cert-manager
-#   # Wave 1: after the StorageClass; the CRDs land here, before the
-#   # issuers.
-#   wave: 1
 #   createNamespace: true
 #   # cert-manager's CRDs carry large validation schemas. Applied
 #   # client-side they exceed the 262144-byte annotation limit that
