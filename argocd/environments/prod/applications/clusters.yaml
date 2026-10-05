@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clusters
+  namespace: argocd
+  annotations:
+    # Wave -1: the cluster Secrets exist before the set (wave 0) selects
+    # clusters by their `env` label.
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: homelab
+  source:
+    repoURL: https://github.com/maxim-grin/homelab.git
+    targetRevision: main
+    path: argocd/apps/clusters/prod
+    # Plain kustomize, no AVP plugin: the in-cluster Secret carries no
+    # credential, and the cluster list must not depend on Vault being
+    # unsealed.
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # Waves order creation but do not wait for health; a failed automated
+    # sync is not retried without this.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
