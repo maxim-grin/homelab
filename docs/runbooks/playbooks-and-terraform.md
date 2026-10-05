@@ -334,6 +334,46 @@ prod, once sub-project 4 lands. If not: `permission denied` on
 `kv-dev` means the policy was not rewritten; re-run configure prod and
 check the play for `Write the policy for prod`.
 
+### Seed the remote-write credential
+
+When: BEFORE merging the uniform-apps PR, and on a rebuild before prod's
+`monitoring-secrets` first syncs. That Application renders the Secret
+`prometheus-basic-auth` from
+`<path:kv-prod/data/monitoring/remote-write#htpasswd>` as soon as the
+Secret is on `main`; a missing field fails AVP for the whole app: sync
+status `Unknown` with a `ComparisonError`, health still `Healthy`, and the
+Grafana and Alertmanager Secrets frozen. `kv-dev/monitoring/remote-write`
+holds the plain pair for dev's sender (sub-project 4).
+
+Generate the bcrypt line on the operator's workstation (`htpasswd` comes
+from `apache2-utils` or `httpd-tools`), with the password read without
+echo:
+
+```bash
+printf 'remote-write password: '; read -rs RW_PASS; echo
+htpasswd -nbB dev-remote-write "$RW_PASS" | tr -d '\n'; echo
+unset RW_PASS
+ansible-vault edit secret.yaml
+```
+
+In the editor, under `vault_kv`, set `kv-dev` `monitoring/remote-write`
+(`username: dev-remote-write`, `password`: the same password) and `kv-prod`
+`monitoring/remote-write` (`htpasswd`: the printed line); the shapes are in
+`secret.yaml.example`. Then run [Seed](#seed) as written, and check on
+`vault-02` without printing the values:
+
+```bash
+export VAULT_ADDR=https://10.0.0.133:8200
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
+vault kv get -field=htpasswd kv-prod/monitoring/remote-write | cut -c1-20
+vault kv get -field=username kv-dev/monitoring/remote-write
+unset VAULT_TOKEN
+```
+
+Expect: `dev-remote-write:$2y` (the start of the bcrypt line) and
+`dev-remote-write`. If not: `No value found` means the seed did not include
+the path; check the indentation under `vault_kv` and re-run the seed.
+
 ## LAN services
 
 `lan_services.yaml` builds the LAN LXCs from `inventories/shared`, in

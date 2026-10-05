@@ -104,6 +104,10 @@ spokes' apps. A spoke's policy still reads only its own tree.
 **The Prometheus receiver Ingress is write-only.** `prometheus.mgryn.cc`
 exposes `/api/v1/write` (path type `Exact`) with TLS and basic auth, the
 credentials in Vault. Nothing else of Prometheus is reachable through it.
+The `htpasswd` field (`kv-prod/monitoring/remote-write`) is seeded before
+the PR that adds it merges: the live `monitoring-secrets` Application
+renders the Secret at once, and a missing field fails AVP for the whole
+app, health still `Healthy`.
 
 **Helm hooks are expected to keep working.** Kustomize keeps the
 `helm.sh/hook` annotations when it inflates a chart, and Argo maps them to

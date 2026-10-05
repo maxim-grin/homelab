@@ -892,7 +892,11 @@ from `secret.yaml`.
     (the admin login), `monitoring/alertmanager` (the Telegram bot
     token and chat id) and `monitoring/pve-exporter` (its token and the
     Proxmox address, step 19; a full rebuild already has the PR 4 apps on
-    `main`); the seed data is `secret.yaml`'s `kv-prod` block.
+    `main`) and `monitoring/remote-write` (the receiver's `htpasswd`
+    line, without which `monitoring-secrets` cannot render; `kv-dev`
+    holds the plain pair,
+    [runbook](runbooks/playbooks-and-terraform.md#seed-the-remote-write-credential));
+    the seed data is `secret.yaml`'s `kv-prod` and `kv-dev` blocks.
 
     1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
        `argocd` and `grafana`, each to `10.0.0.111` and to `10.0.0.112`.

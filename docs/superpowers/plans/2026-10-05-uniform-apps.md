@@ -393,8 +393,12 @@ pattern for the auth annotations and the Secret name `prometheus-basic-auth`
   `scripts/check-manifests.sh`.
 - [ ] Step 4: Commit `feat: expose prometheus receiver with auth`.
 
-**Operator (after the rollout of `monitoring`):** seed both Vault paths
-(htpasswd generated on the Mac); add two grey-cloud A records for
+**Operator (BEFORE merge, not after a rollout):** seed both Vault paths
+per [Seed the remote-write credential](../../runbooks/playbooks-and-terraform.md#seed-the-remote-write-credential)
+(htpasswd generated on the Mac). The live old `monitoring-secrets`
+Application renders `prometheus-basic-auth` as soon as this PR merges;
+an unseeded field fails AVP for the whole app (`Unknown`, health
+`Healthy`, Grafana and Alertmanager Secrets frozen). After merge: add two grey-cloud A records for
 `prometheus.mgryn.cc`, one per prod worker, as `argocd.` and `grafana.`
 have. Check: `curl -s -o /dev/null -w '%{http_code}'` without auth to
 `/api/v1/write` is 401; with auth and a body above 1m it is not 413.
@@ -419,8 +423,12 @@ entry, vault policy re-run).
 ### Task 9: Mark draft ready
 
 - [ ] Step 1: `gh pr ready 102` once Tasks 1-8 are implemented, reviewed and
-  verified. The operator steps for Tasks 2 and 6 are done by the owner
-  after merge and before Task 10.
+  verified. The operator order is the runbook entry
+  [Land the uniform-apps PR](../../runbooks/checks.md#land-the-uniform-apps-pr):
+  BEFORE merge Vault unsealed, the CMP sidecar checked, the remote-write
+  credential seeded (Task 7) and the set verified against the pushed
+  branch (Task 5); AFTER merge the argocd role (Task 2) and vault.yaml
+  (Task 6) re-runs and the post-merge checks, all before Task 10.
 
 ---
 
