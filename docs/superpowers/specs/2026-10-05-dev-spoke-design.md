@@ -126,6 +126,34 @@ No test suite, so each step is checked on the thing itself.
 - `scripts/check-manifests.sh` must render the ApplicationSets and prod
   Application CRs it skips today; this series adds that.
 
+### Automated checks this series adds
+
+Three checks, each aimed at a failure the Risks section names. The first
+two run in CI; the third needs the live cluster.
+
+- **ApplicationSet render check**, in `scripts/check-manifests.sh`. It
+  expands each set's generators and asserts the generated names,
+  destinations and project, and that no `dev-*` name equals a `prod-*`
+  name. Whether `argocd appset generate` runs offline (it may need
+  `--core` or a server) is checked first; if not, a small script expands
+  the generators with `yq`. It runs on every PR, which also covers the
+  silently ignored misplaced key.
+- **`terraform test` with mock providers** for `environments/dev`, the
+  pattern `environments/prod/prod.tftest.hcl` already uses. It asserts VM
+  names, sizes and vmids, and that no resource is replaced under the old
+  addresses. CI runs `validate`, not `plan`, so today nothing catches a
+  missing `moved` block or an accidental destroy.
+- **`scripts/verify-dev.sh`**, a post-apply smoke script. It runs the
+  After-A2, After-A3 and After-B1 checks above as one command:
+  `argocd cluster list`, every `dev-*` Application Synced and Healthy, a
+  `curl` with the jobboard `Host:` header, and a `cluster=dev` series in
+  prod's Prometheus. The "rebuild dev" runbook ends with it, so a rebuild
+  proves itself. It is not CI, and it prints `vault status` first, since a
+  sealed Vault reads as healthy.
+
+CLAUDE.md's "Verifying, with no test suite" section lists the new checks
+in the same PR series that adds them.
+
 ## Risks
 
 - **Cascade delete wipes `nfs-dev` PVC data.** Safe only because the dump
@@ -146,6 +174,9 @@ No test suite, so each step is checked on the thing itself.
 - CLAUDE.md: the dev/prod Application names and `dev-argocd` references.
 
 ## Out of scope
+
+- A kind-based CI cluster, Molecule role tests and `conftest` policies;
+  considered and deferred. Molecule stays on its own track.
 
 - Talos for dev.
 - Deploying jobboard to prod and moving `jobs.mgryn.cc` (sub-5).
