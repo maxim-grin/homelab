@@ -48,7 +48,7 @@ sidecar, kustomize `helmCharts:`, Helm, Renovate, Ansible (`roles/argocd`).
   | `nfs-provisioner` (renamed from `nfs_provisioner`) | `nfs-system` | 0 | yes | no |
   | `cert-manager` | `cert-manager` | 1 | yes | yes |
   | `cert-manager-issuers` | `cert-manager` | 2 | no | yes |
-  | `ingress-nginx` | `ingress-nginx` | 3 | yes | yes |
+  | `ingress-nginx` | `ingress-nginx` | 3 | no (see below) | yes |
   | `monitoring-secrets` | `monitoring` | 4 | no | yes |
   | `kube-prometheus-stack` | `monitoring` | 5 | no | yes |
   | `alerts` | `monitoring` | 6 | no | yes |
@@ -61,9 +61,21 @@ sidecar, kustomize `helmCharts:`, Helm, Renovate, Ansible (`roles/argocd`).
   Applications `nfs` and `monitoring` become `prod-nfs-provisioner` and
   `prod-kube-prometheus-stack`; a grep on 2026-10-05 found no alert,
   Gatus check or doc that names the old ones.
+- `ingress-nginx`'s namespace label moves into git: a `Namespace` manifest
+  in its kustomization labelled `pod-security.kubernetes.io/enforce:
+  privileged` (Talos rejects hostPort at `baseline`) replaces the old
+  Application's `managedNamespaceMetadata`, the way `monitoring-secrets`
+  owns the `monitoring` Namespace. `createNamespace` is therefore `false`
+  for it.
+- Every generated Application carries the retry the monitoring apps have
+  today: `limit: 10`, `backoff: {duration: 30s, factor: 2, maxDuration: 5m}`
+  (alerts, issuers and pve-exporter already have it; monitoring's 5 becomes
+  10; nfs, cert-manager, ingress-nginx and monitoring-secrets gain it).
+  Sync waves order creation but do not wait for health, so a first sync
+  can run before CRDs or the namespace exist; the retry carries it past that.
 - Keep, per Application: the sync-wave annotation, the
   `resources-finalizer.argocd.argoproj.io` finalizer, project `homelab`,
-  `automated` with `prune` and `selfHeal`. The comments explaining each
+  `automated` with `prune` and `selfHeal`, and the uniform retry above. The comments explaining each
   app's quirks move into its `kustomization.yaml` or `config.yaml`.
 - `root-prod` and `argocd-config` stay plain Applications.
 - The ApplicationSet sets `syncPolicy.applicationsSync: create-update`, so
@@ -218,6 +230,9 @@ a test script beside the existing `scripts/tests/*.test.sh`.
 the existing `values.yaml` stays in place and keeps serving the old
 Applications until each is flipped.
 
+- [ ] Step 0: `ingress-nginx` only: add the labelled `Namespace` manifest to its
+  kustomization (see Global Constraints). Add `charts/` to `.gitignore`:
+  `kustomize build --enable-helm` pulls charts into it and none may be committed.
 - [ ] Step 1: Per chart, a kustomization with `helmCharts:` (chart, repo,
   the pinned version, `releaseName`, `namespace` equal to the app's
   namespace, `valuesFile: values.yaml`, `includeCRDs: true`).
