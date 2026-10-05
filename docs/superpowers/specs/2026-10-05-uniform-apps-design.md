@@ -30,7 +30,7 @@ and adding an app, or an environment, becomes adding a directory.
 | Rendering | One path: the existing argocd-vault-plugin (AVP) CMP runs every app, `kustomize build --enable-helm` |
 | Per-app facts | `argocd/apps/<app>/config.yaml`: a top-level list with one entry per env the app is deployed to (`env`, `namespace`, `createNamespace`, `serverSideApply`, optionally `namespaceLabels`); an empty list deploys nothing |
 | Generator | One ApplicationSet: a matrix of the cluster generator (label `env`) and a git-files generator over `config.yaml` |
-| Names | `<cluster>-<directory>`, so `prod-nfs-provisioner` and `prod-kube-prometheus-stack`. `nfs_provisioner` is renamed `nfs-provisioner`, since an underscore is not a valid name. Nothing references the old Application names. Prod's Applications are deleted and recreated; prod holds no valuable data |
+| Names | `<cluster>-<directory>`, so `prod-nfs-provisioner` and `prod-kube-prometheus-stack`. `nfs_provisioner` is renamed `nfs-provisioner`, since an underscore is not a valid name. Nothing references the old Application names. The rollout adopts the live resources in place (see Verification), not delete-and-recreate |
 | Plain Applications | `root-prod` and `argocd-config` stay plain |
 | Scope | Prod only. Dev's Application CRs and overlays stay as they are until sub-4 |
 | Chart versions | Move into each `kustomization.yaml`; Renovate switches from its Argo manager to its kustomize manager for them |
@@ -40,7 +40,7 @@ Also moved here from sub-4, because they touch only prod:
 - Prod ArgoCD's Vault policy also reads `kv-dev/`. The hub reads both KV
   trees; a spoke reads only its own.
 - Prometheus receiver ingress at `prometheus.mgryn.cc` with TLS and basic
-  auth, credentials in Vault (`kv-prod/monitoring/remote-write`, field
+  auth, exposing only the write path (`/api/v1/write`), credentials in Vault (`kv-prod/monitoring/remote-write`, field
   `htpasswd`; `kv-dev/monitoring/remote-write` holds the plain pair for
   the sender sub-4 adds).
 - Cluster Secret for prod (`name: prod`, `env=prod`, in-cluster), and
@@ -67,7 +67,7 @@ Also moved here from sub-4, because they touch only prod:
 - Template: name `{{cluster}}-{{app}}`, project `homelab`, one source on
   `argocd/apps/{{app}}/{{env}}` with `plugin: argocd-vault-plugin`,
   automated sync with prune and selfHeal, the resources finalizer,
-  `CreateNamespace`, `ServerSideApply` and namespace labels from the config via `templatePatch`; a uniform retry (limit 10, backoff 30s x2, max 5m); no sync wave, since generated Applications are not ordered by any parent sync and ordering rests on the retry. The set carries `preserveResourcesOnDeletion: true` and `Prune=false,Delete=false` so deleting it can never cascade-delete every workload.
+  `CreateNamespace`, `ServerSideApply` and namespace labels from the config via `templatePatch`; a uniform retry (limit 10, backoff 30s x2, max 5m); no sync wave, since generated Applications are not ordered by any parent sync and ordering rests on the retry. The set carries `applicationsSync: create-update` (the generator never deletes an Application), `preserveResourcesOnDeletion: true` and `Prune=false,Delete=false` so deleting it can never cascade-delete every workload.
 
 **The CMP.**
 
@@ -94,8 +94,9 @@ No test suite, so each step is checked on the thing itself.
 - Per Helm chart (`cert-manager`, `ingress-nginx`, `kube-prometheus-stack`):
   the rendered kustomize output is compared with `helm template` of the
   same chart and values. Differences are accounted for in the plan:
-  Helm hooks (plain resources under kustomize, since Argo only maps them
-  for Helm sources), CRDs, and server-side apply for the large CRDs.
+  Helm hooks (kustomize keeps the `helm.sh/hook` annotations, and Argo
+  is expected to map them for any source; confirmed at rollout), CRDs, and
+  server-side apply for the large CRDs.
 - Prod rollout, staged as a runbook entry: `alerts` first, then
   cert-manager and its issuers against `letsencrypt-staging`, then
   `nfs`, `ingress-nginx`, `monitoring-secrets`, `monitoring`,
@@ -109,9 +110,12 @@ No test suite, so each step is checked on the thing itself.
 
 ## Risks
 
-- **Helm hooks become plain resources.** A hook Job that was transient
-  becomes permanent, or runs on every sync. Found by the per-chart
-  comparison, fixed in the kustomization (patch or disable the hook).
+- **Helm hooks might not behave the same.** Argo maps `helm.sh/hook`
+  annotations to its own hook phases for any source, so the charts' hooks
+  (cert-manager's and ingress-nginx's admission Jobs) are expected to
+  behave as before. That is an expectation, not a proof: it is confirmed
+  at rollouts 2 and 3. If a hook Job turns permanent or runs on every
+  sync, fix it in the kustomization (patch or disable the hook).
 - **Let's Encrypt rate limit.** Recreating cert-manager reissues the
   `argocd.mgryn.cc` certificate; five duplicates a week. Staging first.
 - **One plugin for everything.** If the CMP sidecar is down or Vault is
