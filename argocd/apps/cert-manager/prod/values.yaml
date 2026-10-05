@@ -1,0 +1,42 @@
+# cert-manager for the prod cluster, mirrored from dev (ADR 0008).
+#
+# Certificates come from ACME DNS-01 through Cloudflare, because nothing
+# here is reachable from the public internet, which rules out HTTP-01 and
+# makes Cloudflare's edge certificate irrelevant to LAN traffic. The token
+# is read from kv-prod/cert-manager/cloudflare by the issuers Application.
+
+# The CRDs ship with the chart rather than being applied separately. Argo
+# prunes what it installs, so splitting them across two Applications means a
+# resync of one can delete resources the other still owns; keeping them in
+# this release makes cert-manager a single unit to install or remove.
+crds:
+  enabled: true
+
+# Leave the DNS-01 propagation check on its default, which asks the zone's
+# authoritative servers. Pinning it to recursive resolvers
+# (--dns01-recursive-nameservers-only) stalled issuance for half an hour once:
+# they cache the NODATA from before the challenge record exists,
+# and mgryn.cc's SOA sets a 1800s negative TTL.
+
+# Small bare-metal VMs; the chart's defaults assume more headroom than
+# these have and nothing here is latency-sensitive.
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+
+# No `metrics`/`podAnnotations` block here on purpose. The chart already
+# puts prometheus.io/scrape, /port and /path annotations on the
+# controller pod by default (prometheus.enabled: true, with neither
+# podmonitor nor servicemonitor enabled -- verified against
+# templates/deployment.yaml). They are harmless but unused on prod:
+# kube-prometheus-stack has no annotation-based scrape jobs. The
+# `cert-manager-controller` PodMonitor in the `alerts` Application
+# (argocd/apps/alerts/prod) scrapes it instead; that Application syncs
+# after the monitoring chart, so its CRD exists. Do not enable the chart's own
+# `prometheus.servicemonitor` here: this Application syncs before the CRD
+# exists and the sync would fail permanently.
+# Careful if this ever needs a `podAnnotations` override for something
+# else: the chart's own template only adds its prometheus.io annotations
+# when `.Values.podAnnotations` is unset, so setting one for an unrelated
+# reason would silently turn this off.

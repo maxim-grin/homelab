@@ -2,7 +2,7 @@
 # pve-bootstrap.sh - bring a fresh Proxmox VE 9 install to the state that
 # `terraform apply` assumes: package repositories, the operator and Terraform
 # users, the TerraformProv role and API token, resource pools with their ACLs,
-# Glance's read-only API token, the Debian LXC template, and the VM templates
+# Glance's and pve-exporter's read-only API tokens, the Debian LXC template, and the VM templates
 # every machine clones. Every
 # step checks what exists first, so a re-run creates nothing: it only sets the
 # TerraformProv privilege list again (reported "changed"), and every other
@@ -13,7 +13,7 @@
 # Usage: bash pve-bootstrap.sh [--dry-run] [step ...]
 #
 # Steps (default: all, in this order):
-#   repos  users  pools  glance  lxc-template  ubuntu-template  talos-template
+#   repos  users  pools  glance  pve-exporter  lxc-template  ubuntu-template  talos-template
 set -euo pipefail
 set +x # never trace: the operator password passes through this script
 
@@ -43,8 +43,12 @@ Datastore.AllocateSpace Datastore.Audit"
 GLANCE_USER="glance@pve"
 GLANCE_ROLE="PVEAuditor"
 GLANCE_TOKEN="glance"
+# pve-exporter (prod's Prometheus scrapes Proxmox through it) only reads too.
+EXPORTER_USER="pve-exporter@pve"
+EXPORTER_ROLE="PVEAuditor"
+EXPORTER_TOKEN="pve-exporter"
 
-ALL_STEPS=(repos users pools glance lxc-template ubuntu-template talos-template)
+ALL_STEPS=(repos users pools glance pve-exporter lxc-template ubuntu-template talos-template)
 
 DRY_RUN=0
 CREATED=()
@@ -271,6 +275,28 @@ step_glance() {
   SECRETS+=("glance_proxmox_token_id: \"$GLANCE_USER!$GLANCE_TOKEN\"")
 }
 
+step_pve_exporter() {
+  if pvesh get "/access/users/$EXPORTER_USER" > /dev/null 2>&1; then
+    note_skipped "pve user $EXPORTER_USER"
+  else
+    run pveum user add "$EXPORTER_USER" -comment "pve-exporter for Prometheus, read-only"
+    note_created "pve user $EXPORTER_USER"
+  fi
+  ensure_acl / "$EXPORTER_USER" "$EXPORTER_ROLE"
+
+  if pvesh get "/access/users/$EXPORTER_USER/token/$EXPORTER_TOKEN" > /dev/null 2>&1; then
+    echo "token $EXPORTER_USER!$EXPORTER_TOKEN already exists; Proxmox cannot show its secret again." >&2
+    echo "to rotate: pveum user token remove $EXPORTER_USER $EXPORTER_TOKEN, then re-run this step." >&2
+    note_skipped "token $EXPORTER_USER!$EXPORTER_TOKEN"
+  else
+    echo "Creating API token. The secret below is shown once; copy it into the kv-prod seed monitoring/pve-exporter PVE_TOKEN_VALUE in secret.yaml."
+    run pveum user token add "$EXPORTER_USER" "$EXPORTER_TOKEN" --privsep 0
+    note_created "token $EXPORTER_USER!$EXPORTER_TOKEN"
+  fi
+  SECRETS+=("kv-prod monitoring/pve-exporter PVE_USER: \"$EXPORTER_USER\"")
+  SECRETS+=("kv-prod monitoring/pve-exporter PVE_TOKEN_NAME: \"$EXPORTER_TOKEN\"")
+}
+
 step_pools() {
   local pool
   local -a pools
@@ -424,7 +450,7 @@ usage() {
 usage: bash pve-bootstrap.sh [--dry-run] [step ...]
 
 steps (default: all, in this order):
-  repos  users  pools  glance  lxc-template  ubuntu-template  talos-template
+  repos  users  pools  glance  pve-exporter  lxc-template  ubuntu-template  talos-template
 
 --dry-run  print the commands that would change something, change nothing
 -h, --help show this help

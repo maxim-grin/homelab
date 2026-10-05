@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Prod's own alerting on top of the monitoring chart: the scrape targets
+# the rules need, and the rules. Nothing here is secret, so no <path:...>
+# placeholder and no AVP; the routing that carries credentials lives in
+# monitoring-secrets. No `namespace:` transformer: each resource names
+# its own.
+resources:
+  - podmonitors.yaml
+  - rules.yaml

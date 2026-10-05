@@ -33,8 +33,8 @@ bash pve-bootstrap.sh
 
 Name steps to run only those, for example
 `bash pve-bootstrap.sh pools talos-template`. The steps are `repos`,
-`users`, `pools`, `glance`, `lxc-template`, `ubuntu-template` and
-`talos-template`, run in that order by default. The script warns if the node is not named
+`users`, `pools`, `glance`, `pve-exporter`, `lxc-template`, `ubuntu-template`
+and `talos-template`, run in that order by default. The script warns if the node is not named
 `pve` (every tfvars file assumes it).
 
 What to expect from a run:
@@ -404,7 +404,11 @@ from `secret.yaml`.
    creates `terraform@pve` with the `TerraformProv` role and an API token,
    creates the `VM`, `Ubuntu-K8s`, `LXC` and `Talos-K8s` pools with their
    ACLs, creates the read-only `glance@pve` API token for Glance (the
-   `glance` step), and downloads the Debian 13 LXC template. Put the
+   `glance` step), creates the read-only `pve-exporter@pve` token (the
+   `pve-exporter` step: prod's Prometheus scrapes Proxmox through
+   pve-exporter for the thin-pool `data%` (the alert, `ProxmoxThinPoolNearlyFull`,
+   reads it; step 19.5); its secret goes into the
+   `kv-prod` seed `monitoring/pve-exporter` in `secret.yaml`), and downloads the Debian 13 LXC template. Put the
    Terraform token in `dev.tfvars`, the template name the script prints in
    `shared.tfvars` as `debian_lxc_template`, and Glance's token id and
    secret in `secret.yaml` (step 15).
@@ -421,7 +425,13 @@ from `secret.yaml`.
 5. **Storage** — the first formats and mounts all three data disks on
    `nfs-01` and exports `nfs-dev` to the dev nodes; the second (default
    dev inventory) prepares the clients. Storage first, because everything
-   else claims PVCs from it.
+   else claims PVCs from it. `nfs-prod` is exported only to the prod
+   workers, so `host_ips` in `secret.yaml` needs `talos-w1`
+   (`10.0.0.111`) and `talos-w2` (`10.0.0.112`) before this play runs.
+   Prod nodes do not exist yet on a first pass: re-run the play with
+   `-i inventories/shared` once they do. Check with `showmount -e` on
+   `nfs-01`: the prod path lists exactly those two addresses, the dev
+   path is unchanged.
 
    ```bash
    ansible-playbook -i inventories/shared playbooks/nfs_server.yaml -e @secret.yaml --ask-vault-pass
@@ -483,7 +493,9 @@ from `secret.yaml`.
    runs, `ansible/roles/argocd` also creates the `cmp-plugin` ConfigMap and
    `argocd-vault-plugin-config` Secret that the argocd-vault-plugin (AVP)
    sidecar in `argocd-repo-server` needs — that ordering is what keeps
-   `argocd-repo-server` out of `Init`. The Helm task does not wait, so on
+   `argocd-repo-server` out of `Init`. It also creates the `argocd-redis`
+   Secret when it is missing, in place of the chart's hook Job (step 17
+   explains why). The Helm task does not wait, so on
    an upgrade where the new repo-server wedges, the old pod keeps serving
    and the playbook still reports `changed`; confirm
    `kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-repo-server`
@@ -539,7 +551,7 @@ from `secret.yaml`.
     ```bash
     ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
       -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-      -e vault_token=<root token>
+      -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
     ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
     ```
 
@@ -560,8 +572,8 @@ from `secret.yaml`.
     ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-14. **Point `/etc/hosts`** at a node IP for `argocd.mgryn.cc`,
-    `grafana.mgryn.cc` and
+14. **Point `/etc/hosts`** at a node IP for `dev-argocd.mgryn.cc`,
+    `dev-grafana.mgryn.cc` and
     `prometheus.mgryn.cc`. One line per name, all pointing at the same node
     -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
     answers.
@@ -726,6 +738,374 @@ from `secret.yaml`.
     `qm reboot <vmid>` on `pve` (a guest-level `talosctl reboot` does not pick
     up the new size), then `kubectl uncordon`.
 
+17. **Bootstrap the prod hub** — ArgoCD on the Talos cluster, with Vault's
+    prod auth ([ADR 0024](decisions/0024-hub-in-prod.md)). Every command
+    runs on the operator's workstation, which needs `helm`, `kubectl` and
+    the python `kubernetes` package for the Ansible controller's Python.
+    Ansible has no SSH target on Talos; it talks to the cluster API
+    through a kubeconfig. Helm 3.22 and Helm 4 both work: the role turns
+    off the chart's `redisSecretInit` hook Job, whose wait timed out
+    under Helm 4, and creates the `argocd-redis` Secret itself only when
+    it is missing; on Helm 4 it deploys with `--server-side=false`, so its
+    NodePort patch to the chart's `argocd-server` Service does not fail
+    the next upgrade with a field-manager conflict. Helm 4 also needs
+    `kubernetes.core` 6.5.0 or later (`ansible-galaxy collection install
+    -r ansible/requirements.yml` brings the pinned 6.6.0); Helm 3 needs
+    nothing extra. A cluster installed while the hook was on keeps its
+    ServiceAccount, Role and RoleBinding, harmless leftovers:
+    `kubectl -n argocd delete sa,role,rolebinding argocd-redis-secret-init`.
+
+    Prerequisites:
+
+    - Prod nodes at 4G memory and `nfs-prod` exported to the prod
+      workers (the hub-nodes PR applied).
+    - PR 1 (hub-nodes) and PR 2 (hub-bootstrap) merged to `main` before
+      step 4; steps 1-3 can run from the branch. `root-prod` reads
+      `main`, so applying it earlier deploys stale apps and never
+      creates the `vault-auth` Secret.
+    - `kv-prod` seeded. Step 17.7 below resolves a `kv-prod` placeholder, and
+      nothing else seeds it. With the `kv-prod` block of `secret.yaml`
+      filled in (see `secret.yaml.example`), seed from `ansible/`;
+      `vault_configure` stays false:
+
+      ```bash
+      ansible-playbook -i inventories/shared playbooks/vault.yaml \
+        -e @secret.yaml --ask-vault-pass -e vault_seed=true \
+        -e vault_token=<root token>
+      ```
+
+      The play also re-runs the install, TLS and service tasks, which are
+      idempotent; a service restart would seal Vault, so check
+      `vault status` afterwards. Check the seed on `vault-02` without
+      printing the password:
+      `vault kv get -field=admin-user kv-prod/monitoring/grafana` prints
+      `admin`.
+
+    1. Extract the kubeconfig into a mode-600 temp file. It is a sensitive
+       Terraform output and is never kept on disk beyond this run:
+
+       ```bash
+       cd terraform/environments/prod
+       umask 077; PROD_KC="$(mktemp)"
+       terraform output -raw kubeconfig > "$PROD_KC"
+       cd ../../../ansible
+       ```
+
+    2. Optional, first: re-run `playbooks/argocd-dev.yaml -e @secret.yaml
+       --ask-vault-pass` so dev's ArgoCD answers as `dev-argocd.mgryn.cc`
+       (the rename that frees `argocd.mgryn.cc` for the hub), and add
+       `dev-argocd.mgryn.cc` to `/etc/hosts` pointing at a dev node IP.
+
+    3. Deploy ArgoCD. `prod_kubeconfig` is required; the play fails fast
+       without it:
+
+       ```bash
+       ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
+         -e prod_kubeconfig="$PROD_KC" --ask-vault-pass
+       kubectl --kubeconfig "$PROD_KC" -n argocd get pods
+       ```
+
+       Done when every pod is `Running` or `Completed` and `repo-server`
+       is not stuck in `Init`.
+
+    4. PR 1 (hub-nodes) and PR 2 (hub-bootstrap) are merged to `main`
+       before this step; steps 1-3 can run from the branch. Apply the
+       AppProject and the app-of-apps by hand, as on dev (steps 10 and
+       11); the `argocd` role does not apply them:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" apply -f ../argocd/base/projects.yaml
+       kubectl --kubeconfig "$PROD_KC" apply \
+         -f ../argocd/environments/prod/applications/app-of-apps.yaml
+       ```
+
+    5. Wait for `argocd-config` to be `Synced`. It creates the
+       `vault-auth` ServiceAccount and Secret that Vault's prod auth
+       reads. This is the chicken-and-egg: Vault's prod auth needs that
+       Secret, and Applications with `<path:...>` placeholders sync only
+       after Vault is configured. `argocd/base` has no placeholders, so
+       `argocd-config` syncs without AVP.
+
+    6. Configure Vault's prod auth mount. Prod's reviewer JWT and CA come
+       from the kubeconfig, not SSH, so `inventories/dev` is not needed
+       for a prod-only run; `vault_seed` is not needed either:
+
+       ```bash
+       ansible-playbook -i inventories/shared playbooks/vault.yaml \
+         -e @secret.yaml --ask-vault-pass -e vault_configure=true \
+         -e vault_token=<root token> \
+         -e '{"vault_k8s_cluster_names":["prod"]}' \
+         -e vault_prod_kubeconfig="$PROD_KC"
+       ```
+
+       Done when `vault read auth/kubernetes-prod/config` on `vault-02`
+       shows `kubernetes_host https://10.0.0.110:6443`. Placeholder
+       Applications read `Unknown` until this runs and clear on Argo's
+       next poll.
+
+    7. Prove AVP end to end. ArgoCD renders only from git and no
+       committed manifest carries a `kv-prod` placeholder, so run the
+       plugin directly in the repo-server's `avp` sidecar, which has the
+       `AVP_*` and `VAULT_*` variables (`envFrom` the
+       `argocd-vault-plugin-config` Secret) and the binary at
+       `/usr/local/bin/argocd-vault-plugin`. It logs in to Vault's
+       `kubernetes-prod` mount with the pod's ServiceAccount token. The
+       field is `admin-user`, not the password, so nothing sensitive is
+       printed. Nothing is committed or applied:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd exec -i \
+         deploy/argocd-repo-server -c avp -- \
+         argocd-vault-plugin generate - <<'EOF'
+       apiVersion: v1
+       kind: ConfigMap
+       metadata:
+         name: avp-check
+         annotations:
+           avp.kubernetes.io/path: kv-prod/data/monitoring/grafana
+       data:
+         user: <admin-user>
+       EOF
+       ```
+
+       Expect a ConfigMap whose `user` is `admin`. Failure shows as a
+       non-zero exit with an error from Vault or the login, the same one
+       an Application reports as `ComparisonError`. Check `vault status`
+       on `vault-02` first (sealed Vault), then that `kv-prod` is seeded
+       and step 6 ran.
+
+    8. Check the UI. Prod has no ingress controller until PR 3, so use the
+       NodePort: `http://10.0.0.111:32080` (or `.112`, or HTTPS on
+       `32443`) shows the login page. If step 2 was done,
+       `dev-argocd.mgryn.cc` still lists dev's Applications `Synced`.
+
+    9. Delete the kubeconfig: `rm "$PROD_KC"`.
+
+18. **Prod platform apps rollout** — storage, TLS, ingress and monitoring
+    on the Talos cluster, delivered by `root-prod` once PR 3 is on `main`
+    ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
+    workstation; kubectl commands use a `$PROD_KC` extracted as in step
+    17.1 (`rm "$PROD_KC"` when done).
+
+    Prerequisites: step 17 done, and `kv-prod` seeded with
+    `cert-manager/cloudflare` (the Cloudflare token), `monitoring/grafana`
+    (the admin login), `monitoring/alertmanager` (the Telegram bot
+    token and chat id) and `monitoring/pve-exporter` (its token and the
+    Proxmox address, step 19; a full rebuild already has the PR 4 apps on
+    `main`); the seed data is `secret.yaml`'s `kv-prod` block.
+
+    1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
+       `argocd` and `grafana`, each to `10.0.0.111` and to `10.0.0.112`.
+       On the workstation, point both names at a worker in `/etc/hosts`
+       (`10.0.0.111 argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
+       `grafana.mgryn.cc` line that points at a dev node: dev's Grafana is
+       now `dev-grafana.mgryn.cc`. The same applies to the old
+       `argocd.mgryn.cc` line, now `dev-argocd.mgryn.cc`.
+
+    2. Get the platform apps onto `main`, which `root-prod` reads (on
+       the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then
+       PR 3 hub-platform, in that order). Watch:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+       ```
+
+       Expect `argocd-config`, `nfs`, `cert-manager`,
+       `cert-manager-issuers`, `ingress-nginx`, `monitoring-secrets` and
+       `monitoring` all `Synced` and `Healthy` after about 3 minutes plus
+       chart pulls. Sync waves (nfs 0, cert-manager 1, issuers 2,
+       ingress-nginx 3, monitoring-secrets 4, monitoring 5) only order
+       creation: this ArgoCD has no Application health check, so a wave
+       does not wait for the one before it. A retry on the issuers
+       covers the missing cert-manager CRDs, and one on `monitoring`
+       covers the `monitoring` namespace that `monitoring-secrets` owns.
+
+       After a sealed or briefly unreachable Vault, `monitoring-secrets`
+       and `cert-manager-issuers` show a `ComparisonError` and sync on
+       their own once it is unsealed. `monitoring` needs the namespace
+       `monitoring-secrets` creates, so it can stay `Sync failed` with its
+       finite retries used up. Unseal (`vault status` on `vault-02`), then
+       start a sync by hand with kubectl alone:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd patch application <name> \
+         --type merge \
+         -p '{"operation":{"initiatedBy":{"username":"operator"},"sync":{}}}'
+       ```
+
+       An empty `sync` uses each source's `targetRevision` and the
+       Application's own `syncPolicy` options, so it works for the
+       multi-source Applications too. A hard refresh
+       (`argocd.argoproj.io/refresh=hard`) is not enough: it re-compares
+       but does not retry a sync whose retries are exhausted. The Sync
+       button in the UI, or `argocd app sync <name>` with a logged-in CLI,
+       does the same.
+
+    3. Storage: `kubectl --kubeconfig "$PROD_KC" get pvc -A`. Expect
+       `Bound` on `nfs-prod` for Prometheus (20Gi) and Grafana (5Gi), none
+       `Pending`. `nfs-prod` is the default StorageClass.
+
+    4. Certificates: `kubectl --kubeconfig "$PROD_KC" get certificate -A`.
+       Expect `READY` `True` for `grafana-tls` in `monitoring`. If one
+       stays `False`, debug with the staging issuer first: point the
+       Ingress annotation `cert-manager.io/cluster-issuer` at
+       `letsencrypt-staging`. Production allows 5 failed validations per
+       hostname per hour. `kubectl describe certificate` and `kubectl get
+       challenges -A` show the reason.
+
+    5. Pod Security: `kubectl --kubeconfig "$PROD_KC" get ds -A`. Expect
+       `ingress-nginx` `READY` equal to `DESIRED` at 2 (the two workers;
+       it has no control-plane toleration) and the node exporter at 3 (one
+       per node, control plane included). A pod Talos's default `baseline` policy refused
+       shows as a `FailedCreate` event, in `kubectl -n ingress-nginx
+       describe ds ingress-nginx-controller` or the node exporter's
+       namespace `monitoring`; both namespaces are labelled `privileged`.
+
+    6. Serving, from the workstation:
+
+       ```bash
+       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.111/
+       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.112/
+       ```
+
+       Expect `302` or `200` from both. Then in Grafana
+       (`https://grafana.mgryn.cc`, login `admin` and the `kv-prod` password)
+       Connections, Data sources, Prometheus, Save & test shows
+       `Connection successful`.
+
+    7. ArgoCD's own certificate. The play puts the `letsencrypt-prod`
+       annotation on the Ingress (`argocd_ingress_cluster_issuer`). First
+       rollout: step 17 ran with code that had no annotation, so re-run
+       the play now that the issuers are Ready. Full rebuild: step 17
+       already ran with it, cert-manager issues once the issuer exists,
+       and no re-run is needed; `kubectl --kubeconfig "$PROD_KC" get
+       certificate -n argocd` shows it. If it shows nothing, re-run:
+
+       ```bash
+       ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
+         -e prod_kubeconfig="$PROD_KC" --ask-vault-pass
+       kubectl --kubeconfig "$PROD_KC" get certificate -n argocd
+       ```
+
+       Expect `argocd-server-tls` `READY` `True`, then
+       `https://argocd.mgryn.cc` loads with a Let's Encrypt certificate.
+
+    8. Gatus checks for the two new names, from `ansible/`:
+
+       ```bash
+       ansible-playbook -i inventories/shared playbooks/lan_services.yaml \
+         -e @secret.yaml --ask-vault-pass --limit gatus
+       ```
+
+       Expect `argocd.mgryn.cc` and `grafana.mgryn.cc` green at
+       `https://status.hl.mgryn.cc`, in group `prod`.
+
+    9. Host headroom: `free -m` on `pve`; `available` stays above
+       1000 MiB.
+
+    **Cleaning up retained volumes.** `nfs-prod` has `reclaimPolicy:
+    Retain` and `archiveOnDelete: "true"`. Deleting a PVC leaves the PV
+    `Released` and its data directory under `/srv/nfs/prod` on `nfs-01`.
+    Nothing deletes them: `kubectl delete pv <name>`, then remove the
+    directory on `nfs-01` once the data is not wanted.
+
+19. **Alerting rollout** — the Proxmox exporter, scrapes and alert rules,
+    delivered by `root-prod` once PR 4 (hub-alerting) is on `main`
+    ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
+    workstation, with `$PROD_KC` extracted as in step 17.1
+    (`rm "$PROD_KC"` when done). Prerequisite: step 18 done. On a full
+    rebuild everything here is already on `main`: do 2 and 3, then 4 on.
+
+    1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, are in
+       wave 6, after `monitoring` (5) and `monitoring-secrets` (4), which
+       own the CRDs and the namespace; both carry finite retries for the
+       race. Until Vault holds `monitoring/pve-exporter`, `pve-exporter`
+       shows a `ComparisonError`: expected and harmless. AVP fails at
+       comparison, not at sync, so no retry is consumed, and it syncs on
+       its own once Vault is seeded. A sealed Vault is handled as in
+       step 18.2.
+
+    2. The exporter's Proxmox token. The script step only reaches the
+       host from `main`, so refresh the script on the Proxmox host first
+       (the download in section 1), then, as root, run the step alone:
+
+       ```bash
+       wget -O pve-bootstrap.sh https://raw.githubusercontent.com/maxim-grin/homelab/main/scripts/pve-bootstrap.sh
+       bash pve-bootstrap.sh pve-exporter
+       ```
+
+       It creates `pve-exporter@pve` with the `PVEAuditor` role (read
+       only) and a token named `pve-exporter`, prints the token secret
+       once, then prints the user and token name as separate fields. If
+       the secret was not copied, delete the token (`pveum user token
+       remove pve-exporter@pve pve-exporter`) and run the step again.
+
+    3. Seed Vault. In `secret.yaml`'s `kv-prod` block, under
+       `monitoring/pve-exporter`, set `PVE_USER` (`pve-exporter@pve`),
+       `PVE_TOKEN_NAME` (`pve-exporter`, the name alone, not
+       `pve-exporter@pve!pve-exporter`), `PVE_TOKEN_VALUE` (the printed
+       secret) and `PVE_TARGET` (the Proxmox host's address). Then seed
+       Vault with the command in step 17's prerequisites.
+
+    4. Targets. Expect `pve-exporter` and `alerts` `Synced` and `Healthy`
+       within a few minutes:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+       kubectl --kubeconfig "$PROD_KC" -n monitoring get pod -l app.kubernetes.io/name=pve-exporter
+       kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
+         svc/monitoring-kube-prometheus-prometheus 9090
+       ```
+
+       The `pve-exporter` pod is `Ready`. On `http://localhost:9090/targets`
+       the pve-exporter, `monitoring/ingress-nginx-controller` and
+       `monitoring/cert-manager-controller` targets are `UP`. A
+       pve-exporter target that is `DOWN` (an HTTP 500 or a timeout; a
+       wrong token and a wrong `PVE_TARGET` look alike from Prometheus)
+       is explained by the exporter's log:
+       `kubectl --kubeconfig "$PROD_KC" -n monitoring logs deploy/pve-exporter`.
+
+    5. The pool alert, `ProxmoxThinPoolNearlyFull` (over 80% for 10m,
+       `severity: warning`), with `ProxmoxPoolMetricsAbsent` for when the
+       series disappear. The series were observed on the live Prometheus
+       on 2026-10-05: `pve_disk_size_bytes` and `pve_disk_usage_bytes` with
+       `id="storage/pve/local-lvm"`, and their ratio (57.65%) matched the
+       pool's `lvs` Data% (57.77%). On a rebuild, confirm the same series
+       exist before trusting the alert:
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
+         svc/monitoring-kube-prometheus-prometheus 9090
+       curl -sG localhost:9090/api/v1/query --data-urlencode \
+         'query=pve_disk_usage_bytes{id=~"storage/.+/local-lvm"} / pve_disk_size_bytes{id=~"storage/.+/local-lvm"}'
+       ```
+       Compare the ratio with `lvs -o lv_name,data_percent pve` on the
+       Proxmox host (the `data` volume); they agree to within a point.
+
+    6. Prove Telegram. With Alertmanager port-forwarded
+       (`svc/monitoring-kube-prometheus-alertmanager 9093`), `Watchdog`
+       is firing:
+
+       ```bash
+       amtool alert query --alertmanager.url=http://localhost:9093 | grep Watchdog
+       amtool alert add testalert severity=warning namespace=monitoring \
+         --alertmanager.url=http://localhost:9093
+       ```
+
+       Expect a Telegram message headed `TICKET testalert in monitoring`
+       within about 2 minutes (30s group wait plus delivery). `Watchdog`
+       itself never reaches Telegram. Let the test alert expire on its
+       own: it resolves after Alertmanager's resolve timeout (about 5
+       minutes) and a `RESOLVED` message follows a group interval (5
+       minutes) later. Do not silence it to clean up: a silenced alert
+       resolves while muted and no `RESOLVED` is sent. No message: the
+       checklist in `docs/operations.md`, "A Telegram message does not
+       arrive".
+
+    7. Record the thin pool's `data%` (`lvs -o lv_name,data_percent pve`,
+       the `data` volume) and `free -m` on `pve`, with `available` above
+       1000 MiB. On 2026-10-05: `data%` 57.77, metadata 2.98, `available`
+       2974 MiB.
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
@@ -781,7 +1161,7 @@ kubectl -n argocd get secret vault-auth-token
 # The KV store is already seeded, so no seed.
 ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=false \
-  -e vault_token=<root token>
+  -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
 ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
 ```
 

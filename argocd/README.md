@@ -4,6 +4,7 @@
 argocd/
 ├── base/                        # ArgoCD base configuration
 │   ├── projects.yaml           # ArgoCD Projects (homelab)
+│   ├── vault-auth-delegator.yaml  # vault-auth ServiceAccount + Secret for Vault's Kubernetes auth
 │   └── kustomization.yaml
 ├── apps/                        # Application manifests
 │   └── monitoring/             # Grafana + Prometheus stack
@@ -15,11 +16,12 @@ argocd/
 │   ├── dev/
 │   │   └── applications/
 │   │       ├── app-of-apps.yaml      # Root application
+│   │       ├── argocd-config.yaml    # Syncs argocd/base
 │   │       └── monitoring.yaml       # Monitoring app definition
 │   └── prod/
 │       └── applications/
 │           ├── app-of-apps.yaml      # Root application
-│           └── monitoring.yaml       # Monitoring app definition
+│           └── argocd-config.yaml    # Syncs argocd/base
 └── readme.md
 ```
 

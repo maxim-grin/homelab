@@ -3,6 +3,10 @@ kind: Application
 metadata:
   name: nfs
   namespace: argocd
+  annotations:
+    # Wave 0: the nfs-prod StorageClass (the default) must exist before any
+    # PVC in a later wave.
+    argocd.argoproj.io/sync-wave: "0"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

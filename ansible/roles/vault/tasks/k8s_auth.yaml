@@ -1,7 +1,7 @@
 ---
 - name: Configure Kubernetes auth for each cluster
   ansible.builtin.include_tasks: k8s_auth_cluster.yaml
-  loop: "{{ vault_k8s_clusters }}"
+  loop: "{{ vault_k8s_clusters | selectattr('name', 'in', vault_k8s_cluster_names) }}"
   loop_control:
     loop_var: cluster
     label: "{{ cluster.name }}"

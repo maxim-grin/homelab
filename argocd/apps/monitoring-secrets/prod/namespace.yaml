@@ -1,0 +1,18 @@
+# Owned here, not by the chart Application, so exactly one Application
+# writes its labels: two owners of one Namespace fight over them on
+# every sync.
+#
+# Talos enforces Pod Security `baseline` cluster-wide, which rejects
+# node-exporter's hostNetwork, hostPID and hostPath mounts. This
+# namespace alone is labelled `privileged`, as ingress-nginx's is.
+#
+# Delete=false: deleting the monitoring-secrets Application must not
+# take the namespace, and with it Prometheus and its PVC, along.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
