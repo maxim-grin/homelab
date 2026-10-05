@@ -40,19 +40,19 @@ sidecar, kustomize `helmCharts:`, Helm, Renovate, Ansible (`roles/argocd`).
   release `ingress-nginx`); kube-prometheus-stack `91.9.0` (repo
   `https://prometheus-community.github.io/helm-charts`, release
   `monitoring`).
-- Per-app facts, verbatim (dir, namespace, sync wave, CreateNamespace,
-  ServerSideApply). The directory is the app's name:
+- Per-app facts, verbatim (dir, namespace, CreateNamespace,
+  ServerSideApply). There is no `wave` (see below). The directory is the app's name:
 
-  | dir | namespace | wave | CreateNamespace | ServerSideApply |
-  | --- | --- | --- | --- | --- |
-  | `nfs-provisioner` (renamed from `nfs_provisioner`) | `nfs-system` | 0 | yes | no |
-  | `cert-manager` | `cert-manager` | 1 | yes | yes |
-  | `cert-manager-issuers` | `cert-manager` | 2 | no | yes |
-  | `ingress-nginx` | `ingress-nginx` | 3 | yes (+ labels, see below) | yes |
-  | `monitoring-secrets` | `monitoring` | 4 | no | yes |
-  | `kube-prometheus-stack` | `monitoring` | 5 | no | yes |
-  | `alerts` | `monitoring` | 6 | no | yes |
-  | `pve-exporter` | `monitoring` | 6 | no | yes |
+  | dir | namespace | CreateNamespace | ServerSideApply |
+  | --- | --- | --- | --- |
+  | `nfs-provisioner` (renamed from `nfs_provisioner`) | `nfs-system` | yes | no |
+  | `cert-manager` | `cert-manager` | yes | yes |
+  | `cert-manager-issuers` | `cert-manager` | no | yes |
+  | `ingress-nginx` | `ingress-nginx` | yes (+ labels, see below) | yes |
+  | `monitoring-secrets` | `monitoring` | no | yes |
+  | `kube-prometheus-stack` | `monitoring` | no | yes |
+  | `alerts` | `monitoring` | no | yes |
+  | `pve-exporter` | `monitoring` | no | yes |
 
   `monitoring-secrets` owns the `monitoring` Namespace manifest, hence no
   CreateNamespace on the apps that follow it.
@@ -75,9 +75,29 @@ sidecar, kustomize `helmCharts:`, Helm, Renovate, Ansible (`roles/argocd`).
   today: `limit: 10`, `backoff: {duration: 30s, factor: 2, maxDuration: 5m}`
   (alerts, issuers and pve-exporter already have it; monitoring's 5 becomes
   10; nfs, cert-manager, ingress-nginx and monitoring-secrets gain it).
-  Sync waves order creation but do not wait for health, so a first sync
-  can run before CRDs or the namespace exist; the retry carries it past that.
-- Keep, per Application: the sync-wave annotation, the
+  Generated Applications are created by the ApplicationSet controller, not
+  by a parent sync, so sync waves do nothing for them: there is no `wave`
+  field and no sync-wave annotation. Ordering dependencies (nfs before the
+  PVC users; cert-manager before the issuers; `monitoring-secrets`, which
+  owns the `monitoring` Namespace, before monitoring, alerts and
+  pve-exporter; ingress-nginx's admission webhook before other Ingresses)
+  are written in each config's comments and carried by the retry. The
+  retry runs out after about 37 minutes, after which a manual sync is
+  needed (a sealed Vault or slow CRDs at bootstrap). Recorded in ADR 0026
+  and the rebuild docs.
+- The set is protected against deletion: `spec.syncPolicy.preserveResourcesOnDeletion:
+  true` and the metadata annotation `argocd.argoproj.io/sync-options:
+  Prune=false,Delete=false`, so root-prod can never prune or cascade it
+  (deleting an ApplicationSet deletes every generated Application, and
+  their finalizers delete the workloads). `applicationsSync: create-update`
+  alone does not protect against that. Removing the set is a deliberate
+  manual act.
+- Rollout adopts in place: before a rollout PR merges, the operator removes
+  the `resources-finalizer` from the old Application, so root-prod's prune
+  deletes the Application only, and the new `prod-<dir>` Application
+  adopts the live resources. No cascade, no recreate, no certificate
+  reissue. Deleting and recreating is the fallback, not the plan.
+- Keep, per Application: the
   `resources-finalizer.argocd.argoproj.io` finalizer, project `homelab`,
   `automated` with `prune` and `selfHeal`, and the uniform retry above. The comments explaining each
   app's quirks move into its `kustomization.yaml` or `config.yaml`.
@@ -267,10 +287,10 @@ Applications until each is flipped.
   PR adds the entry.
 
 - [ ] Step 1: Secret for `prod` (no credentials: in-cluster); a plain
-  Application `clusters`, sync wave `-1`, path
-  `argocd/apps/clusters/prod`, namespace `argocd`. The set carries wave
-  `0`.
-- [ ] Step 2: The eight `config.yaml`: `namespace`, `wave`,
+  Application `clusters`, sync wave `-1` (orders creation within root-prod only; it does not hold the
+  set back), path
+  `argocd/apps/clusters/prod`, namespace `argocd`.
+- [ ] Step 2: The eight `config.yaml`: `namespace`,
   `createNamespace`, `serverSideApply` (and, for ingress-nginx, `namespaceLabels`) as one list entry (`env: prod`), shipped as `[]` until rollout, values from the
   Global Constraints table.
 - [ ] Step 3: The set: matrix of cluster generator (selector `env` exists)
@@ -302,6 +322,12 @@ Applications until each is flipped.
   `kustomize build` on both overlays; `scripts/check-manifests.sh`;
   `grep -rn nfs_provisioner . --exclude-dir=.git --exclude-dir=superpowers`
   returns nothing. Commit `refactor: rename nfs provisioner dir`.
+
+Task 3's check also fails on an entry missing `env`, `namespace`,
+`createNamespace` or `serverSideApply` (the set renders with
+`missingkey=error`, so one missing key would halt every app), and on a
+`config.yaml` nested deeper than `argocd/apps/<dir>/` (the generator's
+glob could reach it).
 
 **Operator (after merge, before Task 10):** on the Mac,
 `argocd appset generate argocd/environments/prod/applications/appset.yaml`
@@ -382,9 +408,13 @@ entry, vault policy re-run).
 ## Tasks 10-13: rollout PRs (each its own PR, in order)
 
 Each PR: replace `[]` with the `env: prod` entry in the named configs, delete the matching old
-Application files, and nothing else. After merge, wait for root-prod to
-prune the old Application (it has the resources finalizer) and the set to
-create the new one. Before each: `vault status`; after each: the checks
+Application files, and nothing else. BEFORE merging, the operator removes the
+`resources-finalizer` from each old Application being replaced (runbook
+entry), so root-prod's prune deletes only the Application and the new
+`prod-<dir>` one adopts the live resources in place. After merge, wait for
+root-prod to prune the old Application and the set to create the new one;
+then check that no resource was recreated (pod and certificate ages
+unchanged). Before each: `vault status`; after each: the checks
 below, on the thing itself.
 
 ### Task 10: Rollout 1, `nfs` (branch `uniform-rollout-1`)
@@ -396,13 +426,15 @@ below, on the thing itself.
 
 ### Task 11: Rollout 2, cert-manager and issuers (branch `uniform-rollout-2`)
 
-- [ ] Step 1: Before the PR: point the issuer at `letsencrypt-staging`
-  (ADR 0008) in a rehearsal, confirm issuance, switch back.
+- [ ] Step 1: With in-place adoption nothing is reissued, so the staging
+  rehearsal is only needed if the fallback (delete and recreate) is used:
+  then point the issuer at `letsencrypt-staging` (ADR 0008), confirm
+  issuance, switch back.
 - [ ] Step 2: Flip `cert-manager` and `cert-manager-issuers`; delete both
   files.
 - [ ] Step 3: Check: both `prod-*` Applications Synced and Healthy; a
   Certificate reaches `Ready`; `argocd.mgryn.cc` still serves a valid
-  certificate (it may be reissued once; do not repeat).
+  certificate, with the same serial as before the rollout.
 
 ### Task 12: Rollout 3, `ingress-nginx` (branch `uniform-rollout-3`)
 
@@ -414,8 +446,9 @@ below, on the thing itself.
 ### Task 13: Rollout 4, monitoring group (branch `uniform-rollout-4`)
 
 - [ ] Step 1: Flip `monitoring-secrets`, `kube-prometheus-stack`,
-  `alerts`, `pve-exporter` and delete their files, in one PR; the sync
-  waves (4, 5, 6, 6) order the creation.
+  `alerts`, `pve-exporter` and delete their files, in one PR; all four start
+  at once and the retry carries the ordering (monitoring-secrets first in
+  practice).
 - [ ] Step 2: Drop the `server` entry from the AppProject destinations
   only if nothing else uses it (`root-prod` and `argocd-config` still
   do, so it stays; record that).

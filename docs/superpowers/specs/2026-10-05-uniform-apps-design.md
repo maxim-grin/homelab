@@ -13,7 +13,7 @@ Prod's eight Applications are written eight ways:
   `pve-exporter`) versus multi-source Helm with a `$values` git ref
   (`cert-manager`, `ingress-nginx`, `monitoring`)
 - AVP plugin on some, none on others
-- namespace, sync wave and `syncOptions` (kube-prometheus-stack needs
+- namespace and `syncOptions` (kube-prometheus-stack needs
   server-side apply for its CRDs) set per file
 - Helm chart versions live in each Application's `targetRevision`
 
@@ -28,7 +28,7 @@ and adding an app, or an environment, becomes adding a directory.
 | --- | --- |
 | Shape | Every app is a kustomize directory `argocd/apps/<app>/<env>/`. Helm charts are inflated with `helmCharts:` |
 | Rendering | One path: the existing argocd-vault-plugin (AVP) CMP runs every app, `kustomize build --enable-helm` |
-| Per-app facts | `argocd/apps/<app>/config.yaml`: a top-level list with one entry per env the app is deployed to (`env`, namespace, sync wave, `createNamespace`, `serverSideApply`); an empty list deploys nothing |
+| Per-app facts | `argocd/apps/<app>/config.yaml`: a top-level list with one entry per env the app is deployed to (`env`, `namespace`, `createNamespace`, `serverSideApply`, optionally `namespaceLabels`); an empty list deploys nothing |
 | Generator | One ApplicationSet: a matrix of the cluster generator (label `env`) and a git-files generator over `config.yaml` |
 | Names | `<cluster>-<directory>`, so `prod-nfs-provisioner` and `prod-kube-prometheus-stack`. `nfs_provisioner` is renamed `nfs-provisioner`, since an underscore is not a valid name. Nothing references the old Application names. Prod's Applications are deleted and recreated; prod holds no valuable data |
 | Plain Applications | `root-prod` and `argocd-config` stay plain |
@@ -57,7 +57,7 @@ Also moved here from sub-4, because they touch only prod:
   and values into that kustomization (`helmCharts:`, `includeCRDs: true`).
   The `$values` second source goes away.
 - `argocd/apps/<app>/config.yaml` per app. It carries only what differs
-  between apps: one entry per env it is deployed to, each with namespace, sync wave and `syncOptions`. The git-files generator turns each list entry into one parameter set, so the cluster generator can select `env: '{{.env}}'` and the filtering is structural.
+  between apps: one entry per env it is deployed to, each with namespace and `syncOptions`. The git-files generator turns each list entry into one parameter set, so the cluster generator can select `env: '{{.env}}'` and the filtering is structural.
 
 **The set.**
 
@@ -67,7 +67,7 @@ Also moved here from sub-4, because they touch only prod:
 - Template: name `{{cluster}}-{{app}}`, project `homelab`, one source on
   `argocd/apps/{{app}}/{{env}}` with `plugin: argocd-vault-plugin`,
   automated sync with prune and selfHeal, the resources finalizer,
-  `CreateNamespace`, wave and `syncOptions` from the config.
+  `CreateNamespace`, `ServerSideApply` and namespace labels from the config via `templatePatch`; a uniform retry (limit 10, backoff 30s x2, max 5m); no sync wave, since generated Applications are not ordered by any parent sync and ordering rests on the retry. The set carries `preserveResourcesOnDeletion: true` and `Prune=false,Delete=false` so deleting it can never cascade-delete every workload.
 
 **The CMP.**
 
@@ -99,7 +99,9 @@ No test suite, so each step is checked on the thing itself.
 - Prod rollout, staged as a runbook entry: `alerts` first, then
   cert-manager and its issuers against `letsencrypt-staging`, then
   `nfs`, `ingress-nginx`, `monitoring-secrets`, `monitoring`,
-  `pve-exporter` in sync-wave order. After each: `kubectl get pods -A`
+  `pve-exporter`, each adopted in place: the operator removes the old
+  Application's `resources-finalizer` first, so nothing is recreated.
+  After each: `kubectl get pods -A`
   and the thing itself (`curl` with the right `Host:`, `showmount -e`).
   Vault must be unsealed first.
 - Receiver: an unauthenticated write returns 401; an authenticated one
