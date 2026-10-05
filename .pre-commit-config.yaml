@@ -106,5 +106,5 @@ repos:
         name: runbooks match playbooks
         language: script
         entry: scripts/check-runbooks.sh
-        files: ^(docs/runbooks/|ansible/playbooks/|ansible/inventories/|scripts/check-runbooks\.sh)
+        files: ^(docs/|ansible/playbooks/|ansible/inventories/|scripts/check-runbooks\.sh)
         pass_filenames: false

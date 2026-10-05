@@ -27,7 +27,7 @@ thing is built a certain way is in [decisions/](../decisions/).
 | lint or render before a commit                 | [playbooks-and-terraform](playbooks-and-terraform.md)                  | [Static checks](playbooks-and-terraform.md#static-checks)                                      |
 | know whether Vault is sealed                   | [checks](checks.md)                                                    | [Is Vault up and unsealed](checks.md#is-vault-up-and-unsealed)                                 |
 | check KV is seeded, snapshot age, audit disk   | [checks](checks.md)                                                    | [Vault](checks.md#vault)                                                                       |
-| see whether `monitoring` is synced in prod     | [checks](checks.md)                                                    | [List Applications with sync and health](checks.md#list-applications-with-sync-and-health)     |
+| see whether `monitoring` is synced in prod     | [checks](checks.md)                                                    | [List Applications with sync and health](checks.md#list-applications-with-sync-and-health) (filtered with `grep monitoring`) |
 | find why an Application is `Unknown`           | [checks](checks.md)                                                    | [Spot ComparisonError (the sealed-Vault tell)](checks.md#spot-comparisonerror-the-sealed-vault-tell) |
 | refresh or sync an Application by hand         | [checks](checks.md)                                                    | [Refresh an Application](checks.md#refresh-an-application), [Sync an Application by hand](checks.md#sync-an-application-by-hand) |
 | prove AVP renders a secret                     | [checks](checks.md)                                                    | [Prove AVP end to end](checks.md#prove-avp-end-to-end)                                         |
@@ -65,15 +65,20 @@ Stated here once; the runbooks do not repeat them.
   ```bash
   export VAULT_ADDR=https://10.0.0.133:8200
   export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
-  read -rs VAULT_TOKEN; export VAULT_TOKEN
+  printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
   # ... vault commands ...
   unset VAULT_TOKEN
   ```
 
+  The `printf` prompt is deliberate: a bare `read -rs` shows nothing, and
+  pasting a whole block into a shell without bracketed paste can make `read`
+  swallow the next pasted line.
+
 - A `<placeholder>` is explained on the line above its command.
 - Each entry has the same parts: when to run it, one complete block, an
   "Expect:" line, an "If not:" pointer.
-- No runbook prints a secret value.
+- No runbook prints a credential; the one value shown is the Grafana admin
+  username.
 
 ## Keeping it current
 

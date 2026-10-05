@@ -114,7 +114,8 @@ use this shape.
 
 - Vault raft snapshots (daily, 14 kept, on `nfs-01`) and restore.
 - The jobboard `tools/db-backup.sh dump|restore`, with the `kubectl exec`
-  forms for dev and prod.
+  forms for dev and prod. Deferred: the tool is in a private repo and
+  nothing in this repo documents it; the owner supplies the path and flags.
 - What has no backup: the `*.tfvars`, the `secret.yaml` password, the private
   CA key, prod's Terraform state.
 - Cleaning up retained `nfs-prod` volumes, and pointers into `rebuild.md`.

@@ -39,7 +39,7 @@ When: an Application shows `ComparisonError` naming a missing path or field.
 ```bash
 export VAULT_ADDR=https://10.0.0.133:8200
 export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
-read -rs VAULT_TOKEN; export VAULT_TOKEN
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
 vault kv list kv-dev/monitoring
 vault kv list kv-prod/monitoring
 vault kv get -field=admin-user kv-prod/monitoring/grafana >/dev/null \
@@ -104,11 +104,12 @@ When: after a merge to `main` (Argo polls about every 3 minutes), or any
 time something looks off.
 
 ```bash
-kubectl --kubeconfig "$DEV_KC" -n argocd get applications
-kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+kubectl --kubeconfig "$DEV_KC" -n argocd get applications | grep -E '^NAME|monitoring'
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|monitoring'
 ```
 
-Expect: every row `Synced` and `Healthy`.
+Expect: every row `Synced` and `Healthy`. Drop the `grep` to list every
+Application.
 
 If not: `OutOfSync` after a merge may just be the poll interval; refresh
 below. `Unknown` sync status is the next check.
@@ -141,14 +142,17 @@ refresh re-compares only; it does not retry an exhausted sync.
 
 ```bash
 APP=monitoring
+# dev
 kubectl --kubeconfig "$DEV_KC" -n argocd annotate application "$APP" \
   argocd.argoproj.io/refresh=hard --overwrite
+# prod
 kubectl --kubeconfig "$PROD_KC" -n argocd annotate application "$APP" \
   argocd.argoproj.io/refresh=hard --overwrite
 ```
 
-Expect: the Application re-compares within seconds; use the Application
-name that exists on that cluster.
+Expect: the Application re-compares within seconds. Run the one for the
+cluster that failed; an Application that exists on one cluster only errors
+on the other.
 
 If not: a `Sync failed` Application with its retries used up needs a
 manual sync, below.
@@ -160,15 +164,18 @@ after Vault was sealed. Unseal first. Needs kubectl alone, no `argocd` CLI.
 
 ```bash
 APP=monitoring
+# dev
 kubectl --kubeconfig "$DEV_KC" -n argocd patch application "$APP" \
   --type merge \
   -p '{"operation":{"initiatedBy":{"username":"operator"},"sync":{}}}'
+# prod
 kubectl --kubeconfig "$PROD_KC" -n argocd patch application "$APP" \
   --type merge \
   -p '{"operation":{"initiatedBy":{"username":"operator"},"sync":{}}}'
 ```
 
-Expect: the Application moves to `Synced` and `Healthy` shortly after. An
+Expect: the Application moves to `Synced` and `Healthy` shortly after. Run
+the one for the cluster that failed. An
 empty `sync` uses the Application's own sources and `syncPolicy`.
 
 If not: the `ComparisonError` check above. Prod's `monitoring` needs the
@@ -392,9 +399,16 @@ goes to a `null` receiver, so it never reaches Telegram: its absence from
 Alertmanager's alert list is the failure. Port-forward in its own terminal,
 then query.
 
+Terminal 1:
+
 ```bash
 kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
   svc/monitoring-kube-prometheus-alertmanager 9093
+```
+
+Terminal 2:
+
+```bash
 amtool alert query --alertmanager.url=http://localhost:9093 | grep Watchdog
 ```
 
@@ -406,8 +420,8 @@ Check Prometheus targets above.
 ### Telegram test alert (prod)
 
 When: after changing Alertmanager's config, its Vault secret, or the
-Telegram settings (`kv-prod/monitoring/alertmanager`). With Alertmanager
-port-forwarded as above:
+Telegram settings (`kv-prod/monitoring/alertmanager`). With terminal 1 from the
+previous entry still open (the Alertmanager port-forward), in terminal 2:
 
 ```bash
 amtool alert add testalert severity=warning namespace=monitoring \

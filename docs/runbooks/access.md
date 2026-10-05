@@ -19,8 +19,8 @@ CA, so the old file no longer authenticates). `<master-01-ip>` is
 key is `~/.ssh/homelab_dev`.
 
 ```bash
-umask 077; KC_TMP="$(mktemp)"
-ssh -i ~/.ssh/homelab_dev ubuntu@<master-01-ip> sudo cat /etc/kubernetes/admin.conf > "$KC_TMP"
+KC_TMP="$(mktemp)"
+ssh -i ~/.ssh/homelab_dev <user_name>@<master-01-ip> sudo cat /etc/kubernetes/admin.conf > "$KC_TMP"
 kubectl --kubeconfig "$KC_TMP" get nodes
 echo "kubeconfig is at $KC_TMP"
 ```
@@ -40,9 +40,8 @@ The kubeconfig exists only as a sensitive Terraform output, read from
 `terraform.tfstate` on the workstation that applied prod.
 
 ```bash
-cd terraform/environments/prod
-umask 077; KC_TMP="$(mktemp)"
-terraform output -raw kubeconfig > "$KC_TMP"
+KC_TMP="$(mktemp)"
+( cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" && terraform output -raw kubeconfig ) > "$KC_TMP"
 kubectl --kubeconfig "$KC_TMP" get nodes
 echo "kubeconfig is at $KC_TMP"
 ```
@@ -61,16 +60,14 @@ When: you need `talosctl` (`health`, `services`, `reboot`). Talos has no SSH.
 Same source as the prod kubeconfig.
 
 ```bash
-cd terraform/environments/prod
-umask 077; TC_TMP="$(mktemp)"
-terraform output -raw talosconfig > "$TC_TMP"
-talosctl --talosconfig "$TC_TMP" -n 10.0.0.111 health
+TC_TMP="$(mktemp)"
+( cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" && terraform output -raw talosconfig ) > "$TC_TMP"
+talosctl --talosconfig "$TC_TMP" -n 10.0.0.110 health
 echo "talosconfig is at $TC_TMP"
 ```
 
-Expect: `health` reports the checks passing for the node. `10.0.0.111` is
-`talos-w1`; control plane and `talos-w2` addresses are in the prod
-`prod.tfvars` node map. `rm` the file when done.
+Expect: `health` reports the checks passing for the node. `10.0.0.110` is
+`talos-prod-cp1`; workers are `10.0.0.111` and `10.0.0.112`. `rm` the file when done.
 
 If not: `talosctl -n <ip> services` shows what a node is waiting for, and
 `qm terminal <vmid>` on `pve` shows its console.
@@ -135,7 +132,7 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 | Proxmox           | `https://proxmox.hl.mgryn.cc`            | the `<user>@pam` admin user from `scripts/pve-bootstrap.sh`; its password is yours |
 | Traefik dashboard | `https://traefik.hl.mgryn.cc`            | `traefik_dashboard_users` in `secret.yaml` (htpasswd bcrypt lines) |
 | Gatus             | `https://status.hl.mgryn.cc`             | `gatus_basic_user` and `gatus_basic_password` (bcrypt: `gatus_basic_password_bcrypt`) in `secret.yaml`; basic auth protects only Gatus's API (`/api/v1/...`), the root page loads without it |
-| Glance            | `https://home.hl.mgryn.cc`               | no login configured in the role (it uses the Gatus basic-auth variables to read Gatus's API) |
+| Glance            | `https://home.hl.mgryn.cc`               | no login configured in the role; its env file reads `pihole_app_password`, `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `gatus_basic_user` and `gatus_basic_password` from `secret.yaml` |
 | LAN Orangutan     | `https://lan.hl.mgryn.cc`                | `orangutan_password` in `secret.yaml` |
 
 ## Vault CLI
@@ -150,7 +147,7 @@ history.
 ```bash
 export VAULT_ADDR=https://10.0.0.133:8200
 export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
-read -rs VAULT_TOKEN; export VAULT_TOKEN
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
 vault kv get -field=admin-user kv-prod/monitoring/grafana
 unset VAULT_TOKEN
 ```
@@ -172,7 +169,7 @@ When: you need a shell on a VM, LXC or the host. Addresses are
 `host_ips[...]` in `secret.yaml`; the user is `user_name` there.
 
 ```bash
-ssh -i ~/.ssh/homelab_dev ubuntu@<master-01-ip>      # also worker-01, worker-02, nfs-01, vault-02, claude-code-01
+ssh -i ~/.ssh/homelab_dev <user_name>@<master-01-ip>      # also worker-01, worker-02, nfs-01, vault-02, claude-code-01
 ssh <admin-user>@<pve-ip>                            # Proxmox host (host_ips['pve']); admin user from pve-bootstrap.sh
 ```
 

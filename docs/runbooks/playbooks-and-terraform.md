@@ -164,10 +164,8 @@ not the README-convention `$PROD_KC` path. The play does not apply
 afterwards.
 
 ```bash
-cd terraform/environments/prod
-umask 077; PROD_TMP="$(mktemp)"
-terraform output -raw kubeconfig > "$PROD_TMP"
-cd ../../../ansible
+PROD_TMP="$(mktemp)"
+( cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" && terraform output -raw kubeconfig ) > "$PROD_TMP"
 ansible-playbook playbooks/argocd-prod.yaml -e @secret.yaml \
   -e prod_kubeconfig="$PROD_TMP" --ask-vault-pass
 kubectl --kubeconfig "$PROD_TMP" -n argocd get pods
@@ -249,7 +247,7 @@ When: fill `kv-dev/` and `kv-prod/` from the `vault_kv` block of
 service tasks, which are idempotent, but a service restart seals Vault.
 
 ```bash
-read -rs VAULT_TOKEN
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo
 ansible-playbook -i inventories/shared playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_seed=true \
   -e vault_token="$VAULT_TOKEN"
@@ -267,7 +265,7 @@ reached over SSH and lives in `inventories/dev`, so both inventories are
 needed. This also seeds.
 
 ```bash
-read -rs VAULT_TOKEN
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo
 ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
   -e vault_token="$VAULT_TOKEN" -e '{"vault_k8s_cluster_names":["dev"]}'
@@ -287,11 +285,9 @@ suffices. The block fetches a fresh mode 600 kubeconfig from Terraform and
 removes it afterwards.
 
 ```bash
-cd terraform/environments/prod
-umask 077; PROD_TMP="$(mktemp)"
-terraform output -raw kubeconfig > "$PROD_TMP"
-cd ../../../ansible
-read -rs VAULT_TOKEN
+PROD_TMP="$(mktemp)"
+( cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" && terraform output -raw kubeconfig ) > "$PROD_TMP"
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo
 ansible-playbook -i inventories/shared playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true \
   -e vault_token="$VAULT_TOKEN" \

@@ -68,7 +68,7 @@ Run on `vault-02`; `<file>` is a name from the listing above.
 
 ```bash
 export VAULT_ADDR=https://10.0.0.133:8200
-read -rs VAULT_TOKEN; export VAULT_TOKEN   # current root token, before the restore
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN   # current root token, before the restore
 vault operator raft snapshot restore -force /mnt/vault-backups/<file>
 unset VAULT_TOKEN
 ```
@@ -117,9 +117,8 @@ look for `STATUS` `Released` and read the `CLAIM` column to confirm it is the
 deleted PVC's:
 
 ```bash
-cd terraform/environments/prod
-umask 077; KC_TMP="$(mktemp)"
-terraform output -raw kubeconfig > "$KC_TMP"
+KC_TMP="$(mktemp)"
+( cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" && terraform output -raw kubeconfig ) > "$KC_TMP"
 kubectl --kubeconfig "$KC_TMP" get pv | grep -E '^NAME|Released'
 echo "kubeconfig is at $KC_TMP"
 ```
