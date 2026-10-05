@@ -1,0 +1,9 @@
+# Talos enforces Pod Security `baseline` cluster-wide, which rejects
+# hostPort. The controller binds host ports 80/443, so this namespace
+# alone is labelled `privileged`. No other namespace needs it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-nginx
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
