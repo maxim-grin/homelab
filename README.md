@@ -119,6 +119,8 @@ _not_ contain — the part that will bite. Why things are built this way is in
 [docs/decisions/](docs/decisions/), one ADR per decision. Running it day to
 day — UIs, applying changes, shipping a jobboard version — is
 [docs/operations.md](docs/operations.md).
+The commands to run and check it are in
+[docs/runbooks/](docs/runbooks/README.md).
 
 ## Names and TLS
 

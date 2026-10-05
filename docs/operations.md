@@ -2,6 +2,7 @@
 
 Day-to-day operations: how a change is applied, where each UI lives, how to ship a jobboard version, and what to
 check when a certificate will not issue. Rebuilding from nothing is [rebuild.md](rebuild.md).
+Copy-paste commands for running and checking things are in the [runbooks](runbooks/README.md).
 
 ## Applying a change
 

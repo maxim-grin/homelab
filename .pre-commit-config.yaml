@@ -44,7 +44,7 @@ repos:
     rev: v0.11.0.1
     hooks:
       - id: shellcheck
-        files: ^scripts/(pve-bootstrap\.sh|check-talos-pins\.sh|tests/.*)$
+        files: ^scripts/(pve-bootstrap\.sh|check-talos-pins\.sh|check-runbooks\.sh|tests/.*)$
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
@@ -97,4 +97,14 @@ repos:
         language: system
         entry: terraform fmt -recursive -check -diff
         files: ^terraform/.*\.tf$
+        pass_filenames: false
+
+      # Drift guard for docs/runbooks/: every playbook is named, every
+      # command's playbook and inventory exist, every relative link
+      # resolves. Whole-tree check, so no filenames are passed.
+      - id: check-runbooks
+        name: runbooks match playbooks
+        language: script
+        entry: scripts/check-runbooks.sh
+        files: ^(docs/|ansible/playbooks/|ansible/inventories/|scripts/check-runbooks\.sh)
         pass_filenames: false
