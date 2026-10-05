@@ -76,10 +76,9 @@ spec:
   # Argo reads it. Merged into the template above; an entry that sets
   # none renders the no-op patch `{}`.
   templatePatch: |
-    {{- if or .createNamespace .serverSideApply (hasKey . "namespaceLabels") }}
+    {{- if or .createNamespace .serverSideApply }}
     spec:
       syncPolicy:
-        {{- if or .createNamespace .serverSideApply }}
         syncOptions:
           {{- if .createNamespace }}
           - CreateNamespace=true
@@ -87,12 +86,6 @@ spec:
           {{- if .serverSideApply }}
           - ServerSideApply=true
           {{- end }}
-        {{- end }}
-        {{- if hasKey . "namespaceLabels" }}
-        managedNamespaceMetadata:
-          labels:
-            {{- toYaml .namespaceLabels | nindent 8 }}
-        {{- end }}
     {{- else }}
     {}
     {{- end }}

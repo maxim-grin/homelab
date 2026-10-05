@@ -22,6 +22,10 @@
 #     (the app directory) and {{.env}} in metadata.name and source.path, and
 #     must render `<cluster>-<dir>` and `argocd/apps/<dir>/<env>`.
 #   - spec.syncPolicy.applicationsSync is create-update.
+#   - when any entry sets createNamespace, serverSideApply or
+#     namespaceLabels, spec.templatePatch exists and reads that key. The
+#     patch is checked by text, not rendered: its output is verified with
+#     `argocd appset generate` on the operator's workstation.
 # Strict schema validation of the set (a key at the wrong level) is
 # kubeconform's job in check-manifests.sh; the structural checks here add
 # precise messages.
@@ -108,6 +112,38 @@ else
   done
   [ "$(yq '.spec.template.spec | has("syncPolicy")' "$set_file")" = true ] \
     || fail "misplaced key: template.spec.syncPolicy missing in $set_file (a template-level or spec-level syncPolicy does not reach the Application)"
+fi
+
+# --- optional per-entry settings reach the Application only through
+# spec.templatePatch (go-template conditionals the plain template cannot
+# express). A key some entry sets but the patch never reads is silently
+# dropped: no CreateNamespace, no ServerSideApply, no namespace labels.
+patch=$(yq '.spec.templatePatch // ""' "$set_file")
+declare -A uses=() # config key -> "<needle in patch> <rendered marker>"
+uses[createNamespace]='.createNamespace CreateNamespace=true'
+uses[serverSideApply]='.serverSideApply ServerSideApply=true'
+uses[namespaceLabels]='.namespaceLabels managedNamespaceMetadata'
+set_keys=()
+for k in createNamespace serverSideApply namespaceLabels; do
+  for cfg in "${configs[@]}"; do
+    [ "$(yq 'tag' "$cfg")" = '!!seq' ] || continue
+    if [ "$(yq "[.[] | select(.$k != null and .$k != false and .$k != {})] | length" "$cfg")" -gt 0 ]; then
+      set_keys+=("$k")
+      break
+    fi
+  done
+done
+if [ "${#set_keys[@]}" -gt 0 ]; then
+  if [ -z "$patch" ]; then
+    fail "$set_file has no spec.templatePatch, but config entries set ${set_keys[*]}: without the patch those settings never reach the Applications"
+  else
+    for k in "${set_keys[@]}"; do
+      for needle in ${uses[$k]}; do
+        grep -qF -- "$needle" <<<"$patch" \
+          || fail "$set_file: templatePatch does not handle $k (a config entry sets it; the patch never mentions '$needle')"
+      done
+    done
+  fi
 fi
 
 # --- cluster Secrets

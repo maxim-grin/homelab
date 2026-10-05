@@ -37,6 +37,9 @@ expect bad-sync 1 'applicationsSync'
 expect bad-destination 1 'not allowed by'
 expect noconfig 1 'references no config'
 expect no-set 1 'but no ApplicationSet'
+expect no-patch 1 'no spec.templatePatch'
+expect patch-no-labels 1 'templatePatch does not handle namespaceLabels'
+expect patch-no-ssa 1 'templatePatch does not handle serverSideApply'
 
 # A tree with no set at all is skipped, not failed.
 empty="$(mktemp -d)"
