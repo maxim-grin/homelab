@@ -38,8 +38,12 @@ lands.
 ansible/          roles/ + playbooks/, inventory per environment,
                   secrets in an ansible-vault file
 argocd/           base/       AppProject
-                  apps/       kustomize bases and dev overlays, or Helm values
+                  apps/       kustomize bases and dev overlays, or Helm values;
+                              prod apps are <app>/prod kustomize directories
+                              with a config.yaml per app (ADR 0026)
                   environments/dev/applications/  Application CRs, synced by root-dev
+                  environments/prod/applications/ root-prod's children; appset.yaml
+                              generates the prod apps from the config.yaml files
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                               nfs-server, vault-vm, talos-node
                   environments/dev/     the dev machines
@@ -66,7 +70,8 @@ That last row is a bootstrap-only exception: `root-dev` only watches
 `argocd/environments/dev/applications/`, so the AppProject that authorises
 everything cannot be synced by `root-dev` itself before it exists — one
 `kubectl apply -f argocd/base/projects.yaml` by hand gets the cluster off
-the ground. After that, the `argocd-config` Application owns
+the ground. Its destinations name clusters (`prod`, `dev`) by their
+registered name. After that, the `argocd-config` Application owns
 `argocd/base/` and syncs it on every push. A new Helm chart repository
 must be added to its `sourceRepos` allowlist, or ArgoCD refuses the
 Application with "application repo is not permitted".
@@ -254,6 +259,12 @@ entry from its operator checklist instead of restating the command. (ADR
   refuses every request**: a full root disk looks like a healthy Vault
   answering nothing. A restart seals it; a certificate renewal only
   reloads it. (ADR [0011](docs/decisions/0011-vault-on-its-own-vm.md))
+- **Prod's apps come from one ApplicationSet; never delete it.** Deleting
+  an ApplicationSet deletes every generated Application, and their
+  finalizers delete the workloads. A removed config entry leaves its
+  Application running (`applicationsSync: create-update`); retiring an app
+  is a deliberate delete (`docs/runbooks/checks.md`). (ADR
+  [0026](docs/decisions/0026-uniform-apps.md))
 - **`<path:kv-<env>/data/...#FIELD>` is the only form a secret value takes in
   a committed manifest.** The placeholder is committed; AVP resolves it
   against Vault at sync time. The value behind it is never committed,
@@ -308,6 +319,8 @@ scripts/check-manifests.sh                     # every kustomization and Helm ch
 scripts/tests/pve-bootstrap.test.sh            # bootstrap script against stubbed pveum/qm/pveam
 scripts/check-talos-pins.sh                    # script's Talos pins equal the prod root's defaults
 scripts/check-runbooks.sh                      # runbooks name every playbook; commands and links resolve
+scripts/check-appsets.sh                       # expands the ApplicationSet: names, paths, destinations (bash >= 4)
+scripts/tests/check-appsets.test.sh            # the check against good and broken fixtures
 ```
 
 `argocd/apps/ingress-nginx/dev` holds only `values.yaml` — it is a Helm

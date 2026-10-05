@@ -910,22 +910,29 @@ from `secret.yaml`.
        kubectl --kubeconfig "$PROD_KC" -n argocd get applications
        ```
 
-       Expect `argocd-config`, `nfs`, `cert-manager`,
-       `cert-manager-issuers`, `ingress-nginx`, `monitoring-secrets` and
-       `monitoring` all `Synced` and `Healthy` after about 3 minutes plus
-       chart pulls. Sync waves (nfs 0, cert-manager 1, issuers 2,
-       ingress-nginx 3, monitoring-secrets 4, monitoring 5) only order
-       creation: this ArgoCD has no Application health check, so a wave
-       does not wait for the one before it. A retry on the issuers
-       covers the missing cert-manager CRDs, and one on `monitoring`
-       covers the `monitoring` namespace that `monitoring-secrets` owns.
+       Expect `argocd-config`, the `clusters` Secret Application and the
+       set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
+       `prod-cert-manager`, `prod-cert-manager-issuers`,
+       `prod-ingress-nginx`, `prod-monitoring-secrets`,
+       `prod-kube-prometheus-stack`), all `Synced` and `Healthy` after
+       about 3 minutes plus chart pulls. One ApplicationSet generates
+       them ([ADR 0026](decisions/0026-uniform-apps.md)); the set's
+       Applications carry no sync waves, since the set, not a parent
+       sync, creates them. They all start at once and each retries
+       (limit 10, 30s doubling to 5m: about 37 minutes), which covers the
+       missing cert-manager CRDs for the issuers and the `monitoring`
+       namespace that `monitoring-secrets` owns for the monitoring
+       chart. On a from-scratch bootstrap the retries can run out, so
+       expect to need one manual sync below. Moving an existing app into
+       the set is [Roll an app into the set](runbooks/checks.md#roll-an-app-into-the-set).
 
        After a sealed or briefly unreachable Vault, `monitoring-secrets`
        and `cert-manager-issuers` show a `ComparisonError` and sync on
        their own once it is unsealed. `monitoring` needs the namespace
        `monitoring-secrets` creates, so it can stay `Sync failed` with its
-       finite retries used up. Unseal (`vault status` on `vault-02`), then
-       start a sync by hand with kubectl alone:
+       finite retries used up (after the roughly 37 minutes). Unseal
+       (`vault status` on `vault-02`), then start a sync by hand with
+       kubectl alone:
 
        ```bash
        kubectl --kubeconfig "$PROD_KC" -n argocd patch application <name> \
@@ -1016,10 +1023,10 @@ from `secret.yaml`.
     (`rm "$PROD_KC"` when done). Prerequisite: step 18 done. On a full
     rebuild everything here is already on `main`: do 2 and 3, then 4 on.
 
-    1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, are in
-       wave 6, after `monitoring` (5) and `monitoring-secrets` (4), which
-       own the CRDs and the namespace; both carry finite retries for the
-       race. Until Vault holds `monitoring/pve-exporter`, `pve-exporter`
+    1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, need
+       the CRDs of `kube-prometheus-stack` and the namespace
+       `monitoring-secrets` owns; with no sync waves they rely on the
+       set's finite retry for the race. Until Vault holds `monitoring/pve-exporter`, `pve-exporter`
        shows a `ComparisonError`: expected and harmless. AVP fails at
        comparison, not at sync, so no retry is consumed, and it syncs on
        its own once Vault is seeded. A sealed Vault is handled as in
