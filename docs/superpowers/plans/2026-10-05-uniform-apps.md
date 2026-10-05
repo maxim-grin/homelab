@@ -48,7 +48,7 @@ sidecar, kustomize `helmCharts:`, Helm, Renovate, Ansible (`roles/argocd`).
   | `nfs-provisioner` (renamed from `nfs_provisioner`) | `nfs-system` | 0 | yes | no |
   | `cert-manager` | `cert-manager` | 1 | yes | yes |
   | `cert-manager-issuers` | `cert-manager` | 2 | no | yes |
-  | `ingress-nginx` | `ingress-nginx` | 3 | no (see below) | yes |
+  | `ingress-nginx` | `ingress-nginx` | 3 | yes (+ labels, see below) | yes |
   | `monitoring-secrets` | `monitoring` | 4 | no | yes |
   | `kube-prometheus-stack` | `monitoring` | 5 | no | yes |
   | `alerts` | `monitoring` | 6 | no | yes |
@@ -61,12 +61,16 @@ sidecar, kustomize `helmCharts:`, Helm, Renovate, Ansible (`roles/argocd`).
   Applications `nfs` and `monitoring` become `prod-nfs-provisioner` and
   `prod-kube-prometheus-stack`; a grep on 2026-10-05 found no alert,
   Gatus check or doc that names the old ones.
-- `ingress-nginx`'s namespace label moves into git: a `Namespace` manifest
-  in its kustomization labelled `pod-security.kubernetes.io/enforce:
-  privileged` (Talos rejects hostPort at `baseline`) replaces the old
-  Application's `managedNamespaceMetadata`, the way `monitoring-secrets`
-  owns the `monitoring` Namespace. `createNamespace` is therefore `false`
-  for it.
+- `ingress-nginx` needs its namespace labelled `pod-security.kubernetes.io/enforce:
+  privileged` (Talos rejects hostPort at `baseline`). It stays
+  `createNamespace: true` with the label carried as `managedNamespaceMetadata`,
+  the form that works on prod today: the config entry gets an optional
+  `namespaceLabels` map, and the set's `templatePatch` adds
+  `managedNamespaceMetadata.labels` only when it is present. A `Namespace`
+  manifest in the kustomization is NOT used: it is a Sync-phase resource,
+  but the chart's admission Jobs are PreSync hooks, so on a fresh cluster
+  they would run before the namespace exists (and making the Namespace a
+  hook would delete it on every sync under Argo's default hook policy).
 - Every generated Application carries the retry the monitoring apps have
   today: `limit: 10`, `backoff: {duration: 30s, factor: 2, maxDuration: 5m}`
   (alerts, issuers and pve-exporter already have it; monitoring's 5 becomes
@@ -230,8 +234,7 @@ a test script beside the existing `scripts/tests/*.test.sh`.
 the existing `values.yaml` stays in place and keeps serving the old
 Applications until each is flipped.
 
-- [ ] Step 0: `ingress-nginx` only: add the labelled `Namespace` manifest to its
-  kustomization (see Global Constraints). Add `charts/` to `.gitignore`:
+- [ ] Step 0: Add `charts/` to `.gitignore`:
   `kustomize build --enable-helm` pulls charts into it and none may be committed.
 - [ ] Step 1: Per chart, a kustomization with `helmCharts:` (chart, repo,
   the pinned version, `releaseName`, `namespace` equal to the app's
@@ -268,13 +271,16 @@ Applications until each is flipped.
   `argocd/apps/clusters/prod`, namespace `argocd`. The set carries wave
   `0`.
 - [ ] Step 2: The eight `config.yaml`: `namespace`, `wave`,
-  `createNamespace`, `serverSideApply` as one list entry (`env: prod`), shipped as `[]` until rollout, values from the
+  `createNamespace`, `serverSideApply` (and, for ingress-nginx, `namespaceLabels`) as one list entry (`env: prod`), shipped as `[]` until rollout, values from the
   Global Constraints table.
 - [ ] Step 3: The set: matrix of cluster generator (selector `env` exists)
   and git-files generator (`argocd/apps/*/config.yaml`), `goTemplate: true`,
   `syncPolicy.applicationsSync: create-update`; template per the spec:
   name `{{cluster}}-{{path.basename}}`, the one `plugin: argocd-vault-plugin` source
-  on `argocd/apps/{{path.basename}}/{{env}}`, sync options from the config.
+  on `argocd/apps/{{path.basename}}/{{env}}`, sync options from the config, and a `templatePatch` that adds
+  `managedNamespaceMetadata.labels` from `namespaceLabels` when present
+  (Task 3's check must then also assert the patch exists whenever any
+  config entry sets `namespaceLabels`).
   Filtering is structural: the git-files generator makes one parameter set
   per config list entry, and the matrix's cluster generator selects
   `env: '{{.env}}'` (plus `argocd.argoproj.io/secret-type: cluster`). Task 3's
