@@ -182,6 +182,131 @@ If not: the `ComparisonError` check above. Prod's `monitoring` needs the
 `monitoring` namespace that `monitoring-secrets` owns, so sync
 `monitoring-secrets` first ([rebuild.md](../rebuild.md), step 18.2).
 
+### Check the CMP sidecar
+
+When: once, before the first app moves into the set
+([ADR 0026](../decisions/0026-uniform-apps.md)), and after any change to the
+AVP sidecar image or `argocd_avp_plugin_config`. Every set-generated
+Application renders through the `avp` container with
+`kustomize build --enable-helm`, so the sidecar must have `helm` and
+`kustomize`, must be able to write Helm's directories, and must render the
+largest chart inside the repo-server's exec timeout (default 90 seconds).
+Nothing is committed or applied. The unreachable `VAULT_ADDR` is a
+throwaway address in the TEST-NET range.
+
+```bash
+R="$(kubectl --kubeconfig "$PROD_KC" -n argocd get pod \
+  -l app.kubernetes.io/name=argocd-repo-server -o name | head -1)"
+kubectl --kubeconfig "$PROD_KC" -n argocd get deploy argocd-applicationset-controller \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}{.status.readyReplicas}{"\n"}'
+kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c 'helm version; kustomize version'
+# AVP on a manifest with no placeholder: does it still try to log in?
+kubectl --kubeconfig "$PROD_KC" -n argocd exec -i "$R" -c avp -- \
+  env VAULT_ADDR=https://192.0.2.1:8200 argocd-vault-plugin generate - <<'EOF2'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: no-placeholder
+EOF2
+# the heaviest render, timed, with Helm's dirs under /tmp
+kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c '
+  export HELM_CACHE_HOME=/tmp/h/cache HELM_CONFIG_HOME=/tmp/h/config HELM_DATA_HOME=/tmp/h/data
+  d=$(mktemp -d); cd "$d"
+  printf "helmCharts:\n  - name: kube-prometheus-stack\n    repo: https://prometheus-community.github.io/helm-charts\n    version: 91.9.0\n    releaseName: monitoring\n    includeCRDs: true\n" > kustomization.yaml
+  time kustomize build --enable-helm . | wc -l; ls; rm -rf "$d"'
+```
+
+Expect: the applicationset controller image tag and `1` ready replica; both
+binaries print a version; the placeholder-free generate either prints the
+ConfigMap or fails, and the result is the finding: if it errors on the
+unreachable address, AVP logs in regardless, which is why the CMP calls it
+only when `<path:` is present. The render finishes well under 90 seconds
+and prints a `charts` directory in the listing: `--enable-helm` writes
+`charts/` under the app directory, which is gitignored.
+
+If not: no `helm` binary means the sidecar image or an init container has
+to supply it; a read-only filesystem error means the three `HELM_*`
+directories in the plugin's `generate` command are not under `/tmp`; a
+render over 90 seconds means raising the repo-server's exec timeout
+(`ARGOCD_EXEC_TIMEOUT`) before moving `kube-prometheus-stack`.
+
+### Verify the ApplicationSet
+
+When: after any change to
+`argocd/environments/prod/applications/appset.yaml` or a config entry, from
+a checkout of the branch. This is the only proof that Argo accepts the
+templated `env` selector inside the matrix; `scripts/check-appsets.sh`
+expands the set with `yq`, not with Argo's own generators. The git
+generator reads its repository, so a scratch entry has to be on a pushed
+branch: set `revision` in a local copy of the set to that branch.
+`argocd` is the CLI, logged in to prod or run with `--core`.
+
+```bash
+argocd appset generate argocd/environments/prod/applications/appset.yaml
+```
+
+Expect: while every `config.yaml` is `[]`, no Applications. With one
+scratch entry (`env: prod`, a `namespace`) in one app's config, exactly one
+Application, `prod-<dir>`, with source path `argocd/apps/<dir>/prod`.
+
+If not: an error naming the selector or a template key is the finding;
+fix the set before it reaches `main`.
+
+### Roll an app into the set
+
+When: moving one app from its own Application to the set, one PR per group
+([ADR 0026](../decisions/0026-uniform-apps.md)). `<old>` is the old
+Application's name, `<new>` is `prod-<dir>`.
+
+```bash
+# Vault must be unsealed first
+ssh vault-02 'VAULT_ADDR=https://10.0.0.133:8200 vault status'
+# before merging: stop the old Application cascading when it is pruned
+kubectl --kubeconfig "$PROD_KC" -n argocd patch application <old> \
+  --type merge -p '{"metadata":{"finalizers":null}}'
+# after merging: the old one is pruned by root-prod, the new one appears
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|<old>|<new>'
+kubectl --kubeconfig "$PROD_KC" get pods,certificate -A -o wide | grep <namespace>
+```
+
+The PR replaces `[]` in the app's `config.yaml` with the uncommented entry
+and deletes the old Application file in the same commit. Wait for
+`root-prod` to prune the old Application (about 3 minutes) and for the set
+to create `<new>`.
+
+Expect: `<old>` gone, `<new>` `Synced` and `Healthy`, and nothing
+recreated: pod and certificate ages are older than the merge. A hook Job in
+the chart (cert-manager, ingress-nginx) behaves as before; that is
+confirmed here, not assumed.
+
+If not: adoption failed. Delete the old Application's remaining resources
+and let `<new>` recreate them (the fallback, not the plan). For
+cert-manager rehearse first against `letsencrypt-staging`: Let's Encrypt
+allows five duplicate production certificates per week
+([ADR 0008](../decisions/0008-acme-dns01-not-http01.md)). Anything stuck:
+[Sync an Application by hand](#sync-an-application-by-hand).
+
+### Retire an app from the set
+
+When: an app leaves a cluster. The set never deletes Applications
+(`applicationsSync: create-update`), so removing the config entry alone
+leaves the generated Application running; and an Application deleted while
+its entry is still on `main` is recreated by the set. So: merge the PR that
+leaves `[]` in the app's `config.yaml` (and removes nothing else), then
+delete the Application.
+
+```bash
+# <new> is the generated Application, prod-<dir>. Its finalizer cascades, so
+# the app's resources go too. To keep them, run the patch first.
+kubectl --kubeconfig "$PROD_KC" -n argocd patch application <new> \
+  --type merge -p '{"metadata":{"finalizers":null}}'
+kubectl --kubeconfig "$PROD_KC" -n argocd delete application <new>
+```
+
+Expect: `<new>` gone from `kubectl -n argocd get applications` and not
+recreated after the next poll; the resources gone, or kept if the patch
+ran. Skip the patch to remove them. If not: the entry is still on `main`.
+
 ### Prove AVP end to end
 
 When: after a Vault, ArgoCD or auth-mount change, or a rebuild. Runs the

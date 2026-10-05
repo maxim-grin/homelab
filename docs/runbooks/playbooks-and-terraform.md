@@ -328,7 +328,9 @@ unset VAULT_TOKEN PROD_ROLE_TOKEN
 ```
 
 Expect: the policy names `kv-prod/` and `kv-dev/` data and metadata paths,
-and both `kv list` calls print names. If not: `permission denied` on
+and both `kv list` calls print names. The token check proves the policy only, not
+the Kubernetes-auth login; the real proof is an Argo sync of a `kv-dev` app on
+prod, once sub-project 4 lands. If not: `permission denied` on
 `kv-dev` means the policy was not rewritten; re-run configure prod and
 check the play for `Write the policy for prod`.
 
@@ -378,6 +380,8 @@ the repo root unless the comment says otherwise. `<role-or-playbook>` and
 kustomize build argocd/apps/<app>/dev
 pre-commit run --all-files
 scripts/check-manifests.sh
+scripts/check-appsets.sh
+bash scripts/tests/check-appsets.test.sh
 scripts/check-runbooks.sh
 ```
 
@@ -385,3 +389,10 @@ Expect: each exits 0. If not: fix what it names; never bypass a hook with
 `--no-verify`. `kustomize build` works on overlays only: Helm values dirs such
 as `argocd/apps/ingress-nginx/dev` fail by design, so render those with
 `helm template <chart> -f argocd/apps/<app>/dev/values.yaml`.
+
+`scripts/check-appsets.sh` (also run by `check-manifests.sh`) needs bash 4 or
+later, for `declare -A`. CI is Linux and unaffected; on macOS the system bash
+is 3.2, so run it under a newer one: `brew install bash`, then
+`/opt/homebrew/bin/bash scripts/check-appsets.sh`. The ApplicationSet
+checks Argo itself must accept are in
+[Verify the ApplicationSet](checks.md#verify-the-applicationset).
