@@ -30,3 +30,6 @@ ansible/secret.yaml.tmp
 # Vault
 vault/secrets.yaml
 argocd/argocd-values.yaml
+
+# kustomize --enable-helm chart cache
+charts/
