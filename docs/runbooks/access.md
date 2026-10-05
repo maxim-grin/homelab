@@ -136,7 +136,7 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 | Traefik dashboard | `https://traefik.hl.mgryn.cc`            | `traefik_dashboard_users` in `secret.yaml` (htpasswd bcrypt lines) |
 | Gatus             | `https://status.hl.mgryn.cc`             | `gatus_basic_user` and `gatus_basic_password` (bcrypt: `gatus_basic_password_bcrypt`) in `secret.yaml`; basic auth protects only Gatus's API (`/api/v1/...`), the root page loads without it |
 | Glance            | `https://home.hl.mgryn.cc`               | no login configured in the role (it uses the Gatus basic-auth variables to read Gatus's API) |
-| LAN Orangutan     | `https://lan.hl.mgryn.cc`                | no login configured in the role |
+| LAN Orangutan     | `https://lan.hl.mgryn.cc`                | `orangutan_password` in `secret.yaml` |
 
 ## Vault CLI
 
