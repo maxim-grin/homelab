@@ -6,8 +6,9 @@
 # PodMonitors, not ServiceMonitors: they select the pods directly, so they
 # do not depend on either chart keeping a metrics Service. They live here,
 # not in the charts' values (`serviceMonitor.enabled`), because those
-# Applications sync in waves 1 and 3, before the monitoring chart brings
-# the CRD in wave 5, and their syncs would fail permanently.
+# Applications can sync before the monitoring chart brings the CRD in:
+# generated Applications are not ordered by waves, so ordering rests on
+# the retry, and a chart that needs the CRD would fail until it exists.
 #
 # honorLabels: both exporters label each series with the `namespace` of
 # the object it describes (the Ingress, the Certificate). Without this,

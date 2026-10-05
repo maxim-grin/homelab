@@ -4,8 +4,9 @@ metadata:
   name: apps
   namespace: argocd
   annotations:
-    # Wave 0: created after the cluster Secrets (`clusters`, wave -1)
-    # within root-prod's sync.
+    # Wave 0 orders only within root-prod's sync, and the cluster Secrets
+    # (`clusters`, wave -1) do not hold it back. That is harmless: the
+    # set re-runs its generators when a cluster Secret changes.
     argocd.argoproj.io/sync-wave: "0"
     # Deleting the set deletes every generated Application, and their
     # finalizers delete the workloads. root-prod must never prune or
