@@ -1,0 +1,24 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys ingress-nginx: one list entry per env, each generating `<cluster>-ingress-nginx`
+# from argocd/apps/ingress-nginx/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# - env: prod
+#   namespace: ingress-nginx
+#   # Wave 3: last of the platform apps; Ingresses elsewhere need it.
+#   wave: 3
+#   # Created by Argo, not a Namespace manifest: the chart's admission
+#   # Jobs are PreSync hooks and would run before a Sync-phase Namespace
+#   # existed on a fresh cluster.
+#   createNamespace: true
+#   # The chart's admission webhook is created by a Job that must finish
+#   # before any Ingress can be admitted. Without ServerSideApply the
+#   # webhook configuration and its CA bundle race on resync.
+#   serverSideApply: true
+#   # Talos enforces Pod Security `baseline` cluster-wide, which rejects
+#   # hostPort. The controller binds host ports 80/443, so this namespace
+#   # alone is labelled `privileged`. The set's templatePatch puts these
+#   # under syncPolicy.managedNamespaceMetadata.labels.
+#   namespaceLabels:
+#     pod-security.kubernetes.io/enforce: privileged
+[]

@@ -1,0 +1,18 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys cert-manager: one list entry per env, each generating `<cluster>-cert-manager`
+# from argocd/apps/cert-manager/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# - env: prod
+#   namespace: cert-manager
+#   # Wave 1: after the StorageClass; the CRDs land here, before the
+#   # issuers.
+#   wave: 1
+#   createNamespace: true
+#   # cert-manager's CRDs carry large validation schemas. Applied
+#   # client-side they exceed the 262144-byte annotation limit that
+#   # kubectl's last-applied-configuration uses, and the sync fails with
+#   # "metadata.annotations: Too long". ServerSideApply has no such
+#   # limit.
+#   serverSideApply: true
+[]

@@ -1,0 +1,25 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys cert-manager-issuers: one list entry per env, each generating `<cluster>-cert-manager-issuers`
+# from argocd/apps/cert-manager-issuers/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# Separate from cert-manager on purpose: that one is a Helm release of an
+# upstream chart; this is our own configuration of it, and the
+# ClusterIssuers here outlive any particular consumer. Keeping them apart
+# also means a chart upgrade and an issuer change are separate diffs.
+#
+# - env: prod
+#   namespace: cert-manager
+#   # Wave 2: ClusterIssuer needs cert-manager's CRDs from wave 1. Waves
+#   # only order creation, so this sync can run before the CRDs exist;
+#   # the set's retry carries it past that.
+#   wave: 2
+#   # cert-manager (wave 1) creates the namespace.
+#   createNamespace: false
+#   # Client-side apply stores the manifest it sent in
+#   # kubectl.kubernetes.io/last-applied-configuration, and for a Secret
+#   # that manifest is the one AVP rendered -- so the Cloudflare token
+#   # would sit in clear text in an annotation. Server-side apply tracks
+#   # field ownership in managedFields and keeps no such copy.
+#   serverSideApply: true
+[]

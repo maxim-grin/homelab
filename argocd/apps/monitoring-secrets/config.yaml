@@ -1,0 +1,21 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys monitoring-secrets: one list entry per env, each generating `<cluster>-monitoring-secrets`
+# from argocd/apps/monitoring-secrets/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# Separate from kube-prometheus-stack so the <path:...> placeholders (the
+# Grafana admin login, the Telegram token and chat id) never sit in the
+# chart's values; AVP resolves them against Vault (kv-prod) at sync time.
+#
+# - env: prod
+#   namespace: monitoring
+#   # Wave 4: the namespace and the Secrets the chart in wave 5 reads.
+#   wave: 4
+#   # The Namespace is a manifest in this app, with its Pod Security
+#   # label; every later monitoring app relies on it.
+#   createNamespace: false
+#   # Client-side apply would copy the AVP-rendered Secrets, credentials
+#   # and all, into the last-applied-configuration annotation in clear
+#   # text. Server-side apply keeps no such copy.
+#   serverSideApply: true
+[]

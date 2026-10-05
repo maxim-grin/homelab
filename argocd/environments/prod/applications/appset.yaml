@@ -1,0 +1,98 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+  annotations:
+    # Wave 0: after the cluster Secrets (`clusters`, wave -1) it selects.
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  goTemplate: true
+  # A typo'd key in a config entry or the template fails the set loudly
+  # instead of rendering "<no value>".
+  goTemplateOptions: ["missingkey=error"]
+  # Never delete a generated Application: an empty or broken generator
+  # would otherwise remove them all, and their resources finalizer would
+  # cascade-delete what they run. Retiring an app is a deliberate delete.
+  syncPolicy:
+    applicationsSync: create-update
+  generators:
+    # One Application per (config entry, cluster) pair. Each entry of
+    # argocd/apps/<dir>/config.yaml is one parameter set (`env`,
+    # `namespace`, `wave`, ...; `path.basename` is <dir>); the cluster
+    # generator then keeps only the cluster whose `env` label matches the
+    # entry. A config of `[]` yields nothing.
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/maxim-grin/homelab.git
+              revision: main
+              files:
+                - path: argocd/apps/*/config.yaml
+          - clusters:
+              selector:
+                matchLabels:
+                  argocd.argoproj.io/secret-type: cluster
+                  env: "{{.env}}"
+  template:
+    metadata:
+      name: "{{.name}}-{{.path.basename}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{.wave}}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: homelab
+      source:
+        repoURL: https://github.com/maxim-grin/homelab.git
+        targetRevision: main
+        path: "argocd/apps/{{.path.basename}}/{{.env}}"
+        # Every app renders through the CMP; AVP runs only when the
+        # kustomize output carries a <path:...> placeholder, so a sealed
+        # Vault stops only the apps that hold secrets.
+        plugin:
+          name: argocd-vault-plugin
+      destination:
+        name: "{{.name}}"
+        namespace: "{{.namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        # Waves order creation but do not wait for health, so a first sync
+        # can run before a CRD or the namespace exists; a failed automated
+        # sync is not retried without this. Finite: after a sealed-Vault
+        # outage at bootstrap the retries run out and the app stays `Sync
+        # failed` until a manual sync once Vault is unsealed.
+        retry:
+          limit: 10
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+  # The per-entry options: CreateNamespace and ServerSideApply from the
+  # config's booleans, and the namespace labels (ingress-nginx's Pod
+  # Security level) as managedNamespaceMetadata, under syncPolicy where
+  # Argo reads it. Merged into the template above; an entry that sets
+  # none renders the no-op patch `{}`.
+  templatePatch: |
+    {{- if or .createNamespace .serverSideApply (hasKey . "namespaceLabels") }}
+    spec:
+      syncPolicy:
+        {{- if or .createNamespace .serverSideApply }}
+        syncOptions:
+          {{- if .createNamespace }}
+          - CreateNamespace=true
+          {{- end }}
+          {{- if .serverSideApply }}
+          - ServerSideApply=true
+          {{- end }}
+        {{- end }}
+        {{- if hasKey . "namespaceLabels" }}
+        managedNamespaceMetadata:
+          labels:
+            {{- toYaml .namespaceLabels | nindent 8 }}
+        {{- end }}
+    {{- else }}
+    {}
+    {{- end }}

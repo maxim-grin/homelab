@@ -1,0 +1,22 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys kube-prometheus-stack: one list entry per env, each generating `<cluster>-kube-prometheus-stack`
+# from argocd/apps/kube-prometheus-stack/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# - env: prod
+#   namespace: monitoring
+#   # Wave 5: after monitoring-secrets (4) creates the namespace and the
+#   # Secrets this chart references by name. Waves order creation but do
+#   # not wait for health, so this sync can still run before the
+#   # namespace exists; the set's retry carries it past that.
+#   wave: 5
+#   # No CreateNamespace and no namespaceLabels: monitoring-secrets owns
+#   # the namespace and its privileged Pod Security label, and two owners
+#   # would fight over the labels.
+#   createNamespace: false
+#   # The operator's CRDs (Prometheus, Alertmanager) are larger than the
+#   # 256KiB last-applied-configuration annotation client-side apply
+#   # writes, so a plain apply fails with "metadata.annotations: Too
+#   # long". Server-side apply keeps no such annotation.
+#   serverSideApply: true
+[]

@@ -1,0 +1,21 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys pve-exporter: one list entry per env, each generating `<cluster>-pve-exporter`
+# from argocd/apps/pve-exporter/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# The API token and the Proxmox address are <path:...> placeholders; AVP
+# resolves them against Vault (kv-prod) at sync time.
+#
+# - env: prod
+#   namespace: monitoring
+#   # Wave 6: the ServiceMonitor CRD arrives with the monitoring chart
+#   # (wave 5) and the namespace with monitoring-secrets (wave 4). The
+#   # set's retry covers a sync that runs before either.
+#   wave: 6
+#   # monitoring-secrets owns the Namespace and its Pod Security label.
+#   createNamespace: false
+#   # Client-side apply would copy the AVP-rendered Secret, token and
+#   # all, into the last-applied-configuration annotation in clear text.
+#   # Server-side apply keeps no such copy.
+#   serverSideApply: true
+[]

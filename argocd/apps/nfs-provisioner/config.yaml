@@ -1,0 +1,13 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys nfs-provisioner: one list entry per env, each generating `<cluster>-nfs-provisioner`
+# from argocd/apps/nfs-provisioner/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# - env: prod
+#   namespace: nfs-system
+#   # Wave 0: the nfs-prod StorageClass (the default) must exist before
+#   # any PVC in a later wave.
+#   wave: 0
+#   createNamespace: true
+#   serverSideApply: false
+[]

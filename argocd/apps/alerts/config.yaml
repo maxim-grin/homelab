@@ -1,0 +1,18 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys alerts: one list entry per env, each generating `<cluster>-alerts`
+# from argocd/apps/alerts/<env>. `[]` deploys it nowhere; the rollout PR
+# uncomments the entry below.
+#
+# - env: prod
+#   namespace: monitoring
+#   # Wave 6: the PodMonitor and PrometheusRule CRDs arrive with the
+#   # monitoring chart (wave 5) and the namespace with monitoring-secrets
+#   # (wave 4). The set's retry covers a sync that runs before either.
+#   wave: 6
+#   # monitoring-secrets owns the Namespace and its Pod Security label.
+#   createNamespace: false
+#   # A PrometheusRule's long rule strings would otherwise be copied into
+#   # the last-applied-configuration annotation, which counts against the
+#   # 256 KiB annotation limit; server-side apply keeps no such copy.
+#   serverSideApply: true
+[]
