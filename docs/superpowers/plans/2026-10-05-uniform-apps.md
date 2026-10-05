@@ -244,29 +244,33 @@ Applications until each is flipped.
 - Produces: cluster `prod` (`https://kubernetes.default.svc`, label
   `env=prod`) as an `argocd.argoproj.io/secret-type: cluster` Secret in
   `argocd`; the set `apps`, which generates `prod-<name>` for every
-  config whose `envs` lists the cluster's env; every config ships with
-  `envs: []`, so the set yields nothing until a rollout PR flips it.
+  config entry whose `env` matches a cluster's `env` label; every config
+  ships as an empty list `[]`, so the set yields nothing until a rollout
+  PR adds the entry.
 
 - [ ] Step 1: Secret for `prod` (no credentials: in-cluster); a plain
   Application `clusters`, sync wave `-1`, path
   `argocd/apps/clusters/prod`, namespace `argocd`. The set carries wave
   `0`.
 - [ ] Step 2: The eight `config.yaml`: `namespace`, `wave`,
-  `createNamespace`, `serverSideApply`, `envs: []`, values from the
+  `createNamespace`, `serverSideApply` as one list entry (`env: prod`), shipped as `[]` until rollout, values from the
   Global Constraints table.
 - [ ] Step 3: The set: matrix of cluster generator (selector `env` exists)
   and git-files generator (`argocd/apps/*/config.yaml`), `goTemplate: true`,
   `syncPolicy.applicationsSync: create-update`; template per the spec:
   name `{{cluster}}-{{path.basename}}`, the one `plugin: argocd-vault-plugin` source
   on `argocd/apps/{{path.basename}}/{{env}}`, sync options from the config.
-  Filtering the pairs by `envs` is part of the generator, checked by Task 3.
+  Filtering is structural: the git-files generator makes one parameter set
+  per config list entry, and the matrix's cluster generator selects
+  `env: '{{.env}}'` (plus `argocd.argoproj.io/secret-type: cluster`). Task 3's
+  check asserts exactly that selector.
 - [ ] Step 4: AppProject: add destinations by name `prod` and `dev`; keep
   the existing `server` entry until the last rollout PR. Heed the
   lockout warning at the top of the file: this PR touches that file, so
   verify the repo URL entry is unchanged, and have the recovery
   command (`kubectl apply -f argocd/base/projects.yaml`) ready.
 - [ ] Step 5: Verify: `scripts/check-manifests.sh` expands to zero
-  Applications (all `envs: []`) and passes; `kustomize build
+  Applications (all configs `[]`) and passes; `kustomize build
   argocd/apps/clusters/prod`.
 - [ ] Step 6: Commit as three: clusters, set and configs, project.
 - [ ] Step 7: The rename is its own commit, made before Step 6's commits:
@@ -277,6 +281,15 @@ Applications until each is flipped.
   `kustomize build` on both overlays; `scripts/check-manifests.sh`;
   `grep -rn nfs_provisioner . --exclude-dir=.git --exclude-dir=superpowers`
   returns nothing. Commit `refactor: rename nfs provisioner dir`.
+
+**Operator (after merge, before Task 10):** on the Mac,
+`argocd appset generate argocd/environments/prod/applications/appset.yaml`
+(or the equivalent against the live set) lists no Applications while every
+config is `[]`; with one scratch config entry it lists exactly
+`prod-<dir>`. This is the only proof that Argo accepts the templated
+`env: '{{.env}}'` selector inside the matrix; if it does not, the filter
+moves to a post-selector or per-env config files and the plan is revised
+before any rollout.
 
 ### Task 6: Vault policy and hub access
 
@@ -347,7 +360,7 @@ entry, vault policy re-run).
 
 ## Tasks 10-13: rollout PRs (each its own PR, in order)
 
-Each PR: flip `envs: [prod]` in the named configs, delete the matching old
+Each PR: replace `[]` with the `env: prod` entry in the named configs, delete the matching old
 Application files, and nothing else. After merge, wait for root-prod to
 prune the old Application (it has the resources finalizer) and the set to
 create the new one. Before each: `vault status`; after each: the checks

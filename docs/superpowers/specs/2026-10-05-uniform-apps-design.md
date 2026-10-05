@@ -28,7 +28,7 @@ and adding an app, or an environment, becomes adding a directory.
 | --- | --- |
 | Shape | Every app is a kustomize directory `argocd/apps/<app>/<env>/`. Helm charts are inflated with `helmCharts:` |
 | Rendering | One path: the existing argocd-vault-plugin (AVP) CMP runs every app, `kustomize build --enable-helm` |
-| Per-app facts | `argocd/apps/<app>/config.yaml`: namespace, sync wave, `syncOptions`, the envs it targets |
+| Per-app facts | `argocd/apps/<app>/config.yaml`: a top-level list with one entry per env the app is deployed to (`env`, namespace, sync wave, `createNamespace`, `serverSideApply`); an empty list deploys nothing |
 | Generator | One ApplicationSet: a matrix of the cluster generator (label `env`) and a git-files generator over `config.yaml` |
 | Names | `<cluster>-<directory>`, so `prod-nfs-provisioner` and `prod-kube-prometheus-stack`. `nfs_provisioner` is renamed `nfs-provisioner`, since an underscore is not a valid name. Nothing references the old Application names. Prod's Applications are deleted and recreated; prod holds no valuable data |
 | Plain Applications | `root-prod` and `argocd-config` stay plain |
@@ -57,7 +57,7 @@ Also moved here from sub-4, because they touch only prod:
   and values into that kustomization (`helmCharts:`, `includeCRDs: true`).
   The `$values` second source goes away.
 - `argocd/apps/<app>/config.yaml` per app. It carries only what differs
-  between apps: namespace, sync wave, `syncOptions`, and the list of envs.
+  between apps: one entry per env it is deployed to, each with namespace, sync wave and `syncOptions`. The git-files generator turns each list entry into one parameter set, so the cluster generator can select `env: '{{.env}}'` and the filtering is structural.
 
 **The set.**
 
