@@ -48,7 +48,7 @@ echo "== kustomize"
 while IFS= read -r kfile; do
   dir=$(dirname "$kfile")
   echo "-- $dir"
-  kustomize build "$dir" > "$work/out.yaml" || { fail "kustomize build $dir"; continue; }
+  kustomize build --enable-helm "$dir" > "$work/out.yaml" || { fail "kustomize build $dir"; continue; }
   schema_check "$work/out.yaml" || fail "kubeconform $dir"
 done < <(find argocd -name kustomization.yaml | sort)
 
@@ -98,6 +98,9 @@ echo "== argocd resources"
 # Not the kustomization.yaml files: those are not Kubernetes objects.
 mapfile -t plain < <(find argocd/base argocd/environments -name '*.yaml' ! -name kustomization.yaml | sort)
 schema_check "${plain[@]}" || fail "kubeconform argocd resources"
+
+echo "== applicationset"
+scripts/check-appsets.sh . || fail "check-appsets"
 
 if [ "$failed" -ne 0 ]; then
   echo "check-manifests: FAILED" >&2
