@@ -20,7 +20,7 @@ env:
   # renovate: datasource=pypi depName=ansible-lint
   ANSIBLE_LINT_VERSION: "26.8.0"
   # renovate: datasource=github-releases depName=hashicorp/terraform extractVersion=^v(?<version>.+)$
-  TERRAFORM_VERSION: "1.16.2"
+  TERRAFORM_VERSION: "1.16.5"
   # renovate: datasource=github-releases depName=terraform-linters/tflint
   TFLINT_VERSION: "v0.64.0"
   # renovate: datasource=github-releases depName=helm/helm
