@@ -30,10 +30,19 @@ sidecar, kustomize `helmCharts:`, Helm, Renovate, Ansible (`roles/argocd`).
   Commit subjects ≤ 50 chars, imperative, lowercase; types `feat fix
   refactor docs chore ops`. No `Co-Authored-By`, no generated-with line in
   commits or PR bodies.
-- PR split: the spec, this plan and Tasks 1-9 land in draft #102 (nothing
-  in them changes what prod runs, except the CMP change in Task 2, an
-  operator step). The rollout is four further PRs (Tasks 10-13), each
-  merged and verified before the next.
+- PR split: the spec, this plan and Tasks 1-9 land in draft #102. The
+  rollout is four further PRs (Tasks 10-13), each merged and verified
+  before the next. Merging #102 does change prod: ArgoCD applies the
+  empty ApplicationSet `apps`, the `clusters` Application and the `prod`
+  cluster Secret (which renames the built-in `in-cluster`), the AppProject
+  destinations, the nfs path rename (identical render), and the
+  Prometheus Ingress and `prometheus-basic-auth` Secret (through the live
+  `monitoring` and `monitoring-secrets` Applications); the new
+  `kustomization.yaml` files are read by nobody until rollout. The
+  operator then re-runs the argocd role (the CMP, Task 2) and
+  `vault.yaml` (the policy, Task 6). The order, before and after merge,
+  is the runbook entry
+  [Land the uniform-apps PR](../../runbooks/checks.md#land-the-uniform-apps-pr).
 - Chart pins, verbatim from the current Applications: cert-manager
   `v1.21.2` (repo `https://charts.jetstack.io`, release `cert-manager`);
   ingress-nginx `4.14.5` (repo `https://kubernetes.github.io/ingress-nginx`,
@@ -484,6 +493,12 @@ below, on the thing itself.
   still arrives; Task 7's receiver checks pass.
 
 ### Task 14: Renovate (after rollout 4)
+
+During the rollout window (#102 merged, rollout 4 not yet), Renovate's
+default kustomize manager already reads `helmCharts:` in the prod
+kustomizations while the old Applications still carry the same pins
+(Argo manager), so one chart bump may open two PRs. Merge neither
+alone, or close the kustomization one: the rollouts retire the old pins.
 
 - [ ] Step 1: On the first Renovate run after Task 13, check the
   Dependency Dashboard lists the three charts (kustomize manager). If

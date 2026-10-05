@@ -914,8 +914,9 @@ from `secret.yaml`.
        kubectl --kubeconfig "$PROD_KC" -n argocd get applications
        ```
 
-       Expect `argocd-config`, the `clusters` Secret Application and the
-       set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
+       After the uniform-apps rollout (rollout 4 merged): expect
+       `argocd-config`, the `clusters` Secret Application and the set's
+       Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
        `prod-cert-manager`, `prod-cert-manager-issuers`,
        `prod-ingress-nginx`, `prod-monitoring-secrets`,
        `prod-kube-prometheus-stack`), all `Synced` and `Healthy` after
@@ -929,6 +930,10 @@ from `secret.yaml`.
        chart. On a from-scratch bootstrap the retries can run out, so
        expect to need one manual sync below. Moving an existing app into
        the set is [Roll an app into the set](runbooks/checks.md#roll-an-app-into-the-set).
+       Until rollout 4 is on `main`, a rebuild from `main` creates the
+       old per-app Applications (`nfs`, `cert-manager`, `monitoring`,
+       ...) instead, beside an `apps` set that generates only the apps
+       already rolled out.
 
        After a sealed or briefly unreachable Vault, `monitoring-secrets`
        and `cert-manager-issuers` show a `ComparisonError` and sync on

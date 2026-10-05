@@ -200,6 +200,10 @@ R="$(kubectl --kubeconfig "$PROD_KC" -n argocd get pod \
 kubectl --kubeconfig "$PROD_KC" -n argocd get deploy argocd-applicationset-controller \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}{.status.readyReplicas}{"\n"}'
 kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c 'helm version; kustomize version'
+# no policy override: applicationsSync create-update is honoured only while
+# the controller's --policy is unset
+kubectl --kubeconfig "$PROD_KC" -n argocd get cm argocd-cmd-params-cm -o yaml \
+  | grep applicationsetcontroller
 # AVP on a manifest with no placeholder: does it still try to log in?
 kubectl --kubeconfig "$PROD_KC" -n argocd exec -i "$R" -c avp -- \
   env VAULT_ADDR=https://192.0.2.1:8200 argocd-vault-plugin generate - <<'EOF2'
@@ -216,8 +220,10 @@ kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c '
   time kustomize build --enable-helm . | wc -l; ls; rm -rf "$d"'
 ```
 
-Expect: the applicationset controller image tag and `1` ready replica; both
-binaries print a version; the placeholder-free generate either prints the
+Expect: the applicationset controller image tag and `1` ready replica; the
+`grep applicationsetcontroller` prints no `policy` line (no
+`applicationsetcontroller.policy`; a set policy overrides the set's
+`create-update`); both binaries print a version; the placeholder-free generate either prints the
 ConfigMap or fails, and the result is the finding: if it errors on the
 unreachable address, AVP logs in regardless, which is why the CMP calls it
 only when `<path:` is present. The render finishes well under 90 seconds
@@ -229,6 +235,64 @@ to supply it; a read-only filesystem error means the three `HELM_*`
 directories in the plugin's `generate` command are not under `/tmp`; a
 render over 90 seconds means raising the repo-server's exec timeout
 (`ARGOCD_EXEC_TIMEOUT`) before moving `kube-prometheus-stack`.
+
+### Land the uniform-apps PR
+
+When: merging the PR that adds the set, the `clusters` Application and the
+Prometheus receiver ([ADR 0026](../decisions/0026-uniform-apps.md)). The
+merge changes prod at once: the empty set `apps`, the `prod` cluster
+Secret (which renames `in-cluster`), the AppProject destinations, the
+`nfs` path rename and the receiver Ingress and Secret through the live
+`monitoring` and `monitoring-secrets`. This entry is the order; each step
+links the entry that owns its commands.
+
+BEFORE merge, in order:
+
+1. Vault unsealed: [Is Vault up and unsealed](#is-vault-up-and-unsealed).
+2. [Check the CMP sidecar](#check-the-cmp-sidecar): `helm` present, the
+   heaviest render under 90 seconds, the applicationset controller Ready
+   with no `applicationsetcontroller.policy` set.
+3. [Seed the remote-write credential](playbooks-and-terraform.md#seed-the-remote-write-credential),
+   which ends by re-running `vault.yaml`'s seed.
+4. [Verify the ApplicationSet](#verify-the-applicationset) against the
+   pushed branch: no Applications and no error while every config is
+   `[]`, exactly `prod-<dir>` with one scratch entry.
+
+AFTER merge, wait for `root-prod`'s next poll (about 3 minutes), then:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd get applicationset apps \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.message}{"\n"}{end}'
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+argocd cluster list
+kubectl --kubeconfig "$PROD_KC" -n monitoring get certificate prometheus-tls
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://prometheus.mgryn.cc/api/v1/write
+```
+
+Expect: the set has no `ErrorOccurred=True` condition and has generated no
+Applications (no `prod-*` in the list); `clusters` and every existing prod
+Application, `monitoring-secrets` included, `Synced` and `Healthy`;
+`argocd cluster list` shows `prod` at `https://kubernetes.default.svc`;
+`prometheus-tls` `READY` `True`; the unauthenticated `curl` prints `401`
+(a `503` means the auth Secret is missing: step 3 was skipped). The
+receiver needs two grey-cloud A records for `prometheus.mgryn.cc`, one per
+prod worker, before the `curl`. With the credential, a body above 1 MiB
+must not return `413`.
+
+Then re-run the argocd role for the CMP
+([Deploy ArgoCD to prod](playbooks-and-terraform.md#deploy-argocd-to-prod)):
+the repo-server restarts, and `monitoring-secrets`, `pve-exporter`,
+`cert-manager-issuers`, `alerts` and `nfs` stay `Synced` (`alerts` and
+`nfs` move to the sidecar here). Re-run `vault.yaml` for the policy
+([Widen prod's policy to read kv-dev](playbooks-and-terraform.md#widen-prods-policy-to-read-kv-dev)).
+Only then start the rollouts
+([Roll an app into the set](#roll-an-app-into-the-set)).
+
+If not: an `ErrorOccurred` condition naming `env` means empty configs are
+not dropped; see [Verify the ApplicationSet](#verify-the-applicationset).
+`monitoring-secrets` `Unknown` with a `ComparisonError` means the
+remote-write field is missing or Vault is sealed; see
+[Spot ComparisonError](#spot-comparisonerror-the-sealed-vault-tell).
 
 ### Verify the ApplicationSet
 
@@ -310,18 +374,25 @@ its entry is still on `main` is recreated by the set. So: merge the PR that
 leaves `[]` in the app's `config.yaml` (and removes nothing else), then
 delete the Application.
 
+The default keeps the app's resources: remove the finalizer first. Skip
+that step only when deleting the resources is intended. **Warning:** an app
+that owns a Namespace or PVCs takes them with it when its finalizer
+cascades. `monitoring-secrets` owns the `monitoring` Namespace, and with it
+the Prometheus and Grafana PVCs; `nfs-prod` then deletes their data. Never
+skip the patch for such an app unless that data loss is the point.
+
 ```bash
-# <new> is the generated Application, prod-<dir>. Its finalizer cascades, so
-# the app's resources go too. Run the patch only to keep them.
-# optional: keeps the app's resources
+# <new> is the generated Application, prod-<dir>.
+# 1. keep the app's resources (skip ONLY to delete them on purpose)
 kubectl --kubeconfig "$PROD_KC" -n argocd patch application <new> \
   --type merge -p '{"metadata":{"finalizers":null}}'
+# 2. delete the Application
 kubectl --kubeconfig "$PROD_KC" -n argocd delete application <new>
 ```
 
 Expect: `<new>` gone from `kubectl -n argocd get applications` and not
-recreated after the next poll; the resources gone, or kept if the patch
-ran. Skip the patch to remove them. If not: the entry is still on `main`.
+recreated after the next poll; the resources kept (or gone, if step 1 was
+skipped on purpose). If not: the entry is still on `main`.
 
 ### Prove AVP end to end
 
