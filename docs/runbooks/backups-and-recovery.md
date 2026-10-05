@@ -52,26 +52,37 @@ restoring and that it is the one you want:
 ls -l --time-style=long-iso /mnt/vault-backups
 ```
 
-The snapshot needs the unseal key and root token it was taken under, not any
-generated afterward. On a fresh `vault-02`, run `vault operator init` and
-`vault operator unseal` first. Run on `vault-02`; `<file>` is a name from
-the listing above.
+Token sequence (rebuild.md gives the restore command but no token step; the
+Vault API needs an authenticated token for any request, so the prompt below
+is this runbook's addition):
+
+1. Fresh `vault-02`: `vault operator init` and `vault operator unseal`
+   produce a new unseal key and root token. The restore command needs a
+   token valid now: enter that new root token at the prompt. Already-running
+   Vault being rolled back: enter its current root token.
+2. The restore replaces the store with the snapshot's. From then on only the
+   ORIGINAL unseal key and ORIGINAL root token (the ones recorded when the
+   snapshot's data was written) work; the new ones are void.
+
+Run on `vault-02`; `<file>` is a name from the listing above.
 
 ```bash
 export VAULT_ADDR=https://10.0.0.133:8200
-read -rs VAULT_TOKEN; export VAULT_TOKEN
+read -rs VAULT_TOKEN; export VAULT_TOKEN   # current root token, before the restore
 vault operator raft snapshot restore -force /mnt/vault-backups/<file>
 unset VAULT_TOKEN
 ```
 
-Expect: no error. Then unseal with the original unseal key and log in with
-the original root token, not the fresh store's own, and run
-`vault status`.
+Expect: no error. Then unseal with the original unseal key, log in with the
+original root token, and run `vault status`.
 
-If not: `Sealed true` after the restore is normal until the original key is
-used. A permission or token error means the token is the fresh store's, not
-the original. Without the original key and token the snapshot cannot be
-used. The full procedure is in
+If not: a permission or token error on the restore means the token entered
+is not valid in the store as it stands now (on a fresh init, use the new
+root token from that init). After a successful restore, a rejected unseal
+key or token means you are using the new ones instead of the originals.
+`Sealed true` after the restore is normal until the original key is used.
+Without the original key and token the snapshot cannot be used. The full
+procedure is in
 [rebuild.md](../rebuild.md#restoring-vault-from-a-snapshot); apps recover on
 Argo's next poll once Vault is unsealed.
 
@@ -101,14 +112,15 @@ When: a prod PVC was deleted and its data is no longer wanted. The
 data directory under `/srv/nfs/prod` on `nfs-01`. Nothing deletes them.
 
 Warning: this destroys the PV object and, on `nfs-01`, the data directory.
-Check first that nothing wants the data. List the `Released` PVs and note
-the name of the one to remove:
+Check first that nothing wants the data. From the repo root, list the PVs;
+look for `STATUS` `Released` and read the `CLAIM` column to confirm it is the
+deleted PVC's:
 
 ```bash
 cd terraform/environments/prod
 umask 077; KC_TMP="$(mktemp)"
 terraform output -raw kubeconfig > "$KC_TMP"
-kubectl --kubeconfig "$KC_TMP" get pv
+kubectl --kubeconfig "$KC_TMP" get pv | grep -E '^NAME|Released'
 echo "kubeconfig is at $KC_TMP"
 ```
 
@@ -127,7 +139,8 @@ Then remove its directory under `/srv/nfs/prod` on `nfs-01` (SSH in as in
 ls -l /srv/nfs/prod
 ```
 
-Expect: one directory per PV, named for the namespace, PVC and PV. Remove
+Expect: typically one directory per PV, named for the namespace, PVC and PV
+by the provisioner's default naming (not set in this repo). Remove
 only the one that matches with `sudo rm -r /srv/nfs/prod/<directory>`.
 
 If not: a PV that is `Bound` is in use; do not delete it. A PV listed as
