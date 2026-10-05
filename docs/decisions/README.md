@@ -37,3 +37,4 @@ Context or Decision.
 | [0022](0022-host-bootstrapped-by-script.md) | Proxmox host bootstrapped by one idempotent script | Accepted | 2026-10-01 |
 | [0023](0023-renovate-hosted-app.md) | Renovate, as the hosted app, proposes pin updates | Accepted | 2026-10-01 |
 | [0024](0024-hub-in-prod.md) | The hub platform runs in prod; dev is a spoke | Accepted | 2026-10-03 |
+| [0025](0025-runbooks-own-operator-commands.md) | Runbooks own the operator commands; rebuild.md owns the order | Accepted | 2026-10-05 |

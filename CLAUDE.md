@@ -48,6 +48,7 @@ terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                                         prod shares and KV ready, unused
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
 docs/operations.md  day-to-day: UIs, applying, jobboard versions
+docs/runbooks/    copy-paste commands to run and check things; start at its README.md
 ```
 
 ## How a change reaches the cluster
@@ -142,6 +143,11 @@ the exception: squash-merge them with a short Conventional subject (ADR
 
 A change that makes or reverses an architectural decision adds or
 supersedes a record in `docs/decisions/` in the same PR.
+
+Commands live in `docs/runbooks/`. A PR that adds or changes a playbook, a
+flag or an operator step updates the runbook in the same PR, and links the
+entry from its operator checklist instead of restating the command. (ADR
+[0025](docs/decisions/0025-runbooks-own-operator-commands.md))
 
 ## Load-bearing and non-obvious
 
@@ -301,6 +307,7 @@ pre-commit run --all-files                     # what the CI pre-commit job runs
 scripts/check-manifests.sh                     # every kustomization and Helm chart, rendered and schema-checked
 scripts/tests/pve-bootstrap.test.sh            # bootstrap script against stubbed pveum/qm/pveam
 scripts/check-talos-pins.sh                    # script's Talos pins equal the prod root's defaults
+scripts/check-runbooks.sh                      # runbooks name every playbook; commands and links resolve
 ```
 
 `argocd/apps/ingress-nginx/dev` holds only `values.yaml` — it is a Helm
