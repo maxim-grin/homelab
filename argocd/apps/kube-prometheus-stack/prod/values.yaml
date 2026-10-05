@@ -143,7 +143,7 @@ grafana:
       cpu: 50m
       memory: 128Mi
     limits:
-      memory: 256Mi
+      memory: 512Mi
   # Applies to both sidecars, the dashboard and the datasource watchers.
   sidecar:
     resources:
@@ -151,7 +151,7 @@ grafana:
         cpu: 10m
         memory: 48Mi
       limits:
-        memory: 96Mi
+        memory: 128Mi
 
 kube-state-metrics:
   resources:
