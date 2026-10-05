@@ -31,4 +31,4 @@ migration.
 
 CLAUDE.md, "`nfs-dev` is the default StorageClass" and "The `nfs-dev`
 share's path"; README.md "What actually runs"; `ansible/roles/nfs_server`;
-`argocd/apps/nfs_provisioner`.
+`argocd/apps/nfs-provisioner`.
