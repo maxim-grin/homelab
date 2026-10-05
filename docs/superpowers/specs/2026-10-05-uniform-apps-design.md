@@ -30,7 +30,7 @@ and adding an app, or an environment, becomes adding a directory.
 | Rendering | One path: the existing argocd-vault-plugin (AVP) CMP runs every app, `kustomize build --enable-helm` |
 | Per-app facts | `argocd/apps/<app>/config.yaml`: namespace, sync wave, `syncOptions`, the envs it targets |
 | Generator | One ApplicationSet: a matrix of the cluster generator (label `env`) and a git-files generator over `config.yaml` |
-| Names | `<cluster>-<app>`, so `prod-nfs`. Prod's Applications are deleted and recreated; prod holds no valuable data |
+| Names | `<cluster>-<directory>`, so `prod-nfs-provisioner` and `prod-kube-prometheus-stack`. `nfs_provisioner` is renamed `nfs-provisioner`, since an underscore is not a valid name. Nothing references the old Application names. Prod's Applications are deleted and recreated; prod holds no valuable data |
 | Plain Applications | `root-prod` and `argocd-config` stay plain |
 | Scope | Prod only. Dev's Application CRs and overlays stay as they are until sub-4 |
 | Chart versions | Move into each `kustomization.yaml`; Renovate switches from its Argo manager to its kustomize manager for them |
