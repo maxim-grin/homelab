@@ -21,7 +21,13 @@
 #   - the template may use only {{.name}} (cluster name), {{.path.basename}}
 #     (the app directory) and {{.env}} in metadata.name and source.path, and
 #     must render `<cluster>-<dir>` and `argocd/apps/<dir>/<env>`.
-#   - spec.syncPolicy.applicationsSync is create-update.
+#   - spec.syncPolicy.applicationsSync is create-update, and the set is
+#     protected from its own deletion: preserveResourcesOnDeletion: true
+#     and the annotation argocd.argoproj.io/sync-options:
+#     Prune=false,Delete=false.
+#   - every entry has env, namespace, createNamespace and serverSideApply
+#     (the set renders with missingkey=error), and no config.yaml sits
+#     below argocd/apps/<dir>/.
 #   - when any entry sets createNamespace, serverSideApply or
 #     namespaceLabels, spec.templatePatch exists and reads that key. The
 #     patch is checked by text, not rendered: its output is verified with
@@ -80,6 +86,23 @@ fi
 
 echo "== applicationset"
 
+# The git files generator's glob may match across '/' (git ls-files style),
+# so a config.yaml below argocd/apps/<dir>/ could become an Application this
+# check never expands. Only files git would commit count: kustomize's
+# gitignored Helm cache (charts/) holds chart templates named config.yaml.
+list_app_files() {
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git ls-files --cached --others --exclude-standard -- argocd/apps
+  else
+    find argocd/apps -type f -not -path '*/charts/*'
+  fi
+}
+if [ -d argocd/apps ]; then
+  while IFS= read -r f; do
+    fail "$f is nested deeper than argocd/apps/<dir>/: the set's glob may still pick it up; move it or rename it"
+  done < <(list_app_files | grep -E '^argocd/apps/[^/]+/.+/config\.yaml$' | sort)
+fi
+
 if [ "${#configs[@]}" -eq 0 ]; then
   fail "$set_file references no config: no argocd/apps/*/config.yaml exists"
   finish
@@ -90,6 +113,14 @@ fi
   || fail "$set_file needs spec.goTemplate: true"
 [ "$(yq '.spec.syncPolicy.applicationsSync' "$set_file")" = create-update ] \
   || fail "$set_file needs spec.syncPolicy.applicationsSync: create-update (applicationsSync is wrong or missing)"
+# create-update only stops the generator deleting Applications. Deleting the
+# set itself deletes every generated Application, and their finalizers the
+# workloads; these two keep root-prod from pruning it and keep the
+# resources if it goes anyway.
+[ "$(yq '.spec.syncPolicy.preserveResourcesOnDeletion' "$set_file")" = true ] \
+  || fail "$set_file needs spec.syncPolicy.preserveResourcesOnDeletion: true (deleting the set would cascade-delete every workload)"
+[ "$(yq '.metadata.annotations["argocd.argoproj.io/sync-options"]' "$set_file")" = 'Prune=false,Delete=false' ] \
+  || fail "$set_file needs metadata annotation argocd.argoproj.io/sync-options: Prune=false,Delete=false (root-prod could prune or delete the set)"
 if [ "$(yq '.spec.generators[].matrix.generators[].git.files[].path' "$set_file" | grep -cx 'argocd/apps/\*/config.yaml')" -eq 0 ]; then
   fail "$set_file does not read argocd/apps/*/config.yaml"
 fi
@@ -191,8 +222,16 @@ for cfg in "${configs[@]}"; do
   for ((i = 0; i < n; i++)); do
     env=$(yq ".[$i].env // \"\"" "$cfg")
     ns=$(yq ".[$i].namespace // \"\"" "$cfg")
-    [ -n "$env" ] || { fail "$cfg entry $i has no env"; continue; }
-    [ -n "$ns" ] || { fail "$cfg entry $i has no namespace"; continue; }
+    # The set renders with missingkey=error: one entry missing a key the
+    # template or patch reads halts generation of every Application.
+    missing=0
+    [ -n "$env" ] || { fail "$cfg entry $i has no env"; missing=1; }
+    [ -n "$ns" ] || { fail "$cfg entry $i has no namespace"; missing=1; }
+    for k in createNamespace serverSideApply; do
+      [ "$(yq ".[$i] | has(\"$k\")" "$cfg")" = true ] \
+        || { fail "$cfg entry $i has no $k (the set's templatePatch reads it; with missingkey=error the whole set stops generating)"; missing=1; }
+    done
+    [ "$missing" -eq 0 ] || continue
     matched=0
     for c in "${clusters[@]}"; do
       IFS='|' read -r cname cenv cserver <<<"$c"

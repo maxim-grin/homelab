@@ -1,6 +1,5 @@
 - env: prod
   namespace: nfs-provisioner
-  wave: 1
   createNamespace: true
   serverSideApply: false
   namespaceLabels:

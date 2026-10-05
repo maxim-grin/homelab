@@ -40,6 +40,13 @@ expect no-set 1 'but no ApplicationSet'
 expect no-patch 1 'no spec.templatePatch'
 expect patch-no-labels 1 'templatePatch does not handle namespaceLabels'
 expect patch-no-ssa 1 'templatePatch does not handle serverSideApply'
+expect unprotected 1 'preserveResourcesOnDeletion'
+expect unprotected 1 'Prune=false,Delete=false'
+expect missing-keys 1 'entry 0 has no env'
+expect missing-keys 1 'entry 1 has no namespace'
+expect missing-keys 1 'entry 2 has no createNamespace'
+expect missing-keys 1 'entry 3 has no serverSideApply'
+expect nested-config 1 'nested deeper than argocd/apps/<dir>/'
 
 # A tree with no set at all is skipped, not failed.
 empty="$(mktemp -d)"

@@ -1,5 +1,4 @@
 - env: prod
   namespace: kube-prometheus-stack
-  wave: 1
   createNamespace: true
   serverSideApply: true

@@ -1,0 +1,12 @@
+- namespace: monitoring
+  createNamespace: false
+  serverSideApply: true
+- env: prod
+  createNamespace: false
+  serverSideApply: true
+- env: prod
+  namespace: monitoring
+  serverSideApply: true
+- env: prod
+  namespace: monitoring
+  createNamespace: false

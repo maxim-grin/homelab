@@ -3,11 +3,14 @@ kind: ApplicationSet
 metadata:
   name: apps
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
   syncPolicy:
     applicationsSync: create-update
+    preserveResourcesOnDeletion: true
   generators:
     - matrix:
         generators:
