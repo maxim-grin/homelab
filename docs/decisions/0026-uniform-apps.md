@@ -75,7 +75,8 @@ nothing), `preserveResourcesOnDeletion: true` (if the set goes anyway, the
 Applications go but their resources stay), and the annotation
 `argocd.argoproj.io/sync-options: Prune=false,Delete=false` so `root-prod`
 never prunes the set. Retiring an app is a deliberate delete of its
-generated Application, then removal of its config entry
+generated Application, after its config entry is back to `[]` on `main`:
+while the entry exists, a deleted Application is recreated
 ([runbook](../runbooks/checks.md#retire-an-app-from-the-set)).
 
 **Rollout adopts in place.** The new `prod-<dir>` Application takes over

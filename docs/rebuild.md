@@ -1026,8 +1026,8 @@ from `secret.yaml`.
     1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, need
        the CRDs of `kube-prometheus-stack` and the namespace
        `monitoring-secrets` owns; with no sync waves they rely on the
-       set's finite retry for the race. Until Vault holds `monitoring/pve-exporter`, `pve-exporter`
-       shows a `ComparisonError`: expected and harmless. AVP fails at
+       set's finite retry for the race. Until Vault holds
+       `monitoring/pve-exporter`, `pve-exporter` shows a `ComparisonError`: expected and harmless. AVP fails at
        comparison, not at sync, so no retry is consumed, and it syncs on
        its own once Vault is seeded. A sealed Vault is handled as in
        step 18.2.

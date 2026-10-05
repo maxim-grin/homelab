@@ -238,7 +238,8 @@ a checkout of the branch. This is the only proof that Argo accepts the
 templated `env` selector inside the matrix; `scripts/check-appsets.sh`
 expands the set with `yq`, not with Argo's own generators. The git
 generator reads its repository, so a scratch entry has to be on a pushed
-branch: set `revision` in a local copy of the set to that branch.
+branch: set `revision` in a local copy of the set to that branch. That
+edit is a scratch change: revert it and never commit it.
 `argocd` is the CLI, logged in to prod or run with `--core`.
 
 ```bash
@@ -297,7 +298,8 @@ delete the Application.
 
 ```bash
 # <new> is the generated Application, prod-<dir>. Its finalizer cascades, so
-# the app's resources go too. To keep them, run the patch first.
+# the app's resources go too. Run the patch only to keep them.
+# optional: keeps the app's resources
 kubectl --kubeconfig "$PROD_KC" -n argocd patch application <new> \
   --type merge -p '{"metadata":{"finalizers":null}}'
 kubectl --kubeconfig "$PROD_KC" -n argocd delete application <new>
