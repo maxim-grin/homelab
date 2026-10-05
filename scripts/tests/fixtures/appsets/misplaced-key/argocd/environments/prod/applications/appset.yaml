@@ -6,18 +6,21 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  syncPolicy:
+    applicationsSync: create-update
   generators:
     - matrix:
         generators:
-          - clusters:
-              selector:
-                matchLabels:
-                  argocd.argoproj.io/secret-type: cluster
           - git:
               repoURL: https://github.com/maxim-grin/homelab.git
               revision: main
               files:
                 - path: argocd/apps/*/config.yaml
+          - clusters:
+              selector:
+                matchLabels:
+                  argocd.argoproj.io/secret-type: cluster
+                  env: "{{.env}}"
   template:
     metadata:
       name: "{{.name}}-{{.path.basename}}"
@@ -26,7 +29,7 @@ spec:
       source:
         repoURL: https://github.com/maxim-grin/homelab.git
         targetRevision: main
-        path: "argocd/apps/{{.path.basename}}/{{.metadata.labels.env}}"
+        path: "argocd/apps/{{.path.basename}}/{{.env}}"
         plugin:
           name: argocd-vault-plugin
       destination:

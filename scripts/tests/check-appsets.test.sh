@@ -30,9 +30,13 @@ expect good 0 'prod-nfs-provisioner'
 expect underscore 1 'not a valid DNS-1123 label'
 expect capital 1 'not a valid DNS-1123 label'
 expect no-cluster 1 'no cluster Secret provides'
+expect no-clusters 1 'no cluster Secret provides'
 expect misplaced-key 1 'misplaced key'
+expect no-env-filter 1 'does not filter clusters by env'
+expect bad-sync 1 'applicationsSync'
 expect bad-destination 1 'not allowed by'
 expect noconfig 1 'references no config'
+expect no-set 1 'but no ApplicationSet'
 
 # A tree with no set at all is skipped, not failed.
 empty="$(mktemp -d)"
@@ -41,10 +45,10 @@ rc=0
 out="$("$GUARD" "$empty" 2>&1)" || rc=$?
 if [ "$rc" -eq 0 ] && grep -q skipped <<<"$out"; then
   PASS=$((PASS + 1))
-  echo "ok   no-set"
+  echo "ok   empty-tree"
 else
   FAIL=$((FAIL + 1))
-  echo "FAIL no-set: rc=$rc $out"
+  echo "FAIL empty-tree: rc=$rc $out"
 fi
 
 echo "$PASS passed, $FAIL failed"

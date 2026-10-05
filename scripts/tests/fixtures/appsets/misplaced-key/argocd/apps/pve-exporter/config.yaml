@@ -1,5 +1,1 @@
-namespace: monitoring
-wave: 2
-createNamespace: true
-serverSideApply: false
-envs: []
+[]

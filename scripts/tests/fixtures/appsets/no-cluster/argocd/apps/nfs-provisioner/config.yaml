@@ -1,6 +1,5 @@
-namespace: nfs-provisioner
-wave: 1
-createNamespace: true
-serverSideApply: false
-envs:
-  - dev
+- env: dev
+  namespace: nfs-provisioner
+  wave: 1
+  createNamespace: true
+  serverSideApply: false

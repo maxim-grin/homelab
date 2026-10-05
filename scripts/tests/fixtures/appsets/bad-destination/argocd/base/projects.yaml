@@ -7,5 +7,3 @@ spec:
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc
-    - namespace: "*"
-      name: dev

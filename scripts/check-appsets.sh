@@ -10,14 +10,27 @@
 # (argocd/apps/clusters/*/*.yaml) and the per-app configs
 # (argocd/apps/*/config.yaml), not `argocd appset generate --core`: the CLI
 # is not installed on the workstation or in CI, and the inputs are plain YAML.
-# The pairs are cluster x config where the cluster's `env` label is listed in
-# the config's `envs`. Strict schema validation of the set itself (a key at
-# the wrong level under template.spec) is kubeconform's job in
-# check-manifests.sh; the structural checks here add precise messages.
 #
-# Skipped, not failed, while there is nothing to expand: no ApplicationSet,
-# or no cluster Secrets. A set with no config.yaml at all fails.
+# Shape this check assumes:
+#   - config.yaml is a top-level list, one entry per env the app deploys to
+#     (`env`, `namespace`, ...); `[]` means deployed nowhere yet.
+#   - the set has `goTemplate: true` and a matrix of a git-files generator
+#     over argocd/apps/*/config.yaml (each entry is one parameter set) and a
+#     cluster generator selecting `argocd.argoproj.io/secret-type: cluster`
+#     and `env: "{{.env}}"`, so the env filtering is structural.
+#   - the template may use only {{.name}} (cluster name), {{.path.basename}}
+#     (the app directory) and {{.env}} in metadata.name and source.path, and
+#     must render `<cluster>-<dir>` and `argocd/apps/<dir>/<env>`.
+#   - spec.syncPolicy.applicationsSync is create-update.
+# Strict schema validation of the set (a key at the wrong level) is
+# kubeconform's job in check-manifests.sh; the structural checks here add
+# precise messages.
+#
+# Skipped, not failed, only while there is nothing to expand: no config has
+# any entry. A set with no config.yaml at all fails; configs with entries but
+# no set fail; entries with no matching cluster Secret fail.
 set -euo pipefail
+shopt -u patsub_replacement 2>/dev/null || true
 
 root="${1:-$(git rev-parse --show-toplevel)}"
 cd "$root"
@@ -42,58 +55,77 @@ finish() {
   exit 0
 }
 
+configs=()
+entries=0
+for f in argocd/apps/*/config.yaml; do
+  [ -f "$f" ] || continue
+  configs+=("$f")
+  if [ "$(yq 'tag' "$f")" = '!!seq' ]; then
+    entries=$((entries + $(yq 'length' "$f")))
+  fi
+done
+
 if [ ! -f "$set_file" ]; then
-  echo "check-appsets: skipped, no $set_file"
+  if [ "$entries" -gt 0 ]; then
+    fail "configs list envs but no ApplicationSet at $set_file"
+    finish
+  fi
+  echo "check-appsets: skipped, no $set_file and no config entries"
   exit 0
 fi
 
 echo "== applicationset"
 
-# --- misplaced keys: the set's template is {metadata, spec}; spec carries
-# syncPolicy, never the template itself or a spec-level lookalike.
-bad=$(yq '.spec.template | keys | .[] | select(. != "metadata" and . != "spec")' "$set_file")
-for k in $bad; do
-  fail "misplaced key template.$k in $set_file: it belongs under template.spec (or template.metadata)"
-done
-for k in syncOptions automated finalizers prune selfHeal managedNamespaceMetadata; do
-  [ "$(yq ".spec.template.spec | has(\"$k\")" "$set_file")" = false ] \
-    || fail "misplaced key template.spec.$k in $set_file: it belongs under template.spec.syncPolicy"
-done
-[ "$(yq '.spec.template.spec | has("syncPolicy")' "$set_file")" = true ] \
-  || fail "misplaced key: template.spec.syncPolicy missing in $set_file (a template-level or spec-level syncPolicy does not reach the Application)"
-[ "$(yq '.spec | has("template") ' "$set_file")" = true ] \
-  || fail "$set_file has no spec.template"
+if [ "${#configs[@]}" -eq 0 ]; then
+  fail "$set_file references no config: no argocd/apps/*/config.yaml exists"
+  finish
+fi
 
-# --- inputs
+# --- the set itself
+[ "$(yq '.spec.goTemplate' "$set_file")" = true ] \
+  || fail "$set_file needs spec.goTemplate: true"
+[ "$(yq '.spec.syncPolicy.applicationsSync' "$set_file")" = create-update ] \
+  || fail "$set_file needs spec.syncPolicy.applicationsSync: create-update (applicationsSync is wrong or missing)"
+if [ "$(yq '.spec.generators[].matrix.generators[].git.files[].path' "$set_file" | grep -cx 'argocd/apps/\*/config.yaml')" -eq 0 ]; then
+  fail "$set_file does not read argocd/apps/*/config.yaml"
+fi
+filtered=$(yq '[.spec.generators[].matrix.generators[].clusters | select(. != null)
+  | select(.selector.matchLabels["argocd.argoproj.io/secret-type"] == "cluster" and .selector.matchLabels.env == "{{.env}}")] | length' "$set_file")
+[ "$filtered" -gt 0 ] \
+  || fail "set does not filter clusters by env: the cluster generator needs matchLabels argocd.argoproj.io/secret-type: cluster and env: \"{{.env}}\""
+
+# The template is {metadata, spec}; spec carries syncPolicy, never the
+# template itself or a spec-level lookalike.
+if [ "$(yq '.spec.template | tag' "$set_file")" != '!!map' ]; then
+  fail "$set_file has no spec.template"
+else
+  for k in $(yq '.spec.template | keys | .[] | select(. != "metadata" and . != "spec")' "$set_file"); do
+    fail "misplaced key template.$k in $set_file: it belongs under template.spec (or template.metadata)"
+  done
+  for k in syncOptions automated finalizers prune selfHeal managedNamespaceMetadata; do
+    [ "$(yq ".spec.template.spec | has(\"$k\")" "$set_file")" = false ] \
+      || fail "misplaced key template.spec.$k in $set_file: it belongs under template.spec.syncPolicy"
+  done
+  [ "$(yq '.spec.template.spec | has("syncPolicy")' "$set_file")" = true ] \
+    || fail "misplaced key: template.spec.syncPolicy missing in $set_file (a template-level or spec-level syncPolicy does not reach the Application)"
+fi
+
+# --- cluster Secrets
 clusters=() # "name|env|server"
 for f in argocd/apps/clusters/*/*.yaml; do
   [ -f "$f" ] || continue
   [ "$(yq '.metadata.labels["argocd.argoproj.io/secret-type"]' "$f")" = cluster ] || continue
   clusters+=("$(yq '.stringData.name + "|" + .metadata.labels.env + "|" + (.stringData.server // "")' "$f")")
 done
-configs=()
-for f in argocd/apps/*/config.yaml; do
-  [ -f "$f" ] && configs+=("$f")
-done
 
-if [ "${#configs[@]}" -eq 0 ]; then
-  fail "$set_file references no config: no argocd/apps/*/config.yaml exists"
-  finish
-fi
-if [ "$(yq '.spec.generators[].matrix.generators[].git.files[].path' "$set_file" | grep -cx 'argocd/apps/\*/config.yaml')" -eq 0 ]; then
-  fail "$set_file does not read argocd/apps/*/config.yaml"
-fi
-if [ "${#clusters[@]}" -eq 0 ]; then
-  echo "check-appsets: skipped expansion, no cluster Secrets under argocd/apps/clusters/"
-  finish
-fi
-
-# --- render a template string for one (cluster, app) pair
+# --- render a template string for one (cluster, env, dir) triple
 render() { # TEMPLATE CLUSTER ENV DIR
-  sed -E \
-    -e "s/\{\{ *\.?name *\}\}/$2/g" \
-    -e "s/\{\{ *\.?path\.basename *\}\}/$4/g" \
-    -e "s/\{\{ *\.?metadata\.labels\.env *\}\}/$3/g" <<<"$1"
+  local s="$1" x
+  for x in "name:$2" "env:$3" "path.basename:$4"; do
+    s="${s//"{{.${x%%:*}}}"/${x#*:}}"
+    s="${s//"{{ .${x%%:*} }}"/${x#*:}}"
+  done
+  printf '%s\n' "$s"
 }
 
 name_tpl=$(yq '.spec.template.metadata.name' "$set_file")
@@ -114,14 +146,17 @@ dest_ok() { # CLUSTER SERVER NAMESPACE
 declare -A seen=()
 for cfg in "${configs[@]}"; do
   dir=$(basename "$(dirname "$cfg")")
-  ns=$(yq '.namespace' "$cfg")
   if ! [[ "$dir" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
     fail "directory name '$dir' is not a valid DNS-1123 label (lowercase alphanumerics and '-'): the Application name is derived from it"
     continue
   fi
-  [ "$(yq '.envs | tag' "$cfg")" = '!!seq' ] || { fail "$cfg: envs must be a list ([] for not deployed yet)"; continue; }
-  while IFS= read -r env; do
-    [ -n "$env" ] || continue
+  [ "$(yq 'tag' "$cfg")" = '!!seq' ] || { fail "$cfg must be a list of entries ([] for not deployed yet)"; continue; }
+  n=$(yq 'length' "$cfg")
+  for ((i = 0; i < n; i++)); do
+    env=$(yq ".[$i].env // \"\"" "$cfg")
+    ns=$(yq ".[$i].namespace // \"\"" "$cfg")
+    [ -n "$env" ] || { fail "$cfg entry $i has no env"; continue; }
+    [ -n "$ns" ] || { fail "$cfg entry $i has no namespace"; continue; }
     matched=0
     for c in "${clusters[@]}"; do
       IFS='|' read -r cname cenv cserver <<<"$c"
@@ -133,8 +168,8 @@ for cfg in "${configs[@]}"; do
         fail "$set_file: template name/path uses an expression this check cannot expand: $name_tpl, $path_tpl"
         continue
       fi
-      want="$cname-$dir"
-      [ "$app" = "$want" ] || fail "$set_file renders '$app' for cluster $cname, app $dir; expected '$want'"
+      [ "$app" = "$cname-$dir" ] || fail "$set_file renders name '$app' for cluster $cname, app $dir; expected '$cname-$dir'"
+      [ "$path" = "argocd/apps/$dir/$env" ] || fail "$set_file renders path '$path' for $app; expected 'argocd/apps/$dir/$env'"
       if ! [[ "$app" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || [ "${#app}" -gt 63 ]; then
         fail "generated Application name '$app' is not a valid DNS-1123 label"
       fi
@@ -142,12 +177,12 @@ for cfg in "${configs[@]}"; do
         fail "duplicate Application name '$app' (from $dir and ${seen[$app]})"
       fi
       seen[$app]=$dir
-      [ -d "$path" ] || fail "$app: path $path does not exist"
+      [ -d "argocd/apps/$dir/$env" ] || fail "$app: path argocd/apps/$dir/$env does not exist"
       dest_ok "$cname" "$cserver" "$ns" || fail "$app: destination cluster '$cname' namespace '$ns' not allowed by $project_file"
-      echo "-- $app -> $path"
+      echo "-- $app -> argocd/apps/$dir/$env"
     done
     [ "$matched" -eq 1 ] || fail "$cfg lists env '$env' that no cluster Secret provides"
-  done < <(yq '.envs[]' "$cfg")
+  done
 done
 
 finish
