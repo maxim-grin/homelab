@@ -74,7 +74,9 @@ module "claude_code" {
   # Resource Allocation
   # 4 cores: Claude Code runs ripgrep sweeps and build/test commands
   # concurrently with the agent itself; 2 cores stalls on both.
-  memory    = 8192
+  # 4 GiB: 8 GiB left the host with no page cache (32 GiB total, all
+  # VMs summed to 32 GiB); this VM uses under 2 GiB in practice.
+  memory    = 4096
   cpu_cores = 4
 
   disk_size    = "40G"
