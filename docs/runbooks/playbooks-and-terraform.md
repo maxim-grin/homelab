@@ -181,8 +181,12 @@ Re-run it after a change to the AVP plugin ConfigMap in
 commands), with the command above. Then check that `repo-server` restarted
 (`kubectl --kubeconfig "$PROD_TMP" -n argocd get pods`, look at its age) and
 that prod's AVP apps (`monitoring-secrets`, `pve-exporter`,
-`cert-manager-issuers`) stay `Synced`; see [ArgoCD](checks.md#argocd). Dev's
-copy of the role may be re-run too, but it is optional.
+`cert-manager-issuers`) stay `Synced`; see [ArgoCD](checks.md#argocd).
+Watch prod `alerts` and `nfs` too: their paths sit beside a `config.yaml`,
+so the plugin's discovery claims them and they move from Argo's own
+kustomize to the sidecar with this re-run; they should stay `Synced` with
+no diff. Dev's copy of the role may be re-run too, but it is optional; if
+it is, dev `nfs` moves the same way, so check it as well.
 
 ### Pin names in CoreDNS
 
