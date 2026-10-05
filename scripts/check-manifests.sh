@@ -25,7 +25,18 @@ CRD_SCHEMAS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Gro
 app_files=(argocd/environments/*/applications/*.yaml)
 
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+# `kustomize build --enable-helm` pulls charts into a `charts/` directory
+# beside each kustomization (gitignored). Remember the ones that exist now
+# and remove only the ones this run created.
+charts_before=$(find argocd -type d -name charts | sort)
+cleanup() {
+  rm -rf "$work"
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    printf '%s\n' "$charts_before" | grep -qxF "$d" || rm -rf "$d"
+  done < <(find argocd -type d -name charts | sort)
+}
+trap cleanup EXIT
 failed=0
 
 # This applies to every schema_check call (kustomize output, argocd/base and
