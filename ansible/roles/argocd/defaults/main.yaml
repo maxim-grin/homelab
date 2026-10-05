@@ -93,6 +93,17 @@ argocd_avp_plugin_config: |
           # it outright, placeholders or not, because `generate` renders
           # every such directory, Helm charts included.
           #
+          # Discovery cannot tell whether an Application named the plugin,
+          # so this also claims plain Applications whose path is such a
+          # directory before their rollout: prod `alerts`
+          # (argocd/apps/alerts/prod), prod and dev `nfs`
+          # (argocd/apps/nfs-provisioner/<env>). They move from Argo's own
+          # kustomize to this sidecar once the role is re-run. Acceptable:
+          # with no placeholder `generate` prints kustomize's output
+          # unchanged, and a failed render exits non-zero (`set -e`), so it
+          # cannot hand Argo an empty manifest set to prune against. The
+          # post-CMP check watches them.
+          #
           # Non-empty stdout means "this plugin claims the repository", so
           # the greps end in `&& echo avp`. Errors are swallowed on purpose:
           # this runs against every Application on every refresh, including
@@ -130,8 +141,13 @@ argocd_avp_plugin_config: |
         # `--enable-helm` lets a kustomization pull a chart through
         # `helmCharts:`. Helm wants writable cache, config and data dirs and
         # the container's home is read-only, so all three go under /tmp.
-        # UNVERIFIED until the operator spike: that the sidecar image has a
-        # `helm` binary at all.
+        # The sidecar image (quay.io/argoproj/argocd:v3.2.0) ships `helm`, so
+        # it is expected present; confirm with the "Check the CMP sidecar"
+        # runbook entry before the first rollout.
+        #
+        # The temp dir is removed on exit (the trap): a chart render leaves
+        # megabytes under /tmp per app per commit otherwise. stdout is
+        # written before the shell exits, and `set -e` still fails closed.
         #
         # AVP runs only when the rendered output contains `<path:`. An app
         # with no placeholders is passed through with `cat`, so a sealed
@@ -140,7 +156,8 @@ argocd_avp_plugin_config: |
         # is pointed at an `out` subdirectory holding only the manifests, or
         # it would try to read chart caches as YAML.
         - 'set -e; if [ -f kustomization.yaml ]; then
-          d=$(mktemp -d); export HELM_CACHE_HOME="$d/helm/cache"
+          d=$(mktemp -d); trap ''rm -rf "$d"'' EXIT;
+          export HELM_CACHE_HOME="$d/helm/cache"
           HELM_CONFIG_HOME="$d/helm/config" HELM_DATA_HOME="$d/helm/data";
           kustomize build --enable-helm . > "$d/all.yaml";
           if grep -q "<path:" "$d/all.yaml"; then
