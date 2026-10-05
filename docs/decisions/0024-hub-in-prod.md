@@ -154,14 +154,17 @@ at 6 times over 30m and 6h. Each also needs a minimum of requests in
 its long window (30 in 1h, 60 in 6h): on a quiet homelab Ingress a few
 502s are a large ratio and not worth a page.
 
-**The thin-pool rule is held.** The expected series are
-`pve_disk_size_bytes` and `pve_disk_usage_bytes` with an `id` like
-`storage/<node>/local-lvm`, but that is unconfirmed, and a rule written
-against a guessed name stays silent without ever failing. The operator
-observes the series on the live Prometheus first, in the alerting
-rollout (`docs/rebuild.md` step 19); a follow-up PR then adds the rule,
-with its `promtool` test. Until then only a comment in `rules.yaml`
-names it.
+**The thin-pool rule was held until the series was observed.** A rule
+written against a guessed name stays silent without ever failing, so the
+alerting rollout (`docs/rebuild.md` step 19) came first. On 2026-10-05
+the live Prometheus showed `pve_disk_size_bytes` and
+`pve_disk_usage_bytes` with `id="storage/pve/local-lvm"`; their ratio,
+57.65%, matched the pool's own `lvs` Data%, 57.77%. The rule is
+`ProxmoxThinPoolNearlyFull` (over 80% for 10 minutes), with
+`ProxmoxPoolMetricsAbsent` beside it: if the exporter cannot reach the
+Proxmox API the series vanish and the first alert would go quiet while
+the pool keeps filling. Pool metadata (2.98% in use) is not exported and
+is not watched.
 
 **Alertmanager's route.** Alerts group by `alertname` and `namespace`.
 The Telegram message's header comes from the highest severity firing in
@@ -189,8 +192,9 @@ Rejected:
   routed to nowhere, so a dead Alertmanager or a bad Vault render shows
   only as the absence of messages. The operator's proof is a test alert
   (`docs/rebuild.md` step 19).
-- The thin pool has no alert until the held rule lands; watch `data%`
-  by hand in the meantime.
+- Pool metadata is not exported by pve-exporter and has no alert; check
+  `lvs -o lv_name,data_percent,metadata_percent pve` by hand now and
+  then.
 - Prod's Prometheus is a single replica on NFS: an NFS outage or a
   corrupt TSDB loses metrics, not the cluster; the cost is a lower
   retention ceiling and no high availability.

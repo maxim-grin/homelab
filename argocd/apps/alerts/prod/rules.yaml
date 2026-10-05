@@ -14,10 +14,10 @@
 # Open selectors on the monitoring chart (ruleSelector: {}) pick these up
 # without a release label.
 #
-# Pending: a thin-pool `data%` above 80% rule over the pve-exporter
-# `local-lvm` series (expected pve_disk_size_bytes / pve_disk_usage_bytes,
-# unconfirmed) waits for the operator to observe the series on the live
-# Prometheus.
+# The Proxmox thin pool comes from pve-exporter: the series names and the
+# `id` label (`storage/<node>/local-lvm`) were observed on the live
+# Prometheus, and the ratio matched the pool's own `lvs` Data% to within a
+# tenth of a point.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -95,6 +95,49 @@ spec:
               kubectl -n nfs-system describe deployment
               {{ $labels.deployment }}; if the pod cannot mount, check
               the export on nfs-01 with showmount -e.
+
+    - name: proxmox
+      rules:
+        # local-lvm is the thin pool under every VM. A pool that reaches
+        # 100% gives every guest I/O errors at once, and nothing in the
+        # cluster can see it except through the exporter. The regex takes
+        # any node name in the id.
+        - alert: ProxmoxThinPoolNearlyFull
+          expr: |
+            pve_disk_usage_bytes{id=~"storage/.+/local-lvm"}
+              / pve_disk_size_bytes{id=~"storage/.+/local-lvm"} > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Proxmox thin pool {{ $labels.id }} is over 80% full
+            description: >-
+              {{ $labels.id }} has been over 80% full for 10 minutes
+              (now {{ $value | humanizePercentage }}). At 100% every guest
+              gets I/O errors at once.
+            runbook: >-
+              On the Proxmox host: lvs -o lv_name,data_percent pve. Free
+              space by removing unused VM disks and old templates, and
+              check that discard is on and fstrim runs in the guests
+              (docs/rebuild.md).
+
+        # A rule over a series that can vanish stays silent when it does.
+        # If the exporter cannot reach the Proxmox API the series are gone
+        # and the alert above cannot fire, while the pool keeps filling.
+        - alert: ProxmoxPoolMetricsAbsent
+          expr: absent(pve_disk_usage_bytes{id=~"storage/.+/local-lvm"})
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: No Proxmox thin-pool metrics for 15 minutes
+            description: >-
+              pve_disk_usage_bytes for local-lvm has been absent for 15
+              minutes, so ProxmoxThinPoolNearlyFull cannot fire.
+            runbook: >-
+              kubectl -n monitoring logs deploy/pve-exporter: a wrong
+              token or PVE_TARGET shows as an error there; then check the
+              pve-exporter target on Prometheus's targets page.
 
     - name: prometheus-storage
       rules:
