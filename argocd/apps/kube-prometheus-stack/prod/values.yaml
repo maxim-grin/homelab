@@ -142,7 +142,6 @@ grafana:
     requests:
       cpu: 50m
       memory: 128Mi
-    # 256Mi was OOMKilled in a loop (7 restarts in 37h, liveness 503s).
     limits:
       memory: 512Mi
   # Applies to both sidecars, the dashboard and the datasource watchers.
@@ -152,7 +151,7 @@ grafana:
         cpu: 10m
         memory: 48Mi
       limits:
-        memory: 96Mi
+        memory: 128Mi
 
 kube-state-metrics:
   resources:
