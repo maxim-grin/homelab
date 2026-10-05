@@ -88,11 +88,17 @@ argocd_avp_plugin_config: |
           # matched nothing and jobboard sat at ComparisonError while every
           # other part of the chain worked.
           #
+          # A directory whose parent holds a config.yaml is a uniform app
+          # (argocd/apps/<dir>/config.yaml beside <env>/); the plugin claims
+          # it outright, placeholders or not, because `generate` renders
+          # every such directory, Helm charts included.
+          #
           # Non-empty stdout means "this plugin claims the repository", so
           # the greps end in `&& echo avp`. Errors are swallowed on purpose:
           # this runs against every Application on every refresh, including
           # Helm-values directories where `kustomize build` is meant to fail.
-          - 'if [ -f kustomization.yaml ]; then kustomize build . 2>/dev/null
+          - 'if [ -f ../config.yaml ]; then echo avp; exit 0; fi;
+            if [ -f kustomization.yaml ]; then kustomize build . 2>/dev/null
             || true; else cat ./*.yaml 2>/dev/null || true; fi
             | grep -q "<path:" && echo avp || true'
     generate:
@@ -120,10 +126,27 @@ argocd_avp_plugin_config: |
         # (already mounted here as the `tmp` volume) and rely on `set -e`
         # instead, which is POSIX and fails closed. The conditional keeps
         # plain-YAML (non-kustomize) sources working too.
+        #
+        # `--enable-helm` lets a kustomization pull a chart through
+        # `helmCharts:`. Helm wants writable cache, config and data dirs and
+        # the container's home is read-only, so all three go under /tmp.
+        # UNVERIFIED until the operator spike: that the sidecar image has a
+        # `helm` binary at all.
+        #
+        # AVP runs only when the rendered output contains `<path:`. An app
+        # with no placeholders is passed through with `cat`, so a sealed
+        # Vault cannot break it. The output file is grepped, not piped, for
+        # the same reason as above. Helm's dirs live beside the output, so AVP
+        # is pointed at an `out` subdirectory holding only the manifests, or
+        # it would try to read chart caches as YAML.
         - 'set -e; if [ -f kustomization.yaml ]; then
-          d=$(mktemp -d); kustomize build . > "$d/all.yaml";
-          argocd-vault-plugin generate "$d"; else argocd-vault-plugin
-          generate ./; fi'
+          d=$(mktemp -d); export HELM_CACHE_HOME="$d/helm/cache"
+          HELM_CONFIG_HOME="$d/helm/config" HELM_DATA_HOME="$d/helm/data";
+          kustomize build --enable-helm . > "$d/all.yaml";
+          if grep -q "<path:" "$d/all.yaml"; then
+          mkdir "$d/out"; mv "$d/all.yaml" "$d/out/all.yaml";
+          argocd-vault-plugin generate "$d/out"; else cat "$d/all.yaml"; fi;
+          else argocd-vault-plugin generate ./; fi'
     lockRepo: false
 
 # The four keys the argocd-vault-plugin-config Secret carries. Kept as its

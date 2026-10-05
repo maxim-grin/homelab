@@ -176,6 +176,14 @@ Expect: pods `Running` or `Completed`, `repo-server` not in `Init`. If not:
 the play fails fast without `prod_kubeconfig`, a missing file, Helm or the
 python package; [rebuild.md](../rebuild.md) "Bootstrap the prod hub".
 
+Re-run it after a change to the AVP plugin ConfigMap in
+`ansible/roles/argocd/defaults/main.yaml` (the `discover` and `generate`
+commands), with the command above. Then check that `repo-server` restarted
+(`kubectl --kubeconfig "$PROD_TMP" -n argocd get pods`, look at its age) and
+that prod's AVP apps (`monitoring-secrets`, `pve-exporter`,
+`cert-manager-issuers`) stay `Synced`; see [ArgoCD](checks.md#argocd). Dev's
+copy of the role may be re-run too, but it is optional.
+
 ### Pin names in CoreDNS
 
 When: after every kubeadm upgrade (it can rewrite the ConfigMap), and once
