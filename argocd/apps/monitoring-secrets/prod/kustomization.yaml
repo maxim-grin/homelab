@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Everything kube-prometheus-stack needs that must not sit in a Helm
-# values file: the namespace itself and the two Secrets carrying
+# values file: the namespace itself and the Secrets carrying
 # <path:...> placeholders. AVP resolves those at sync time; the chart
 # Application has no plugin and references the Secrets by name.
 #
@@ -12,3 +12,4 @@ resources:
   - namespace.yaml
   - grafana-admin-secret.yaml
   - alertmanager-config-secret.yaml
+  - prometheus-basic-auth-secret.yaml
