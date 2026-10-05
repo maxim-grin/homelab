@@ -158,9 +158,10 @@ When: first prod bootstrap, or to re-run after the platform PR merges (the
 Ingress `letsencrypt-prod` annotation comes from this playbook). It runs on the
 operator's workstation against the cluster API and needs Helm and the python
 `kubernetes` package locally. The kubeconfig comes from Terraform into a
-mode 600 temp file, never kept on disk. `PROD_TMP` here is that temp file, not the README-convention `$PROD_TMP` path. The
-play does not apply `argocd/base/projects.yaml` or the app-of-apps; apply
-those by hand afterwards.
+mode 600 temp file, never kept on disk. `PROD_TMP` here is that temp file,
+not the README-convention `$PROD_KC` path. The play does not apply
+`argocd/base/projects.yaml` or the app-of-apps; apply those by hand
+afterwards.
 
 ```bash
 cd terraform/environments/prod
