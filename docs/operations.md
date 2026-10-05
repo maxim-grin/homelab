@@ -118,15 +118,17 @@ Rules this repo defines, in `argocd/apps/alerts/prod/rules.yaml`:
 | `CertificateNotReady`                | a Certificate is `False` or `Unknown` for 15m                         | same; for DNS-01, the Cloudflare token in Vault                              |
 | `NfsProvisionerUnavailable`          | no available `nfs-client-provisioner` replica in `nfs-system`         | `kubectl -n nfs-system describe deployment`; `showmount -e` on `nfs-01`      |
 | `PrometheusStorageNearRetentionSize` | TSDB above 80% of `retentionSize`; size now decides retention         | series growing fastest, or raise `retentionSize` and the claim together      |
+| `ProxmoxThinPoolNearlyFull`          | `local-lvm` over 80% for 10m; at 100% every guest gets I/O errors     | `lvs -o lv_name,data_percent pve` on the Proxmox host                        |
+| `ProxmoxPoolMetricsAbsent`           | no `local-lvm` series for 15m; the pool alert is blind                | `kubectl -n monitoring logs deploy/pve-exporter`                             |
 | `IngressNginxMetricsAbsent`          | no ingress-nginx controller scraped for 15m; SLO alerts are blind     | the PodMonitor selector, `controller.metrics.enabled`                        |
 | `CertManagerMetricsAbsent`           | cert-manager controller not scraped for 15m; certificate alerts blind | the PodMonitor selector and the `http-metrics` port                          |
 | `IngressErrorBudgetBurnFast`         | `critical`: an Ingress burns its 99% / 30d budget at 14.4x (5m, 1h)   | `kubectl -n <ns> get pods,endpoints`; a 502/503 without endpoints is the app |
 | `IngressErrorBudgetBurnSlow`         | `warning`: the same at 6x (30m, 6h)                                   | the app's restarts, timeouts and logs                                        |
 
 The two burn alerts need at least 30 (1h) and 60 (6h) requests in their
-long window, so a quiet Ingress cannot fire them. A `data%` alert for the
-Proxmox thin pool is not defined yet: it waits for the operator to
-observe the `pve-exporter` series (`docs/rebuild.md` step 19.5).
+long window, so a quiet Ingress cannot fire them. The thin-pool alert
+reads the `pve-exporter` series `pve_disk_usage_bytes` over
+`pve_disk_size_bytes` for `id="storage/<node>/local-lvm"`.
 
 **Inspecting and silencing.** Alertmanager and Prometheus have no
 Ingress. Port-forward from the operator's workstation, with `$PROD_KC`

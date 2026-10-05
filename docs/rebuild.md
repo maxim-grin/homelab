@@ -406,8 +406,8 @@ from `secret.yaml`.
    ACLs, creates the read-only `glance@pve` API token for Glance (the
    `glance` step), creates the read-only `pve-exporter@pve` token (the
    `pve-exporter` step: prod's Prometheus scrapes Proxmox through
-   pve-exporter for the thin-pool `data%` (the alert rule is held until
-   the series is observed, step 19.5); its secret goes into the
+   pve-exporter for the thin-pool `data%` (the alert, `ProxmoxThinPoolNearlyFull`,
+   reads it; step 19.5); its secret goes into the
    `kv-prod` seed `monitoring/pve-exporter` in `secret.yaml`), and downloads the Debian 13 LXC template. Put the
    Terraform token in `dev.tfvars`, the template name the script prints in
    `shared.tfvars` as `debian_lxc_template`, and Glance's token id and
@@ -1065,14 +1065,21 @@ from `secret.yaml`.
        is explained by the exporter's log:
        `kubectl --kubeconfig "$PROD_KC" -n monitoring logs deploy/pve-exporter`.
 
-    5. The pool rule, held until the series is seen. In Prometheus, query
-       for the `local-lvm` storage series. Expected `pve_disk_size_bytes`
-       and `pve_disk_usage_bytes` with an `id` like
-       `storage/<node>/local-lvm`; that is unconfirmed. Paste the series
-       actually observed into a follow-up PR, then add the rule (alert
-       when used over size is above 0.8 for 10m, `severity: warning`) to
-       `argocd/apps/alerts/prod/rules.yaml`, with a `promtool check
-       rules` and a `promtool test rules` unit test, and merge.
+    5. The pool alert, `ProxmoxThinPoolNearlyFull` (over 80% for 10m,
+       `severity: warning`), with `ProxmoxPoolMetricsAbsent` for when the
+       series disappear. The series were observed on the live Prometheus
+       on 2026-10-05: `pve_disk_size_bytes` and `pve_disk_usage_bytes` with
+       `id="storage/pve/local-lvm"`, and their ratio (57.65%) matched the
+       pool's `lvs` Data% (57.77%). On a rebuild, confirm the same series
+       exist before trusting the alert:
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
+         svc/monitoring-kube-prometheus-prometheus 9090
+       curl -sG localhost:9090/api/v1/query --data-urlencode \
+         'query=pve_disk_usage_bytes{id=~"storage/.+/local-lvm"} / pve_disk_size_bytes{id=~"storage/.+/local-lvm"}'
+       ```
+       Compare the ratio with `lvs -o lv_name,data_percent pve` on the
+       Proxmox host (the `data` volume); they agree to within a point.
 
     6. Prove Telegram. With Alertmanager port-forwarded
        (`svc/monitoring-kube-prometheus-alertmanager 9093`), `Watchdog`
@@ -1096,7 +1103,8 @@ from `secret.yaml`.
 
     7. Record the thin pool's `data%` (`lvs -o lv_name,data_percent pve`,
        the `data` volume) and `free -m` on `pve`, with `available` above
-       1000 MiB, in the PR that adds the pool rule.
+       1000 MiB. On 2026-10-05: `data%` 57.77, metadata 2.98, `available`
+       2974 MiB.
 
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
