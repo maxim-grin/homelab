@@ -183,8 +183,9 @@ jobs:
         run: scripts/check-manifests.sh
 
   # The Proxmox bootstrap script: lint it, check its Talos pins against the
-  # prod root, run its stub-based tests. The runbook guard and its test run
-  # here too. shellcheck is preinstalled on the runner image.
+  # prod root, run its stub-based tests. The runbook guard and the
+  # ApplicationSet check's fixture tests run here too. shellcheck is
+  # preinstalled on the runner image.
   scripts:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

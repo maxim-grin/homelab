@@ -253,12 +253,13 @@ entry from its operator checklist instead of restating the command. (ADR
   cluster's CoreDNS (`playbooks/coredns_hosts.yaml`) — re-run that after
   every kubeadm upgrade, which can rewrite the ConfigMap. KV is split
   into `kv-dev/` and `kv-prod/`, each spoke's policy reading only its
-  own tree and the hub's also `kv-dev/` (ADR 0026). Raft snapshots go daily to `/srv/nfs/backups` on `nfs-01`, 14
-  kept — the same SSD, so they cover a bad upgrade or a deleted secret,
-  not a lost disk. **If Vault cannot write `/var/log/vault/audit.log` it
-  refuses every request**: a full root disk looks like a healthy Vault
-  answering nothing. A restart seals it; a certificate renewal only
-  reloads it. (ADR [0011](docs/decisions/0011-vault-on-its-own-vm.md))
+  own tree and the hub's also `kv-dev/` (ADR 0026). Raft snapshots go
+  daily to `/srv/nfs/backups` on `nfs-01`, 14 kept — the same SSD, so
+  they cover a bad upgrade or a deleted secret, not a lost disk. **If
+  Vault cannot write `/var/log/vault/audit.log` it refuses every
+  request**: a full root disk looks like a healthy Vault answering
+  nothing. A restart seals it; a certificate renewal only reloads it.
+  (ADR [0011](docs/decisions/0011-vault-on-its-own-vm.md))
 - **Prod's apps come from one ApplicationSet; never delete it.** Deleting
   an ApplicationSet deletes every generated Application, and their
   finalizers delete the workloads. A removed config entry leaves its
