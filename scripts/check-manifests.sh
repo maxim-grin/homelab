@@ -25,7 +25,18 @@ CRD_SCHEMAS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Gro
 app_files=(argocd/environments/*/applications/*.yaml)
 
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+# `kustomize build --enable-helm` pulls charts into a `charts/` directory
+# beside each kustomization (gitignored). Remember the ones that exist now
+# and remove only the ones this run created.
+charts_before=$(find argocd -type d -name charts | sort)
+cleanup() {
+  rm -rf "$work"
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    printf '%s\n' "$charts_before" | grep -qxF "$d" || rm -rf "$d"
+  done < <(find argocd -type d -name charts | sort)
+}
+trap cleanup EXIT
 failed=0
 
 # This applies to every schema_check call (kustomize output, argocd/base and
@@ -48,7 +59,7 @@ echo "== kustomize"
 while IFS= read -r kfile; do
   dir=$(dirname "$kfile")
   echo "-- $dir"
-  kustomize build "$dir" > "$work/out.yaml" || { fail "kustomize build $dir"; continue; }
+  kustomize build --enable-helm "$dir" > "$work/out.yaml" || { fail "kustomize build $dir"; continue; }
   schema_check "$work/out.yaml" || fail "kubeconform $dir"
 done < <(find argocd -name kustomization.yaml | sort)
 
@@ -98,6 +109,9 @@ echo "== argocd resources"
 # Not the kustomization.yaml files: those are not Kubernetes objects.
 mapfile -t plain < <(find argocd/base argocd/environments -name '*.yaml' ! -name kustomization.yaml | sort)
 schema_check "${plain[@]}" || fail "kubeconform argocd resources"
+
+echo "== applicationset"
+scripts/check-appsets.sh . || fail "check-appsets"
 
 if [ "$failed" -ne 0 ]; then
   echo "check-manifests: FAILED" >&2

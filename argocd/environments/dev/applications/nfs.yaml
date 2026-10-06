@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/maxim-grin/homelab.git
     targetRevision: main
-    path: argocd/apps/nfs_provisioner/dev
+    path: argocd/apps/nfs-provisioner/dev
   destination:
     server: https://kubernetes.default.svc
     namespace: nfs-system

@@ -183,8 +183,9 @@ jobs:
         run: scripts/check-manifests.sh
 
   # The Proxmox bootstrap script: lint it, check its Talos pins against the
-  # prod root, run its stub-based tests. The runbook guard and its test run
-  # here too. shellcheck is preinstalled on the runner image.
+  # prod root, run its stub-based tests. The runbook guard and the
+  # ApplicationSet check's fixture tests run here too. shellcheck is
+  # preinstalled on the runner image.
   scripts:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -193,7 +194,7 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh
+        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh scripts/check-appsets.sh scripts/tests/check-appsets.test.sh
       - name: Talos pins match the prod root
         run: scripts/check-talos-pins.sh
       - name: Runbooks match the playbooks
@@ -202,3 +203,13 @@ jobs:
         run: scripts/tests/check-runbooks.test.sh
       - name: Bootstrap script tests
         run: scripts/tests/pve-bootstrap.test.sh
+      - name: Install yq
+        run: |
+          bin="$HOME/.local/bin"
+          mkdir -p "$bin"
+          curl -fsSL -o "$bin/yq" "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256}  $bin/yq" | sha256sum --strict -c -
+          chmod 0755 "$bin/yq"
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: ApplicationSet check tests
+        run: scripts/tests/check-appsets.test.sh

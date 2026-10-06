@@ -26,7 +26,7 @@ argocd_vault_ca_cert: "{{ lookup('ansible.builtin.file', argocd_vault_ca_dir ~ '
 # until you try to log in with the password you think you set.
 #
 # Generate with:
-#   htpasswd -nbBC 10 "" 'thepassword' | tr -d ':\n' | sed 's/$2y/$2a/'
+#   argocd account bcrypt --password 'thepassword'
 #
 # This credential CANNOT come from Vault. argocd-vault-plugin runs as a
 # sidecar inside argocd-repo-server, so ArgoCD must already be up and
@@ -88,11 +88,28 @@ argocd_avp_plugin_config: |
           # matched nothing and jobboard sat at ComparisonError while every
           # other part of the chain worked.
           #
+          # A directory whose parent holds a config.yaml is a uniform app
+          # (argocd/apps/<dir>/config.yaml beside <env>/); the plugin claims
+          # it outright, placeholders or not, because `generate` renders
+          # every such directory, Helm charts included.
+          #
+          # Discovery cannot tell whether an Application named the plugin,
+          # so this also claims plain Applications whose path is such a
+          # directory before their rollout: prod `alerts`
+          # (argocd/apps/alerts/prod), prod and dev `nfs`
+          # (argocd/apps/nfs-provisioner/<env>). They move from Argo's own
+          # kustomize to this sidecar once the role is re-run. Acceptable:
+          # with no placeholder `generate` prints kustomize's output
+          # unchanged, and a failed render exits non-zero (`set -e`), so it
+          # cannot hand Argo an empty manifest set to prune against. The
+          # post-CMP check watches them.
+          #
           # Non-empty stdout means "this plugin claims the repository", so
           # the greps end in `&& echo avp`. Errors are swallowed on purpose:
           # this runs against every Application on every refresh, including
           # Helm-values directories where `kustomize build` is meant to fail.
-          - 'if [ -f kustomization.yaml ]; then kustomize build . 2>/dev/null
+          - 'if [ -f ../config.yaml ]; then echo avp; exit 0; fi;
+            if [ -f kustomization.yaml ]; then kustomize build . 2>/dev/null
             || true; else cat ./*.yaml 2>/dev/null || true; fi
             | grep -q "<path:" && echo avp || true'
     generate:
@@ -120,10 +137,33 @@ argocd_avp_plugin_config: |
         # (already mounted here as the `tmp` volume) and rely on `set -e`
         # instead, which is POSIX and fails closed. The conditional keeps
         # plain-YAML (non-kustomize) sources working too.
+        #
+        # `--enable-helm` lets a kustomization pull a chart through
+        # `helmCharts:`. Helm wants writable cache, config and data dirs and
+        # the container's home is read-only, so all three go under /tmp.
+        # The sidecar image (quay.io/argoproj/argocd:v3.2.0) ships `helm`, so
+        # it is expected present; confirm with the "Check the CMP sidecar"
+        # runbook entry before the first rollout.
+        #
+        # The temp dir is removed on exit (the trap): a chart render leaves
+        # megabytes under /tmp per app per commit otherwise. stdout is
+        # written before the shell exits, and `set -e` still fails closed.
+        #
+        # AVP runs only when the rendered output contains `<path:`. An app
+        # with no placeholders is passed through with `cat`, so a sealed
+        # Vault cannot break it. The output file is grepped, not piped, for
+        # the same reason as above. Helm's dirs live beside the output, so AVP
+        # is pointed at an `out` subdirectory holding only the manifests, or
+        # it would try to read chart caches as YAML.
         - 'set -e; if [ -f kustomization.yaml ]; then
-          d=$(mktemp -d); kustomize build . > "$d/all.yaml";
-          argocd-vault-plugin generate "$d"; else argocd-vault-plugin
-          generate ./; fi'
+          d=$(mktemp -d); trap ''rm -rf "$d"'' EXIT;
+          export HELM_CACHE_HOME="$d/helm/cache"
+          HELM_CONFIG_HOME="$d/helm/config" HELM_DATA_HOME="$d/helm/data";
+          kustomize build --enable-helm . > "$d/all.yaml";
+          if grep -q "<path:" "$d/all.yaml"; then
+          mkdir "$d/out"; mv "$d/all.yaml" "$d/out/all.yaml";
+          argocd-vault-plugin generate "$d/out"; else cat "$d/all.yaml"; fi;
+          else argocd-vault-plugin generate ./; fi'
     lockRepo: false
 
 # The four keys the argocd-vault-plugin-config Secret carries. Kept as its
@@ -191,6 +231,15 @@ argocd_helm_values:
       # ingress template pointed at the HTTPS service port and every request
       # answering 502.
       server.insecure: true
+      # The chart defaults the ApplicationSet controller's policy to `sync`,
+      # which also DELETES an Application when its generator stops yielding
+      # it (the Application's finalizer then deletes what it runs). With any
+      # controller policy set, the controller ignores a set's own
+      # `applicationsSync` (policy override is off), so the protection in
+      # argocd/environments/prod/applications/appset.yaml would be dead
+      # letter. create-update here makes it hold for every set. Seen live on
+      # prod 2026-10-06: `applicationsetcontroller.policy: sync`.
+      applicationsetcontroller.policy: create-update
   server:
     ingress:
       enabled: true

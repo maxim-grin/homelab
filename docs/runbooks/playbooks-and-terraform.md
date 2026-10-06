@@ -176,6 +176,18 @@ Expect: pods `Running` or `Completed`, `repo-server` not in `Init`. If not:
 the play fails fast without `prod_kubeconfig`, a missing file, Helm or the
 python package; [rebuild.md](../rebuild.md) "Bootstrap the prod hub".
 
+Re-run it after a change to the AVP plugin ConfigMap in
+`ansible/roles/argocd/defaults/main.yaml` (the `discover` and `generate`
+commands), with the command above. Then check that `repo-server` restarted
+(`kubectl --kubeconfig "$PROD_TMP" -n argocd get pods`, look at its age) and
+that prod's AVP apps (`monitoring-secrets`, `pve-exporter`,
+`cert-manager-issuers`) stay `Synced`; see [ArgoCD](checks.md#argocd).
+Watch prod `alerts` and `nfs` too: their paths sit beside a `config.yaml`,
+so the plugin's discovery claims them and they move from Argo's own
+kustomize to the sidecar with this re-run; they should stay `Synced` with
+no diff. Dev's copy of the role may be re-run too, but it is optional; if
+it is, dev `nfs` moves the same way, so check it as well.
+
 ### Pin names in CoreDNS
 
 When: after every kubeadm upgrade (it can rewrite the ConfigMap), and once
@@ -300,6 +312,72 @@ rm "$PROD_TMP"
 Expect: `vault read auth/kubernetes-prod/config` on `vault-02` shows
 `kubernetes_host https://10.0.0.110:6443`. If not: [checks.md](checks.md).
 
+### Widen prod's policy to read kv-dev
+
+When: `extra_kv_mounts` for prod changed in `roles/vault/defaults/main.yaml`
+(the hub's ArgoCD renders dev apps, so `argocd-read-prod` also reads
+`kv-dev/`). Re-run [Configure prod](#configure-prod) as written; it rewrites
+the policy. Dev's `argocd-read` is untouched. Then check on `vault-02`, with
+a short-lived token carrying only the prod policy; the token never prints a
+secret value.
+
+```bash
+export VAULT_ADDR=https://10.0.0.133:8200
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
+vault policy read argocd-read-prod
+PROD_ROLE_TOKEN="$(vault token create -policy=argocd-read-prod -ttl=5m -field=token)"
+VAULT_TOKEN="$PROD_ROLE_TOKEN" vault kv list kv-dev/monitoring
+VAULT_TOKEN="$PROD_ROLE_TOKEN" vault kv list kv-prod/monitoring
+unset VAULT_TOKEN PROD_ROLE_TOKEN
+```
+
+Expect: the policy names `kv-prod/` and `kv-dev/` data and metadata paths,
+and both `kv list` calls print names. The token check proves the policy only, not
+the Kubernetes-auth login; the real proof is an Argo sync of a `kv-dev` app on
+prod, once sub-project 4 lands. If not: `permission denied` on
+`kv-dev` means the policy was not rewritten; re-run configure prod and
+check the play for `Write the policy for prod`.
+
+### Seed the remote-write credential
+
+When: BEFORE merging the uniform-apps PR, and on a rebuild before prod's
+`monitoring-secrets` first syncs. That Application renders the Secret
+`prometheus-basic-auth` from
+`<path:kv-prod/data/monitoring/remote-write#htpasswd>` as soon as the
+Secret is on `main`; a missing field fails AVP for the whole app: sync
+status `Unknown` with a `ComparisonError`, health still `Healthy`, and the
+Grafana and Alertmanager Secrets frozen. `kv-dev/monitoring/remote-write`
+holds the plain pair for dev's sender (sub-project 4).
+
+Generate the bcrypt line on the operator's workstation with the `argocd`
+CLI (`argocd account bcrypt` runs locally and needs no login; it emits
+`$2a$`, which ingress-nginx accepts), with the password read without echo:
+
+```bash
+printf 'remote-write password: '; read -rs RW_PASS; echo
+printf '%s:%s' dev-remote-write "$(argocd account bcrypt --password "$RW_PASS")"; echo
+unset RW_PASS
+ansible-vault edit secret.yaml
+```
+
+In the editor, under `vault_kv`, set `kv-dev` `monitoring/remote-write`
+(`username: dev-remote-write`, `password`: the same password) and `kv-prod`
+`monitoring/remote-write` (`htpasswd`: the printed line); the shapes are in
+`secret.yaml.example`. Then run [Seed](#seed) as written, and check on
+`vault-02` without printing the values:
+
+```bash
+export VAULT_ADDR=https://10.0.0.133:8200
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
+vault kv get -field=htpasswd kv-prod/monitoring/remote-write | cut -c1-20
+vault kv get -field=username kv-dev/monitoring/remote-write
+unset VAULT_TOKEN
+```
+
+Expect: `dev-remote-write:$2y` (the start of the bcrypt line) and
+`dev-remote-write`. If not: `No value found` means the seed did not include
+the path; check the indentation under `vault_kv` and re-run the seed.
+
 ## LAN services
 
 `lan_services.yaml` builds the LAN LXCs from `inventories/shared`, in
@@ -346,6 +424,8 @@ the repo root unless the comment says otherwise. `<role-or-playbook>` and
 kustomize build argocd/apps/<app>/dev
 pre-commit run --all-files
 scripts/check-manifests.sh
+scripts/check-appsets.sh
+bash scripts/tests/check-appsets.test.sh
 scripts/check-runbooks.sh
 ```
 
@@ -353,3 +433,10 @@ Expect: each exits 0. If not: fix what it names; never bypass a hook with
 `--no-verify`. `kustomize build` works on overlays only: Helm values dirs such
 as `argocd/apps/ingress-nginx/dev` fail by design, so render those with
 `helm template <chart> -f argocd/apps/<app>/dev/values.yaml`.
+
+`scripts/check-appsets.sh` (also run by `check-manifests.sh`) needs bash 4 or
+later, for `declare -A`. CI is Linux and unaffected; on macOS the system bash
+is 3.2, so run it under a newer one: `brew install bash`, then
+`/opt/homebrew/bin/bash scripts/check-appsets.sh`. The ApplicationSet
+checks Argo itself must accept are in
+[Verify the ApplicationSet](checks.md#verify-the-applicationset).

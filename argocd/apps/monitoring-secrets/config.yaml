@@ -1,0 +1,27 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys this app: one list entry per env, each generating
+# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` deploys it
+# nowhere; the rollout PR uncomments the entry below.
+#
+# Separate from kube-prometheus-stack so the <path:...> placeholders (the
+# Grafana admin login, the Telegram token and chat id) never sit in the
+# chart's values; AVP resolves them against Vault (kv-prod) at sync time.
+#
+# Ordering: owns the `monitoring` Namespace (with its Pod Security label)
+# and the Secrets the chart reads, so it must exist before
+# kube-prometheus-stack, alerts and pve-exporter.
+# Generated Applications all start at once (the set creates them, so sync
+# waves order nothing). The set's retry (limit 10, backoff 30s x2, max
+# 5m: about 37 minutes) carries a sync that runs before its dependency is
+# ready; after that, sync the app by hand.
+#
+# - env: prod
+#   namespace: monitoring
+#   # The Namespace is a manifest in this app; every other monitoring
+#   # app relies on it.
+#   createNamespace: false
+#   # Client-side apply would copy the AVP-rendered Secrets, credentials
+#   # and all, into the last-applied-configuration annotation in clear
+#   # text. Server-side apply keeps no such copy.
+#   serverSideApply: true
+[]

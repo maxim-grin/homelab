@@ -1,6 +1,6 @@
 # 0004. Secrets in Vault, resolved at sync time by argocd-vault-plugin
 
-**Status:** Accepted (2026-09-10)
+**Status:** Accepted (2026-09-10); partly superseded by [0026](0026-uniform-apps.md)
 
 ## Context
 

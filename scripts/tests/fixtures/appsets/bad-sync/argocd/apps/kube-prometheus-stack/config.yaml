@@ -1,0 +1,4 @@
+- env: prod
+  namespace: kube-prometheus-stack
+  createNamespace: true
+  serverSideApply: false

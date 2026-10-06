@@ -84,6 +84,9 @@ vault_k8s_clusters:
     service_account_namespaces: ["argocd"]
   - name: prod
     kv_mount: kv-prod
+    # The hub's AVP also renders dev apps, whose manifests carry
+    # <path:kv-dev/...> placeholders, so prod's policy reads kv-dev too.
+    extra_kv_mounts: ["kv-dev"]
     auth_path: kubernetes-prod
     api_host: 10.0.0.110
     kubeconfig: "{{ vault_prod_kubeconfig | default('') }}"
