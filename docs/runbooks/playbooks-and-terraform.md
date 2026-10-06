@@ -349,13 +349,13 @@ status `Unknown` with a `ComparisonError`, health still `Healthy`, and the
 Grafana and Alertmanager Secrets frozen. `kv-dev/monitoring/remote-write`
 holds the plain pair for dev's sender (sub-project 4).
 
-Generate the bcrypt line on the operator's workstation (`htpasswd` comes
-from `apache2-utils` or `httpd-tools`), with the password read without
-echo:
+Generate the bcrypt line on the operator's workstation with the `argocd`
+CLI (`argocd account bcrypt` runs locally and needs no login; it emits
+`$2a$`, which ingress-nginx accepts), with the password read without echo:
 
 ```bash
 printf 'remote-write password: '; read -rs RW_PASS; echo
-htpasswd -nbB dev-remote-write "$RW_PASS" | tr -d '\n'; echo
+printf '%s:%s' dev-remote-write "$(argocd account bcrypt --password "$RW_PASS")"; echo
 unset RW_PASS
 ansible-vault edit secret.yaml
 ```

@@ -26,7 +26,7 @@ argocd_vault_ca_cert: "{{ lookup('ansible.builtin.file', argocd_vault_ca_dir ~ '
 # until you try to log in with the password you think you set.
 #
 # Generate with:
-#   htpasswd -nbBC 10 "" 'thepassword' | tr -d ':\n' | sed 's/$2y/$2a/'
+#   argocd account bcrypt --password 'thepassword'
 #
 # This credential CANNOT come from Vault. argocd-vault-plugin runs as a
 # sidecar inside argocd-repo-server, so ArgoCD must already be up and

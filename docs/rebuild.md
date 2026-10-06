@@ -645,7 +645,7 @@ from `secret.yaml`.
     `gatus_basic_user`, `gatus_basic_password` and
     `gatus_basic_password_bcrypt` in `secret.yaml` (the comments in
     `secret.yaml.example` say where each comes from, including the
-    `htpasswd -nbB <user> '<password>' | cut -d: -f2` command for the
+    `argocd account bcrypt --password '<password>'` command for the
     hash) and `~/.homelab-ca/ca.crt` on the workstation, which
     `playbooks/vault.yaml` created. Re-run the Traefik play too, for the
     `status.hl.mgryn.cc` route. Check: `https://status.hl.mgryn.cc` asks
