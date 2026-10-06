@@ -1,7 +1,7 @@
 # Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
 # deploys this app: one list entry per env, each generating
-# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` deploys it
-# nowhere; the rollout PR uncomments the entry below.
+# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` would deploy it
+# nowhere. Rolled in on 2026-10-06 (uniform-rollout-1).
 #
 # Ordering: the nfs-prod StorageClass (the default) must exist before any
 # app's PVC binds; PVCs created earlier sit Pending until it does.
@@ -10,8 +10,7 @@
 # 5m: about 37 minutes) carries a sync that runs before its dependency is
 # ready; after that, sync the app by hand.
 #
-# - env: prod
-#   namespace: nfs-system
-#   createNamespace: true
-#   serverSideApply: false
-[]
+- env: prod
+  namespace: nfs-system
+  createNamespace: true
+  serverSideApply: false
