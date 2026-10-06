@@ -736,7 +736,12 @@ from `secret.yaml`.
     keeps running with the old size until restarted, because the module sets
     `automatic_reboot = false`. One node at a time: `kubectl drain`, then
     `qm reboot <vmid>` on `pve` (a guest-level `talosctl reboot` does not pick
-    up the new size), then `kubectl uncordon`.
+    up the new size), then `kubectl uncordon`. The control plane is the
+    exception to "one node at a time, drained": it is the only one, so its
+    resize takes the API down for a few minutes (workloads keep running);
+    skip the drain when the API is already unreachable. Give it 4096 MiB:
+    at 2048 the API server stopped answering under ArgoCD's server-side
+    apply of the monitoring chart (2026-10-06).
 
 17. **Bootstrap the prod hub** — ArgoCD on the Talos cluster, with Vault's
     prod auth ([ADR 0024](decisions/0024-hub-in-prod.md)). Every command
