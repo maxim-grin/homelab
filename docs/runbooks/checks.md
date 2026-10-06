@@ -318,7 +318,11 @@ Argo's own generators. The git generator reads its repository at
 merge `main` has no `config.yaml`, and the check passes falsely. Set
 `revision` in the local copy of the set to the branch; that edit is a
 scratch change: revert it and never commit it. `argocd` is the CLI,
-logged in to prod or run with `--core`.
+logged in to prod's hub (`argocd login argocd.mgryn.cc --grpc-web
+--username admin`; the `--grpc-web` is for ingress-nginx in front of it).
+`--core` instead uses the current kubectl context and its namespace, so it
+hangs if that context is not prod (set it with `KUBECONFIG=<copy of
+$PROD_KC> kubectl config set-context --current --namespace=argocd`).
 
 ```bash
 # scratch: point the git generator at the pushed branch (never commit this)
