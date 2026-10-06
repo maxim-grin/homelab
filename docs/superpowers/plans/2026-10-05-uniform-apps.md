@@ -524,6 +524,14 @@ alone, or close the kustomization one: the rollouts retire the old pins.
   `kube-prometheus-stack` 91.9.0 render through `kustomize build --enable-helm`
   in the sidecar: `rc=0`, 5 seconds, 86002 lines, `charts/` written (the
   `/tmp` Helm directories are writable). Task 1 is done.
+- Pre-merge `argocd appset generate` (prod hub, 2026-10-06), against the pushed
+  branch: with every config `[]` no Applications and no error (the git
+  child's `env` `Exists` selector is honoured); with one scratch `alerts`
+  entry on a scratch branch and a temporary cluster Secret labelled
+  `env=prod`, exactly one Application `scratch-prod-alerts` in `monitoring`
+  at `argocd/apps/alerts/prod`, target `main` (the templated `env` selector
+  works). Without a labelled cluster the one-entry run is empty until the
+  `prod` cluster Secret merges.
 - Task 4 comparison differences per chart (hooks, CRDs, other).
 - Task 3 expansion mechanism chosen.
 
