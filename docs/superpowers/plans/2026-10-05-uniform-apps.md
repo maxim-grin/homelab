@@ -512,8 +512,16 @@ alone, or close the kustomization one: the rollouts retire the old pins.
 
 ## Notes (fill in while executing)
 
-- Task 1 findings: helm in sidecar? AVP login on placeholder-free input?
-  Render time for `kube-prometheus-stack`?
+- Task 1 findings (prod, 2026-10-06): the `avp` container has `helm` v3.18.4
+  and `kustomize` v5.7.0, so no image change. AVP logs in to Vault even on a
+  placeholder-free manifest (`context deadline exceeded` against an
+  unreachable `VAULT_ADDR`), which is why the CMP calls it only when the
+  output contains `<path:`. The ApplicationSet controller runs
+  (`quay.io/argoproj/argocd:v3.1.8`, 1 ready) with
+  `applicationsetcontroller.policy: sync`, the chart default, which ignores a
+  set's own `applicationsSync` and can delete Applications: the `argocd` role
+  now sets `create-update` (re-run after merge, before any rollout). Still to
+  measure: the timed `kube-prometheus-stack` render (under 90 seconds?).
 - Task 4 comparison differences per chart (hooks, CRDs, other).
 - Task 3 expansion mechanism chosen.
 
