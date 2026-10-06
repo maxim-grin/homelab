@@ -520,8 +520,10 @@ alone, or close the kustomization one: the rollouts retire the old pins.
   (`quay.io/argoproj/argocd:v3.1.8`, 1 ready) with
   `applicationsetcontroller.policy: sync`, the chart default, which ignores a
   set's own `applicationsSync` and can delete Applications: the `argocd` role
-  now sets `create-update` (re-run after merge, before any rollout). Still to
-  measure: the timed `kube-prometheus-stack` render (under 90 seconds?).
+  now sets `create-update` (re-run after merge, before any rollout). The
+  `kube-prometheus-stack` 91.9.0 render through `kustomize build --enable-helm`
+  in the sidecar: `rc=0`, 5 seconds, 86002 lines, `charts/` written (the
+  `/tmp` Helm directories are writable). Task 1 is done.
 - Task 4 comparison differences per chart (hooks, CRDs, other).
 - Task 3 expansion mechanism chosen.
 
