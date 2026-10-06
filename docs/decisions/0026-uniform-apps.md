@@ -93,10 +93,11 @@ while the entry exists, a deleted Application is recreated
 ([runbook](../runbooks/checks.md#retire-an-app-from-the-set)).
 
 **Rollout adopts in place.** The new `prod-<dir>` Application takes over
-the live resources of the old one. Before a rollout PR merges, the
-operator removes the old Application's `resources-finalizer`, so
-`root-prod` pruning it deletes the Application only and nothing is
-recreated or reissued
+the live resources of the old one. The old Application files carry no
+`resources-finalizer` (dropped in git before any rollout: `root-prod`'s
+selfHeal puts back a finalizer removed by hand, so a hand patch cannot
+survive until the merge), so `root-prod` pruning one deletes the
+Application only and nothing is recreated or reissued
 ([runbook](../runbooks/checks.md#roll-an-app-into-the-set)). Apps move
 in staged PRs, each verified before the next.
 

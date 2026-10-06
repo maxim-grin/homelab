@@ -360,9 +360,12 @@ ssh vault-02 'VAULT_ADDR=https://10.0.0.133:8200 vault status'
 # yielding; this must print create-update (re-run the argocd role if not)
 kubectl --kubeconfig "$PROD_KC" -n argocd get cm argocd-cmd-params-cm \
   -o jsonpath='{.data.applicationsetcontroller\.policy}{"\n"}'
-# before merging: stop the old Application cascading when it is pruned
-kubectl --kubeconfig "$PROD_KC" -n argocd patch application <old> \
-  --type merge -p '{"metadata":{"finalizers":null}}'
+# before merging: the old Application must carry no finalizer, or pruning
+# it cascade-deletes what it runs. The old files have none in git; this
+# must print nothing. Do NOT patch it off by hand: root-prod's selfHeal
+# puts a finalizer back within seconds if git still lists one.
+kubectl --kubeconfig "$PROD_KC" -n argocd get application <old> \
+  -o jsonpath='{.metadata.finalizers}{"\n"}'
 # after merging: the old one is pruned by root-prod, the new one appears
 kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|<old>|<new>'
 kubectl --kubeconfig "$PROD_KC" get pods,certificate -A -o wide | grep <namespace>
@@ -403,7 +406,9 @@ skip the patch for such an app unless that data loss is the point.
 
 ```bash
 # <new> is the generated Application, prod-<dir>.
-# 1. keep the app's resources (skip ONLY to delete them on purpose)
+# 1. keep the app's resources (skip ONLY to delete them on purpose). Run 1
+#    and 2 back to back: the set's controller puts the finalizer back on a
+#    generated Application on its next reconcile, like root-prod's selfHeal.
 kubectl --kubeconfig "$PROD_KC" -n argocd patch application <new> \
   --type merge -p '{"metadata":{"finalizers":null}}'
 # 2. delete the Application

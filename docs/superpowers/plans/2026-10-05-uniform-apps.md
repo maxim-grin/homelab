@@ -444,10 +444,10 @@ entry, vault policy re-run).
 ## Tasks 10-13: rollout PRs (each its own PR, in order)
 
 Each PR: replace `[]` with the `env: prod` entry in the named configs, delete the matching old
-Application files, and nothing else. BEFORE merging, the operator removes the
-`resources-finalizer` from each old Application being replaced (runbook
-entry), so root-prod's prune deletes only the Application and the new
-`prod-<dir>` one adopts the live resources in place. After merge, wait for
+Application files, and nothing else. Before the first rollout, one prep PR drops `finalizers:` from every old
+Application file in git (a finalizer patched off by hand is put back by
+root-prod's selfHeal within seconds), so root-prod's prune deletes only the
+Application and the new `prod-<dir>` one adopts the live resources in place. After merge, wait for
 root-prod to prune the old Application and the set to create the new one;
 then check that no resource was recreated (pod and certificate ages
 unchanged). Before each: `vault status`; after each: the checks
