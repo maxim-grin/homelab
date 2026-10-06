@@ -6,8 +6,10 @@ metadata:
   annotations:
     # Wave 2: ClusterIssuer needs cert-manager's CRDs from wave 1.
     argocd.argoproj.io/sync-wave: "2"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  # No resources-finalizer: this app is being rolled into the ApplicationSet
+  # (ADR 0026), and root-prod's prune must delete only the Application, not
+  # the workloads it runs. root-prod's selfHeal puts back a finalizer that is
+  # removed by hand, so it has to be absent here, in git.
 spec:
   project: homelab
   source:

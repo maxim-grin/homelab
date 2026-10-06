@@ -6,8 +6,10 @@ metadata:
   annotations:
     # Wave 1: after the StorageClass; the CRDs land here, before the issuers.
     argocd.argoproj.io/sync-wave: "1"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  # No resources-finalizer: this app is being rolled into the ApplicationSet
+  # (ADR 0026), and root-prod's prune must delete only the Application, not
+  # the workloads it runs. root-prod's selfHeal puts back a finalizer that is
+  # removed by hand, so it has to be absent here, in git.
 spec:
   project: homelab
   # Two sources, the same shape ingress-nginx.yaml uses: the chart from
