@@ -231,6 +231,15 @@ argocd_helm_values:
       # ingress template pointed at the HTTPS service port and every request
       # answering 502.
       server.insecure: true
+      # The chart defaults the ApplicationSet controller's policy to `sync`,
+      # which also DELETES an Application when its generator stops yielding
+      # it (the Application's finalizer then deletes what it runs). With any
+      # controller policy set, the controller ignores a set's own
+      # `applicationsSync` (policy override is off), so the protection in
+      # argocd/environments/prod/applications/appset.yaml would be dead
+      # letter. create-update here makes it hold for every set. Seen live on
+      # prod 2026-10-06: `applicationsetcontroller.policy: sync`.
+      applicationsetcontroller.policy: create-update
   server:
     ingress:
       enabled: true

@@ -81,7 +81,10 @@ outage or slow chart pulls the retries can run out, leaving an app
 generated Application, and their `resources-finalizer` then deletes the
 workloads. Three guards: `applicationsSync: create-update` (the generator
 never deletes an Application, so an empty or broken generator removes
-nothing), `preserveResourcesOnDeletion: true` (if the set goes anyway, the
+nothing; the `argocd` role also sets the controller's own
+`applicationsetcontroller.policy` to `create-update`, because the chart
+defaults it to `sync` and a controller policy makes the controller ignore
+a set's `applicationsSync` -- seen on prod, 2026-10-06), `preserveResourcesOnDeletion: true` (if the set goes anyway, the
 Applications go but their resources stay), and the annotation
 `argocd.argoproj.io/sync-options: Prune=false,Delete=false` so `root-prod`
 never prunes the set. Retiring an app is a deliberate delete of its

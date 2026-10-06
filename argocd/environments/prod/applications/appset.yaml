@@ -22,7 +22,10 @@ spec:
     # generator would otherwise remove them all, and their resources
     # finalizer would cascade-delete what they run. Retiring an app is a
     # deliberate delete, after the entry is removed (else it is recreated).
-    # This does not cover deleting the set itself.
+    # This does not cover deleting the set itself. The controller honours
+    # it only because the argocd role sets the controller's policy to
+    # create-update too (applicationsetcontroller.policy); with the chart's
+    # default `sync` a set's own value is ignored.
     applicationsSync: create-update
     # If the set is deleted anyway, its Applications go but the resources
     # they manage stay.

@@ -200,8 +200,9 @@ R="$(kubectl --kubeconfig "$PROD_KC" -n argocd get pod \
 kubectl --kubeconfig "$PROD_KC" -n argocd get deploy argocd-applicationset-controller \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}{.status.readyReplicas}{"\n"}'
 kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c 'helm version; kustomize version'
-# no policy override: applicationsSync create-update is honoured only while
-# the controller's --policy is unset
+# the controller's own policy must be create-update: the chart's default
+# `sync` deletes Applications a generator stops yielding, and with a
+# controller policy set the controller ignores a set's applicationsSync
 kubectl --kubeconfig "$PROD_KC" -n argocd get cm argocd-cmd-params-cm -o yaml \
   | grep applicationsetcontroller
 # AVP on a manifest with no placeholder: does it still try to log in?
@@ -221,9 +222,11 @@ kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c '
 ```
 
 Expect: the applicationset controller image tag and `1` ready replica; the
-`grep applicationsetcontroller` prints no `policy` line (no
-`applicationsetcontroller.policy`; a set policy overrides the set's
-`create-update`); both binaries print a version; the placeholder-free generate either prints the
+`grep applicationsetcontroller` prints `applicationsetcontroller.policy:
+create-update`. Before the `argocd` role is re-run from this branch it
+prints the chart default `sync` (seen on prod 2026-10-06): that default
+deletes Applications a generator stops yielding, so the policy must read
+`create-update` before the first rollout; both binaries print a version; the placeholder-free generate either prints the
 ConfigMap or fails, and the result is the finding: if it errors on the
 unreachable address, AVP logs in regardless, which is why the CMP calls it
 only when `<path:` is present. The render finishes well under 90 seconds
@@ -250,8 +253,10 @@ BEFORE merge, in order:
 
 1. Vault unsealed: [Is Vault up and unsealed](#is-vault-up-and-unsealed).
 2. [Check the CMP sidecar](#check-the-cmp-sidecar): `helm` present, the
-   heaviest render under 90 seconds, the applicationset controller Ready
-   with no `applicationsetcontroller.policy` set.
+   heaviest render under 90 seconds, the applicationset controller Ready.
+   Its `applicationsetcontroller.policy` reads `sync` until the `argocd`
+   role is re-run after merge; it must read `create-update` before any
+   rollout.
 3. [Seed the remote-write credential](playbooks-and-terraform.md#seed-the-remote-write-credential),
    which ends by re-running `vault.yaml`'s seed.
 4. [Verify the ApplicationSet](#verify-the-applicationset) against the
@@ -281,7 +286,10 @@ must not return `413`.
 
 Then re-run the argocd role for the CMP
 ([Deploy ArgoCD to prod](playbooks-and-terraform.md#deploy-argocd-to-prod)):
-the repo-server restarts, and `monitoring-secrets`, `pve-exporter`,
+the repo-server restarts, the ApplicationSet controller restarts with
+`applicationsetcontroller.policy: create-update` (the chart default `sync`
+can delete Applications; check it with the gate in
+[Roll an app into the set](#roll-an-app-into-the-set)), and `monitoring-secrets`, `pve-exporter`,
 `cert-manager-issuers`, `alerts` and `nfs` stay `Synced` (`alerts` and
 `nfs` move to the sidecar here). Re-run `vault.yaml` for the policy
 ([Widen prod's policy to read kv-dev](playbooks-and-terraform.md#widen-prods-policy-to-read-kv-dev)).
@@ -340,6 +348,10 @@ Application's name, `<new>` is `prod-<dir>`.
 ```bash
 # Vault must be unsealed first
 ssh vault-02 'VAULT_ADDR=https://10.0.0.133:8200 vault status'
+# gate: the controller must not delete Applications a generator stops
+# yielding; this must print create-update (re-run the argocd role if not)
+kubectl --kubeconfig "$PROD_KC" -n argocd get cm argocd-cmd-params-cm \
+  -o jsonpath='{.data.applicationsetcontroller\.policy}{"\n"}'
 # before merging: stop the old Application cascading when it is pruned
 kubectl --kubeconfig "$PROD_KC" -n argocd patch application <old> \
   --type merge -p '{"metadata":{"finalizers":null}}'
