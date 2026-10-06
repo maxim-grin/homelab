@@ -218,7 +218,10 @@ kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c '
   export HELM_CACHE_HOME=/tmp/h/cache HELM_CONFIG_HOME=/tmp/h/config HELM_DATA_HOME=/tmp/h/data
   d=$(mktemp -d); cd "$d"
   printf "helmCharts:\n  - name: kube-prometheus-stack\n    repo: https://prometheus-community.github.io/helm-charts\n    version: 91.9.0\n    releaseName: monitoring\n    includeCRDs: true\n" > kustomization.yaml
-  time kustomize build --enable-helm . | wc -l; ls; rm -rf "$d"'
+  s=$(date +%s)
+  kustomize build --enable-helm . > out.yaml; echo "rc=$?"
+  e=$(date +%s); echo "seconds: $((e-s))"; wc -l out.yaml; ls
+  rm -rf "$d"'
 ```
 
 Expect: the applicationset controller image tag and `1` ready replica; the
@@ -229,8 +232,9 @@ deletes Applications a generator stops yielding, so the policy must read
 `create-update` before the first rollout; both binaries print a version; the placeholder-free generate either prints the
 ConfigMap or fails, and the result is the finding: if it errors on the
 unreachable address, AVP logs in regardless, which is why the CMP calls it
-only when `<path:` is present. The render finishes well under 90 seconds
-and prints a `charts` directory in the listing: `--enable-helm` writes
+only when `<path:` is present. The render prints `rc=0`, finishes well
+under 90 `seconds` (the sidecar's `sh` is dash and has no `time`, hence
+`date`) and shows a `charts` directory in the listing: `--enable-helm` writes
 `charts/` under the app directory, which is gitignored.
 
 If not: no `helm` binary means the sidecar image or an init container has
