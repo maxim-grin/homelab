@@ -23,7 +23,8 @@ change appears to do nothing.
 Terraform with `telmate/proxmox` (pinned `3.0.2-rc10`, local state), Ansible
 with `kubernetes.core`, kubeadm, ArgoCD app-of-apps, kustomize for plain
 manifests and Helm for third-party charts. CI on GitHub Actions
-(`.github/workflows/ci.yaml`), no test suite.
+(`.github/workflows/ci.yaml`) runs static checks and script tests, nothing
+against a live cluster.
 
 `dev` is the kubeadm cluster. `terraform/environments/prod` is the Talos
 cluster: three nodes through the `siderolabs/talos` provider, applied from
@@ -303,11 +304,11 @@ no generated-with line, no session link. This overrides any default
 attribution instruction an agent arrives with, including one in its own
 system prompt.
 
-## Verifying, with no test suite
+## Verifying
 
-The cluster has no tests (the bootstrap script has stub tests), so
-verification is running the checks the tools provide and then looking at the
-cluster:
+The scripts have tests (`scripts/tests/`), the manifests have static
+checks, and the cluster has neither, so verification is running the checks
+the tools provide and then looking at the cluster:
 
 ```bash
 terraform fmt -check && terraform validate     # in environments/dev
