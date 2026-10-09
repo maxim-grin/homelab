@@ -8,7 +8,7 @@ argocd_helm_repo: https://argoproj.github.io/argo-helm
 argocd_helm_chart: argo-cd
 # Kept alongside the ingress on purpose. The ingress runs through
 # ingress-nginx; when that is broken the NodePort is the only remaining way
-# into the UI to diagnose it. argocd-dev.yaml sets this true.
+# into the UI to diagnose it. argocd-prod.yaml sets this true.
 argocd_nodeport_enabled: false
 argocd_nodeport_http_port: 32080
 argocd_nodeport_https_port: 32443

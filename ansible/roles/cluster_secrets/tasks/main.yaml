@@ -12,7 +12,7 @@
 - name: Ensure the monitoring namespace exists
   # ArgoCD also manages this namespace and will adopt it. Creating it here
   # removes an ordering dependency at rebuild time, when this role may run
-  # before root-dev has synced the monitoring Application.
+  # before the hub has synced the monitoring Application.
   kubernetes.core.k8s:
     state: present
     kind: Namespace

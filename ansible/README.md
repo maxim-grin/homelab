@@ -12,7 +12,6 @@
 │           ├── k8s_control_plane.yaml
 │           └── k8s_workers.yaml
 ├── playbooks/
-│   ├── argocd-dev.yaml          # ArgoCD Setup to Dev Server
 │   ├── site.yaml                # Initial Setup for all hosts
 │   ├── cluster_init.yaml        # Applied to control-plane only
 │   ├── join_workers.yaml        # Applied to workers only

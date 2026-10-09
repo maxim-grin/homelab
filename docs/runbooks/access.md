@@ -88,9 +88,9 @@ Cloudflare records to the prod workers and need no entry. Delete any old
 
 ```bash
 sudo tee -a /etc/hosts >/dev/null <<'EOF'
-<dev-node-ip> dev-argocd.mgryn.cc dev-grafana.mgryn.cc prometheus.mgryn.cc
+<dev-node-ip> dev-grafana.mgryn.cc prometheus.mgryn.cc
 EOF
-getent hosts dev-argocd.mgryn.cc dev-grafana.mgryn.cc prometheus.mgryn.cc
+getent hosts dev-grafana.mgryn.cc prometheus.mgryn.cc
 ```
 
 Expect: each name prints the node address. Replace the placeholder before
@@ -121,7 +121,6 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 | UI                | URL                                      | Where the login comes from |
 | ----------------- | ---------------------------------------- | -------------------------- |
 | ArgoCD (prod hub) | `https://argocd.mgryn.cc`; break-glass `http://10.0.0.111:32080` (or `.112`, HTTPS `32443`) | user `admin`; password is not in Vault, its bcrypt hash is `argocd_admin_password_hash` in `secret.yaml` (the plaintext is yours) |
-| ArgoCD (dev)      | `http://dev-argocd.mgryn.cc`             | same `argocd_admin_password_hash` in `secret.yaml` |
 | Grafana (prod)    | `https://grafana.mgryn.cc`               | `kv-prod/monitoring/grafana`, fields `admin-user`, `admin-password` (only read when Grafana first creates its database) |
 | Grafana (dev)     | `https://dev-grafana.mgryn.cc`           | `grafana_admin_password` in `secret.yaml`, kept in the `grafana-admin` Secret |
 | Prometheus (dev)  | `http://prometheus.mgryn.cc`             | basic auth, `monitoring/prometheus` in `secret.yaml`'s `vault_kv` block, Vault `kv-dev/monitoring/prometheus` |

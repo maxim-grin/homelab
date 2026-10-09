@@ -26,7 +26,8 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`) runs static checks and script tests, nothing
 against a live cluster.
 
-`dev` is the kubeadm cluster. `terraform/environments/prod` is the Talos
+`dev` is the kubeadm cluster, a spoke of the prod hub: it has no ArgoCD
+of its own, and the hub's `apps` ApplicationSet generates its `dev-*` apps. `terraform/environments/prod` is the Talos
 cluster: three nodes through the `siderolabs/talos` provider, applied from
 the operator's workstation; the prod app-of-apps delivers the hub platform apps.
 `terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs.
@@ -42,7 +43,6 @@ argocd/           base/       AppProject
                   apps/       kustomize bases and dev overlays, or Helm values;
                               prod apps are <app>/prod kustomize directories
                               with a config.yaml per app (ADR 0026)
-                  environments/dev/applications/  Application CRs, synced by root-dev
                   environments/prod/applications/ root-prod's children; appset.yaml
                               generates the prod apps from the config.yaml files
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
@@ -67,9 +67,9 @@ Three different paths, and mixing them up wastes an afternoon:
 | Kubernetes workloads        | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
 | `argocd/base/projects.yaml` | **PR merged to `main`**, then ArgoCD syncs                                              | on Argo's next poll, ~3 min |
 
-That last row is a bootstrap-only exception: `root-dev` only watches
-`argocd/environments/dev/applications/`, so the AppProject that authorises
-everything cannot be synced by `root-dev` itself before it exists — one
+That last row is a bootstrap-only exception: `root-prod` only watches
+`argocd/environments/prod/applications/`, so the AppProject that authorises
+everything cannot be synced by `root-prod` itself before it exists — one
 `kubectl apply -f argocd/base/projects.yaml` by hand gets the cluster off
 the ground. Its destinations name clusters (`prod`, `dev`) by their
 registered name. After that, the `argocd-config` Application owns
@@ -202,7 +202,7 @@ entry from its operator checklist instead of restating the command. (ADR
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
   is bare metal with no LoadBalancer and no MetalLB. The cluster's own
-  names (`dev-argocd.`, `dev-grafana.`, `prometheus.mgryn.cc`) resolve via
+  names (`dev-grafana.`, `prometheus.mgryn.cc`) resolve via
   `/etc/hosts` on the workstation; `argocd.mgryn.cc` is the prod hub.
   `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.

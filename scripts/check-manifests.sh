@@ -66,7 +66,6 @@ done < <(find argocd -name kustomization.yaml | sort)
 echo "== helm"
 # Helm sources sit under spec.sources[] (multi-source) or spec.source.
 chart_source='(.spec.sources[]?, .spec.source) | select(. != null) | select(.chart)'
-rendered=0
 for app in "${app_files[@]}"; do
   # A source with `chart:` is a Helm source; the plain git source is not.
   count=$(yq "[$chart_source] | length" "$app")
@@ -100,10 +99,11 @@ for app in "${app_files[@]}"; do
   helm template "$release" "$chart" --repo "$repo" --version "$version" \
     --namespace "$ns" --include-crds "${values[@]}" > "$work/out.yaml" \
     || { fail "helm template $name"; continue; }
-  rendered=$((rendered + 1))
   schema_check "$work/out.yaml" || fail "kubeconform $name"
 done
-[ "$rendered" -gt 0 ] || fail "no Helm sources were rendered"
+# No guard that something rendered: since dev's Applications went, no
+# Application CR carries a chart (charts are kustomize helmCharts, built
+# above), so zero is the normal count.
 
 echo "== argocd resources"
 # Not the kustomization.yaml files: those are not Kubernetes objects.

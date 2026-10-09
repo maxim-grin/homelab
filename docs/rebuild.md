@@ -477,29 +477,12 @@ from `secret.yaml`.
    vault operator unseal
    ```
 
-   Configuring and seeding `vault-02` needs the `vault-auth-token` Secret
-   that `argocd-config` creates — see the "Configure and seed `vault-02`"
-   step below, after `argocd-config` has synced.
-8. **ArgoCD via Helm:**
-
-   ```bash
-   ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass
-   ```
-
-   The UI login is `admin`, with the password whose bcrypt hash is
-   `argocd_admin_password_hash` in `secret.yaml`. The play asserts that hash
-   is present before installing, so a forgotten value fails here rather than
-   leaving a random password in `argocd-initial-admin-secret`. Before Helm
-   runs, `ansible/roles/argocd` also creates the `cmp-plugin` ConfigMap and
-   `argocd-vault-plugin-config` Secret that the argocd-vault-plugin (AVP)
-   sidecar in `argocd-repo-server` needs — that ordering is what keeps
-   `argocd-repo-server` out of `Init`. It also creates the `argocd-redis`
-   Secret when it is missing, in place of the chart's hook Job (step 17
-   explains why). The Helm task does not wait, so on
-   an upgrade where the new repo-server wedges, the old pod keeps serving
-   and the playbook still reports `changed`; confirm
-   `kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-repo-server`
-   shows `2/2` before continuing.
+   Configuring and seeding `vault-02` is the "Configure and seed
+   `vault-02`" step below.
+8. **No ArgoCD on dev.** Dev is a spoke of the prod hub: its apps come
+   from the prod hub's `apps` ApplicationSet, not from an ArgoCD of its
+   own. Nothing to install here; the hub is built in step 17 and dev is
+   registered with it in step 11.
 9. **Out-of-band Secrets** — creates the `grafana-admin` Secret from
    `secret.yaml`:
 
@@ -524,12 +507,15 @@ from `secret.yaml`.
     cluster: `argocd-config` declares `project: homelab`, so once that project
     is gone ArgoCD can no longer sync `argocd-config` either, and nothing is
     left that can recreate the AppProject except this manual apply.
-11. **`kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml`**
-    — `root-dev` then pulls in ingress-nginx, nfs, cert-manager and its
-    issuers, monitoring, jobboard, and `argocd-config` itself. `argocd-config` syncing
-    `argocd/base/` is what creates the `vault-auth` ServiceAccount,
-    ClusterRoleBinding and `vault-auth-token` Secret in
-    `argocd/base/vault-auth-delegator.yaml` — needed by the next step.
+11. **Hand dev to the hub** — after step 17 the hub has ArgoCD, so
+    register dev with it and let the `apps` ApplicationSet generate
+    `dev-ingress-nginx`, `dev-nfs-provisioner`, `dev-cert-manager`,
+    `dev-cert-manager-issuers` and `dev-jobboard`. The commands are the
+    runbook entries "Register dev with the prod hub"
+    ([runbook](runbooks/playbooks-and-terraform.md#register-dev-with-the-prod-hub))
+    and "adopt dev into the hub" (the adoption runbook, which also covers
+    a dev that has live resources already). Dev's monitoring stack is not
+    in the set yet; it stays unmanaged until PR A4.
 
     ArgoCD syncs the jobboard manifests as soon as this applies, and
     `argocd/apps/jobboard/dev/kustomization.yaml` names a specific published
@@ -545,8 +531,7 @@ from `secret.yaml`.
     however long it takes to reach step 12 below — Vault's Kubernetes auth
     is not configured until then. That is expected, not a wiring fault; it
     clears once step 12 runs.
-12. **Configure and seed `vault-02`** — now that `argocd-config` has synced
-    and created the `vault-auth-token` Secret, finish step 7 above:
+12. **Configure and seed `vault-02`** — finish step 7 above:
 
     ```bash
     ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
@@ -572,8 +557,7 @@ from `secret.yaml`.
     ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-14. **Point `/etc/hosts`** at a node IP for `dev-argocd.mgryn.cc`,
-    `dev-grafana.mgryn.cc` and
+14. **Point `/etc/hosts`** at a node IP for `dev-grafana.mgryn.cc` and
     `prometheus.mgryn.cc`. One line per name, all pointing at the same node
     -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
     answers.
@@ -796,10 +780,8 @@ from `secret.yaml`.
        cd ../../../ansible
        ```
 
-    2. Optional, first: re-run `playbooks/argocd-dev.yaml -e @secret.yaml
-       --ask-vault-pass` so dev's ArgoCD answers as `dev-argocd.mgryn.cc`
-       (the rename that frees `argocd.mgryn.cc` for the hub), and add
-       `dev-argocd.mgryn.cc` to `/etc/hosts` pointing at a dev node IP.
+    2. Retired: dev's ArgoCD no longer exists, so there is no rename to
+       do first. (Numbering kept; other steps cite 17.7.)
 
     3. Deploy ArgoCD. `prod_kubeconfig` is required; the play fails fast
        without it:
@@ -881,8 +863,7 @@ from `secret.yaml`.
 
     8. Check the UI. Prod has no ingress controller until PR 3, so use the
        NodePort: `http://10.0.0.111:32080` (or `.112`, or HTTPS on
-       `32443`) shows the login page. If step 2 was done,
-       `dev-argocd.mgryn.cc` still lists dev's Applications `Synced`.
+       `32443`) shows the login page.
 
     9. Delete the kubeconfig: `rm "$PROD_KC"`.
 
@@ -907,9 +888,9 @@ from `secret.yaml`.
        `argocd` and `grafana`, each to `10.0.0.111` and to `10.0.0.112`.
        On the workstation, point both names at a worker in `/etc/hosts`
        (`10.0.0.111 argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
-       `grafana.mgryn.cc` line that points at a dev node: dev's Grafana is
-       now `dev-grafana.mgryn.cc`. The same applies to the old
-       `argocd.mgryn.cc` line, now `dev-argocd.mgryn.cc`.
+       `grafana.mgryn.cc` and `argocd.mgryn.cc` lines that point at a dev
+       node: dev's Grafana is now `dev-grafana.mgryn.cc`, and dev has no
+       ArgoCD UI.
 
     2. Get the platform apps onto `main`, which `root-prod` reads (on
        the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then
@@ -1170,13 +1151,7 @@ ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
 ssh <master-ip> sudo cat /etc/kubernetes/admin.conf > ~/.kube/homelab-dev.conf
 export KUBECONFIG=~/.kube/homelab-dev.conf
 
-ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass
 ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
-kubectl apply -f ../argocd/base/projects.yaml
-kubectl apply -f ../argocd/environments/dev/applications/app-of-apps.yaml
-
-# once argocd-config has created it:
-kubectl -n argocd get secret vault-auth-token
 
 # Point Vault's Kubernetes auth at the new cluster's CA and reviewer JWT.
 # The KV store is already seeded, so no seed.
@@ -1185,6 +1160,12 @@ ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
   -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
 ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
 ```
+
+Then re-register dev with the hub, which holds the new cluster's CA and
+token: the runbook entry "Register dev with the prod hub"
+([runbook](runbooks/playbooks-and-terraform.md#register-dev-with-the-prod-hub)).
+The hub's `apps` ApplicationSet then syncs the dev apps; dev has no
+ArgoCD of its own.
 
 Applications that carry `<path:...>` placeholders show `Unknown` until
 the Vault step runs, and clear on Argo's next poll. jobboard restarting
@@ -1202,13 +1183,13 @@ Every PVC is new, so `nfs-dev` gives each one a new directory,
 `/srv/nfs/k8s/<namespace>-<pvc>-<pv>`. The old cluster's directories are
 still there, untouched — their PVCs were never deleted, so the provisioner
 never removed them. jobboard comes up with its schema and no rows. To bring
-the old database back, pause ArgoCD first; otherwise selfHeal scales
-Postgres back up mid-copy. `root-dev` before `jobboard`, or `root-dev`
-restores `jobboard`'s sync policy at once:
+the old database back, pause the hub's `dev-jobboard` first; otherwise
+selfHeal scales Postgres back up mid-copy. Against the hub, with the
+ArgoCD CLI logged in
+([runbook](runbooks/access.md#log-in-to-the-argocd-cli)):
 
 ```bash
-kubectl -n argocd patch application root-dev --type json -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]'
-kubectl -n argocd patch application jobboard --type json -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]'
+argocd app set dev-jobboard --sync-policy none
 kubectl -n jobboard scale deploy/jobboard --replicas=0
 kubectl -n jobboard scale sts/postgres --replicas=0
 kubectl -n jobboard wait --for=delete pod/postgres-0 --timeout=2m
@@ -1226,8 +1207,10 @@ sudo cp -a "$O/pgdata" "$N/pgdata"       # -a keeps UID 999 ownership
 ```
 
 Then scale `postgres` to 1, wait for Ready, check a row count with `psql`,
-scale `jobboard` to 1, and re-apply `app-of-apps.yaml` to restore
-auto-sync on both. The password matches because both databases were
+scale `jobboard` to 1, and restore auto-sync with
+`argocd app set dev-jobboard --sync-policy automated --self-heal`. The
+ApplicationSet restores the policy by itself on its next reconcile, so
+finish the copy promptly. The password matches because both databases were
 initialised from the same Vault secret. Delete the old directory and
 `pgdata.empty` once the app is confirmed working.
 

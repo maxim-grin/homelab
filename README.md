@@ -98,7 +98,6 @@ diagram has a static address above that pool.
 | VM         | `vault-02`, the Vault VM; `kv-dev` and `kv-prod` both read by AVP                                                                                                               | `terraform/environments/shared`                                                                         |
 | LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `glance` (dashboard) at `.142`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144` | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
 | OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
-| GitOps     | ArgoCD (`dev-argocd.mgryn.cc`), app-of-apps `root-dev`                                                                                                                              | `ansible/roles/argocd`, `argocd/environments/dev`                                                       |
 | GitOps     | ArgoCD on the Talos cluster, bootstrapped by `playbooks/argocd-prod.yaml`, app-of-apps `root-prod` plus one ApplicationSet that generates the prod apps ([ADR 0024](docs/decisions/0024-hub-in-prod.md), [ADR 0026](docs/decisions/0026-uniform-apps.md)) | `ansible/playbooks/argocd-prod.yaml`, `argocd/environments/prod`                                        |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                                                                                   | `argocd/apps/ingress-nginx`                                                                             |
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare                                                                                                                  | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers`                                          |
@@ -135,7 +134,7 @@ entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
 `pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
-straight at `vault-02`. The dev cluster names — `dev-argocd`, `dev-grafana`,
+straight at `vault-02`. The dev cluster names — `dev-grafana`,
 `prometheus` — resolve through `/etc/hosts` on the workstation, pointing
 at a node IP since ingress-nginx answers on every node. Pi-hole
 (`10.0.0.140`) answers only the devices pointed at it by hand, because
@@ -165,7 +164,6 @@ ansible/          Roles and playbooks. Inventory per environment, secrets in
 argocd/           base/       AppProject
                   apps/       <app>/<env> kustomize directories (Helm via
                               helmCharts) and a config.yaml per app
-                  environments/dev/applications/  Application CRs, synced by root-dev
                   environments/prod/applications/ root-prod's children, incl. the
                               ApplicationSet that generates the prod apps
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, nfs-server,

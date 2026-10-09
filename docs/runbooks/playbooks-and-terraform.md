@@ -88,7 +88,6 @@ inventory is `inventories/dev`; `shared` and `prod` runs need `-i`.
 | `cluster_init.yaml`   | default (dev)                                 | none                                                                     | redo control-plane init after a reset                        |
 | `join_workers.yaml`   | default (dev)                                 | none                                                                     | add workers, always with `cluster_init.yaml` in one run      |
 | `cluster_secrets.yaml`| default (dev)                                 | none                                                                     | apply out-of-band cluster Secrets                            |
-| `argocd-dev.yaml`     | default (dev)                                 | none                                                                     | install or re-run ArgoCD on dev                              |
 | `argocd-prod.yaml`    | none (runs on localhost)                      | `prod_kubeconfig=<mode 600 file>`                                        | install or re-run ArgoCD on prod                             |
 | `dev_register.yaml`   | `-i inventories/shared -i inventories/dev`    | `vault_token=<root>`                                                     | register dev with the prod hub; after any dev rebuild        |
 | `coredns_hosts.yaml`  | default (dev)                                 | none                                                                     | pin `vault.mgryn.cc` in CoreDNS; after every kubeadm upgrade|
@@ -189,20 +188,6 @@ should not climb past the baseline; if it climbs toward its ceiling, raise
 
 If not: `Vault answered 503` is sealed, unseal it by hand; a token Secret
 that stays empty means the token controller is not running on dev.
-
-### Deploy ArgoCD to dev
-
-When: first install, or to change the dev ArgoCD settings (host
-`dev-argocd.mgryn.cc`). The role needs the `cmp-plugin` ConfigMap and AVP
-Secret first; the role creates them before Helm runs.
-
-```bash
-ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass
-```
-
-Expect: `failed=0`; `kubectl --kubeconfig "$DEV_KC" -n argocd get pods` all
-`Running` or `Completed`. If not: `repo-server` stuck in `Init` means the AVP
-ConfigMap or Secret is missing ([checks.md](checks.md)).
 
 ### Deploy ArgoCD to prod
 
