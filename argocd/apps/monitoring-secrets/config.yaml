@@ -1,7 +1,7 @@
 # Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
 # deploys this app: one list entry per env, each generating
-# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` deploys it
-# nowhere; the rollout PR uncomments the entry below.
+# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` would deploy it
+# nowhere. Rolled in on 2026-10-09 (uniform-rollout-4a).
 #
 # Separate from kube-prometheus-stack so the <path:...> placeholders (the
 # Grafana admin login, the Telegram token and chat id) never sit in the
@@ -15,13 +15,12 @@
 # 5m: about 37 minutes) carries a sync that runs before its dependency is
 # ready; after that, sync the app by hand.
 #
-# - env: prod
-#   namespace: monitoring
-#   # The Namespace is a manifest in this app; every other monitoring
-#   # app relies on it.
-#   createNamespace: false
-#   # Client-side apply would copy the AVP-rendered Secrets, credentials
-#   # and all, into the last-applied-configuration annotation in clear
-#   # text. Server-side apply keeps no such copy.
-#   serverSideApply: true
-[]
+- env: prod
+  namespace: monitoring
+  # The Namespace is a manifest in this app; every other monitoring
+  # app relies on it.
+  createNamespace: false
+  # Client-side apply would copy the AVP-rendered Secrets, credentials
+  # and all, into the last-applied-configuration annotation in clear
+  # text. Server-side apply keeps no such copy.
+  serverSideApply: true
