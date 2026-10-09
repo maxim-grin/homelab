@@ -498,7 +498,7 @@ All must hold before the merge.
    ```bash
    kubectl --kubeconfig "${DEV_KC:?}" -n argocd get applications,appprojects \
      -o custom-columns=KIND:.kind,NAME:.metadata.name,FINALIZERS:.metadata.finalizers
-   kubectl --kubeconfig "${DEV_KC:?}" get node master-01 worker-01 worker-02 && \
+   kubectl --kubeconfig "${DEV_KC:?}" get node ubuntu-k8s-master-01 worker-01 worker-02 && \
    kubectl --kubeconfig "$DEV_KC" -n argocd patch application root-dev \
      --type=merge -p '{"metadata":{"finalizers":null}}'
    kubectl --kubeconfig "${DEV_KC:?}" -n argocd get applications,appprojects \
@@ -625,7 +625,7 @@ the hub would recreate or break that workload; do not merge.
    It is a StatefulSet:
 
    ```bash
-   kubectl --kubeconfig "${DEV_KC:?}" get node master-01 worker-01 worker-02 && {
+   kubectl --kubeconfig "${DEV_KC:?}" get node ubuntu-k8s-master-01 worker-01 worker-02 && {
    kubectl --kubeconfig "$DEV_KC" -n argocd scale statefulset/argocd-application-controller --replicas=0
    kubectl --kubeconfig "$DEV_KC" -n argocd get statefulset argocd-application-controller
    }
@@ -633,6 +633,10 @@ the hub would recreate or break that workload; do not merge.
 
    The chain enforces the cluster check: the commands do not run unless
    all three dev node names exist (a Talos cluster has none of them).
+   The names are dev's kubeadm nodes today (`ubuntu-k8s-master-01`,
+   `worker-01`, `worker-02`); series B's new VMs (`kubeadm-dev-cp1`,
+   `w1`) rename the nodes, so update the list in every `get node` command
+   here then.
 
    Expect: `0/0`.
 3. The owner merges the PR. Wait for the set's next poll (about 3
@@ -711,7 +715,7 @@ leftovers the role created (`cmp-plugin`, `argocd-vault-plugin-config`,
 outlives the namespace:
 
 ```bash
-kubectl --kubeconfig "${DEV_KC:?}" get node master-01 worker-01 worker-02 && {
+kubectl --kubeconfig "${DEV_KC:?}" get node ubuntu-k8s-master-01 worker-01 worker-02 && {
 helm --kubeconfig "$DEV_KC" uninstall argocd -n argocd
 kubectl --kubeconfig "$DEV_KC" delete namespace argocd
 kubectl --kubeconfig "$DEV_KC" delete crd applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io

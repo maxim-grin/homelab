@@ -25,7 +25,7 @@ kubectl --kubeconfig "$KC_TMP" get nodes
 echo "kubeconfig is at $KC_TMP"
 ```
 
-Expect: three nodes `Ready` (`master-01`, `worker-01`, `worker-02`). Point
+Expect: three nodes `Ready` (`ubuntu-k8s-master-01`, `worker-01`, `worker-02`). Point
 `$DEV_KC` at the printed path while you work and `rm` the file afterwards.
 
 If not: `Permission denied (publickey)` means the key is not the one
