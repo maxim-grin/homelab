@@ -163,11 +163,13 @@ keeps self-healing. `$PROD_KC` is the prod kubeconfig
 
 ```bash
 kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=0
-argocd app set dev-jobboard --sync-policy none
+argocd app set dev-jobboard --sync-policy none --grpc-web
+kubectl --kubeconfig "$PROD_KC" -n argocd get application dev-jobboard -o jsonpath='{.spec.syncPolicy.automated}'
 ```
 
-Expect: the first command prints `deployment.apps/argocd-applicationset-controller scaled`
-and the second `application 'dev-jobboard' updated`. While the controller
+Expect: the first command prints `deployment.apps/argocd-applicationset-controller scaled`;
+`argocd app set` prints nothing on success, and the last command prints
+nothing (no automated policy). While the controller
 is at 0 every other generated app keeps self-healing, but changes to config
 entries or the set's template are not processed and generated Applications
 are not updated.
