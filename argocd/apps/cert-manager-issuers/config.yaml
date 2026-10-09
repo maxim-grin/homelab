@@ -25,3 +25,10 @@
   # would sit in clear text in an annotation. Server-side apply tracks
   # field ownership in managedFields and keeps no such copy.
   serverSideApply: true
+- env: dev
+  namespace: cert-manager
+  # cert-manager creates the namespace.
+  createNamespace: false
+  # Same reason as prod: keeps the rendered Cloudflare token out of the
+  # last-applied-configuration annotation.
+  serverSideApply: true

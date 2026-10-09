@@ -19,3 +19,8 @@
   # "metadata.annotations: Too long". ServerSideApply has no such
   # limit.
   serverSideApply: true
+- env: dev
+  namespace: cert-manager
+  createNamespace: true
+  # Same reason as prod: the CRDs exceed the client-side annotation limit.
+  serverSideApply: true
