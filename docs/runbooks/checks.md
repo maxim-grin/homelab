@@ -505,8 +505,8 @@ All must hold before the merge.
      -o custom-columns=KIND:.kind,NAME:.metadata.name,FINALIZERS:.metadata.finalizers
    ```
 
-   Expect: every row `<none>`. The children need no patch: their files in
-   git carry none.
+   The patch runs only if the dev node check passes. Expect: every row
+   `<none>`. The children need no patch: their files in git carry none.
 6. Prod `cp1`'s memory baseline noted
    ([Memory, VMs and thin pool](#memory-vms-and-thin-pool)); the hub
    controller caches dev's resources once the first app syncs.
@@ -515,14 +515,14 @@ All must hold before the merge.
    (the only proof Argo itself, not just the check script, matches the
    AVP-rendered Secret) before the merge.
 8. The equivalence and live-diff checks below are recorded, with results.
-9. Last of the gates, right before Order 2, because `main` can move
+9. Last of the gates, before the Order steps, because `main` can move
    (Renovate): live dev equals `main`, so the hub's first sync changes
    nothing but tracking. Every old app `Synced` and `Healthy` on `main`'s
    HEAD:
 
    ```bash
    kubectl --kubeconfig "${DEV_KC:?}" -n argocd get applications \
-     -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REV:.status.sync.revision,REVS:.status.sync.revisions[*]
+     -o 'custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REV:.status.sync.revision,REVS:.status.sync.revisions[*]'
    git fetch origin main && git rev-parse origin/main
    ```
 
@@ -587,7 +587,6 @@ kustomize to the plugin's) and `jobboard`. `select` works per document on
 the multi-document stream (checked with a scratch stream):
 
 ```bash
-: "${DEV_KC:?set DEV_KC}"
 for d in cert-manager cert-manager-issuers ingress-nginx nfs-provisioner jobboard; do
   echo "== $d"
   kustomize build --enable-helm "argocd/apps/$d/dev" | yq e 'select(.kind != "Secret")' - |
@@ -704,7 +703,7 @@ Only after every check above passes. First confirm again that nothing on
 dev has a finalizer, the children and `root-dev`:
 
 ```bash
-kubectl --kubeconfig "$DEV_KC" -n argocd get applications,appprojects \
+kubectl --kubeconfig "${DEV_KC:?}" -n argocd get applications,appprojects \
   -o custom-columns=KIND:.kind,NAME:.metadata.name,FINALIZERS:.metadata.finalizers
 ```
 
