@@ -178,12 +178,17 @@ argocd app get clusters-dev --hard-refresh --grpc-web
 argocd cluster list --grpc-web
 ```
 
-Expect: `failed=0`; `argocd cluster list` shows `dev` with status `Successful`, and `cp1`
-memory has not climbed past the baseline. If `cp1` memory climbs toward
-its ceiling: raise `cp1` memory in the gitignored `prod.tfvars`, apply, then
-`qm reboot 3101` ([Resize a node](#resize-a-node)). If not: `Vault answered 503` is
-sealed, unseal it by hand; a token Secret that stays empty means the
-token controller is not running on dev.
+Expect: `failed=0`; `clusters-dev` Synced and Healthy after the hard
+refresh; `dev` listed as `Unknown` with "Cluster has no applications and
+is not being monitored" (normal: ArgoCD connects to a cluster only once
+an Application targets it, so `Successful` and a version appear after the
+first dev app syncs, and a bad token is first noticed then). `cp1` memory
+should not climb past the baseline; if it climbs toward its ceiling, raise
+`cp1` memory in the gitignored `prod.tfvars`, apply, then `qm reboot 3101`
+([Resize a node](#resize-a-node)).
+
+If not: `Vault answered 503` is sealed, unseal it by hand; a token Secret
+that stays empty means the token controller is not running on dev.
 
 ### Deploy ArgoCD to dev
 
