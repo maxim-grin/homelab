@@ -138,6 +138,34 @@ ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
 
 Expect: `failed=0`. If not: values come from `ansible/secret.yaml`.
 
+### Register dev with the prod hub
+
+When: after any dev rebuild (a new cluster has a new CA and token, so the
+old ones in Vault are stale), and once when dev first becomes a spoke. It
+creates the `argocd-manager` ServiceAccount (bound to `cluster-admin`, with
+a long-lived token Secret) in `kube-system` on dev, and writes `server`,
+`bearerToken` and `caData` to `kv-prod/argocd/clusters/dev`. Re-running
+replaces a stale token and changes nothing when the values match.
+
+Gate, before running: a sealed Vault looks healthy but the play fails at its
+preflight, so run `vault status`
+([Is Vault up and unsealed](checks.md#is-vault-up-and-unsealed)). Note prod
+`cp1`'s memory in Proxmox; the hub controller starts caching dev once the
+cluster is registered, so compare it before and after against the baseline
+([Memory, VMs and thin pool](checks.md#memory-vms-and-thin-pool)).
+
+```bash
+ansible-playbook -i inventories/shared -i inventories/dev playbooks/dev_register.yaml \
+  -e @secret.yaml --ask-vault-pass -e vault_token=<root>
+```
+
+Expect: `failed=0`. After the cluster Secret is delivered, log in per
+[Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli), then
+`argocd cluster list` shows `dev` with status `Successful`, and `cp1`
+memory has not climbed past the baseline. If not: `Vault answered 503` is
+sealed, unseal it by hand; a token Secret that stays empty means the
+token controller is not running on dev.
+
 ### Deploy ArgoCD to dev
 
 When: first install, or to change the dev ArgoCD settings (host

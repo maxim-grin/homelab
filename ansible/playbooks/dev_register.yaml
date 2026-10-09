@@ -1,0 +1,129 @@
+---
+# Registers dev as a spoke of the prod ArgoCD hub. Play 1 makes the
+# argocd-manager ServiceAccount on dev's control plane and reads its token
+# and the cluster CA; play 2 writes them to kv-prod/argocd/clusters/dev on
+# vault-02. Both hosts are in different inventories, so run with both:
+#   ansible-playbook -i inventories/shared -i inventories/dev playbooks/dev_register.yaml \
+#     -e @secret.yaml --ask-vault-pass -e vault_token=<root>
+# No delegate_to here: each play targets its own host, so the
+# optional-key-before-when pitfall (delegate_to is templated before when)
+# cannot arise. Re-running is safe: objects are declared, and Vault is
+# written only when a field differs.
+- name: Create the argocd-manager ServiceAccount on dev
+  hosts: k8s_control_plane
+  become: true
+  gather_facts: false
+
+  vars:
+    dev_register_kubeconfig: /etc/kubernetes/admin.conf
+    dev_register_namespace: kube-system
+
+  pre_tasks:
+    - name: Install the Python Kubernetes library
+      ansible.builtin.apt:
+        name: python3-kubernetes
+        state: present
+
+  tasks:
+    - name: Create the ServiceAccount, its binding and its token Secret
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ dev_register_kubeconfig }}"
+        definition: "{{ item }}"
+      loop:
+        - apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: argocd-manager
+            namespace: "{{ dev_register_namespace }}"
+        - apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: argocd-manager
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: cluster-admin
+          subjects:
+            - kind: ServiceAccount
+              name: argocd-manager
+              namespace: "{{ dev_register_namespace }}"
+        # Long-lived token: the controller fills this Secret in for the
+        # annotated ServiceAccount.
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: argocd-manager-token
+            namespace: "{{ dev_register_namespace }}"
+            annotations:
+              kubernetes.io/service-account.name: argocd-manager
+          type: kubernetes.io/service-account-token
+      loop_control:
+        label: "{{ item.kind }}/{{ item.metadata.name }}"
+
+    # The token controller populates the Secret a moment after creation.
+    - name: Read the token Secret once it is populated
+      no_log: true
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ dev_register_kubeconfig }}"
+        api_version: v1
+        kind: Secret
+        name: argocd-manager-token
+        namespace: "{{ dev_register_namespace }}"
+      register: dev_register_secret
+      until:
+        - dev_register_secret.resources | length == 1
+        - (dev_register_secret.resources[0].data | default({})).token is defined
+      retries: 15
+      delay: 2
+
+    # caData is the base64 PEM exactly as the Secret holds it, which is the
+    # form an ArgoCD cluster Secret wants. The token is decoded.
+    - name: Keep the registration fields for the Vault play
+      no_log: true
+      ansible.builtin.set_fact:
+        dev_register_fields:
+          server: "https://{{ control_plane_endpoint }}:{{ kube_apiserver_port }}"
+          bearerToken: "{{ dev_register_secret.resources[0].data.token | b64decode }}"
+          caData: "{{ dev_register_secret.resources[0].data['ca.crt'] }}"
+
+- name: Write the dev cluster credentials to Vault
+  hosts: vault
+  become: true
+
+  vars:
+    dev_register_source: "{{ groups['k8s_control_plane'] | first }}"
+    dev_register_path: kv-prod/data/argocd/clusters/dev
+
+  tasks:
+    - name: Check the token and Vault's state
+      ansible.builtin.include_role:
+        name: vault
+        tasks_from: preflight.yaml
+
+    - name: Read the current value
+      no_log: true
+      ansible.builtin.uri:
+        url: "{{ vault_api_url }}/v1/{{ dev_register_path }}"
+        ca_path: "{{ vault_tls_dir }}/ca.crt"
+        headers:
+          X-Vault-Token: "{{ vault_token }}"
+        status_code: [200, 404]
+      register: dev_register_current
+
+    - name: Write the three fields when new or changed
+      no_log: true
+      ansible.builtin.uri:
+        url: "{{ vault_api_url }}/v1/{{ dev_register_path }}"
+        method: POST
+        ca_path: "{{ vault_tls_dir }}/ca.crt"
+        headers:
+          X-Vault-Token: "{{ vault_token }}"
+        body_format: json
+        body:
+          data: "{{ hostvars[dev_register_source]['dev_register_fields'] }}"
+        status_code: 200
+      when: >-
+        dev_register_current.status == 404
+        or dev_register_current.json.data.data != hostvars[dev_register_source]['dev_register_fields']
+      changed_when: true
