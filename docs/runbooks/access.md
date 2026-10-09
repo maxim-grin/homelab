@@ -125,7 +125,7 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 | Grafana (prod)    | `https://grafana.mgryn.cc`               | `kv-prod/monitoring/grafana`, fields `admin-user`, `admin-password` (only read when Grafana first creates its database) |
 | Grafana (dev)     | `https://dev-grafana.mgryn.cc`           | `grafana_admin_password` in `secret.yaml`, kept in the `grafana-admin` Secret |
 | Prometheus (dev)  | `http://prometheus.mgryn.cc`             | basic auth, `monitoring/prometheus` in `secret.yaml`'s `vault_kv` block, Vault `kv-dev/monitoring/prometheus` |
-| Prometheus, Alertmanager (prod) | no Ingress; through Grafana, or `kubectl port-forward` ([operations.md](../operations.md)) | none |
+| Prometheus, Alertmanager (prod) | no UI Ingress; through Grafana, or `kubectl port-forward` ([operations.md](../operations.md)). The one Ingress is write-only: `https://prometheus.mgryn.cc/api/v1/write`, for dev's sender | basic auth, `kv-prod/monitoring/remote-write` (`htpasswd`; the plain pair is `kv-dev/monitoring/remote-write`) |
 | jobboard          | `https://jobs.mgryn.cc`                  | app login; no infrastructure credential |
 | Vault             | `https://vault.mgryn.cc:8200`            | root token from `vault operator init`, kept in the password manager; trust `~/.homelab-ca/ca.crt` |
 | Pi-hole           | `https://pihole.hl.mgryn.cc` (opens `/admin/`) | `pihole_admin_password` in `secret.yaml` |
@@ -134,6 +134,31 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 | Gatus             | `https://status.hl.mgryn.cc`             | `gatus_basic_user` and `gatus_basic_password` (bcrypt: `gatus_basic_password_bcrypt`) in `secret.yaml`; basic auth protects only Gatus's API (`/api/v1/...`), the root page loads without it |
 | Glance            | `https://home.hl.mgryn.cc`               | no login configured in the role; its env file reads `pihole_app_password`, `glance_proxmox_token_id`, `glance_proxmox_token_secret`, `gatus_basic_user` and `gatus_basic_password` from `secret.yaml` |
 | LAN Orangutan     | `https://lan.hl.mgryn.cc`                | `orangutan_password` in `secret.yaml` |
+
+### Log in to the ArgoCD CLI
+
+When: running `argocd app ...`, `argocd appset generate` or `argocd app
+terminate-op` against the prod hub. The session token expires; a command that
+fails with `Unauthenticated ... token is expired` needs a fresh login, nothing
+more. `--grpc-web` is needed because ArgoCD sits behind ingress-nginx. The
+password is the plaintext behind `argocd_admin_password_hash` (yours; see the
+table above).
+
+```bash
+argocd login argocd.mgryn.cc --grpc-web --username admin
+argocd app list --grpc-web | head -3
+```
+
+Expect: `'admin:login' logged in successfully`, then the Application list.
+
+If not: a `504` means `argocd-server`, or what it waits on, is not answering:
+`kubectl --kubeconfig "$PROD_KC" -n argocd get pods`, and check that
+`argocd-application-controller-0` is `1/1` (a controller left at 0 replicas
+makes refreshes hang). `argocd app get monitoring` is slow because the chart
+has about 90,000 lines of manifests; read what you need with `kubectl -n argocd
+get app <name> -o jsonpath=...` instead. `--core` skips the login but talks to
+whatever cluster and namespace your current kubectl context names, so it hangs
+on the wrong context.
 
 ## Vault CLI
 
