@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps
-> use checkbox (`- [ ]`) syntax for tracking. Per CLAUDE.md, this plan
+> use checkbox (`- [x]`) syntax for tracking. Per CLAUDE.md, this plan
 > records decisions, files, order and checks, not finished code: the
 > implementer writes the code. Exact values stay verbatim.
 
@@ -181,22 +181,22 @@ and `argocd-config.yaml`.
 
 **Files:** none; findings go in the plan's notes section and a runbook line.
 
-- [ ] Step 1: In the prod `argocd-repo-server` pod, container `avp`, check
+- [x] Step 1: In the prod `argocd-repo-server` pod, container `avp`, check
   `helm version` and `kustomize version`. If helm is missing, the fix
   (image, or an init container install beside the existing
   `ubi8-minimal` and `quay.io/argoproj/argocd:v3.2.0` entries) becomes
   part of Task 2.
-- [ ] Step 2: Run `argocd-vault-plugin generate` on a placeholder-free
+- [x] Step 2: Run `argocd-vault-plugin generate` on a placeholder-free
   manifest with `VAULT_ADDR` pointed at an unreachable address. Record
   whether it still tries to log in (Review Focus 4). Task 2 branches
   regardless, so this only decides whether the comment says "required" or
   "belt and braces".
-- [ ] Step 3: Render `kube-prometheus-stack` 91.9.0 with
+- [x] Step 3: Render `kube-prometheus-stack` 91.9.0 with
   `kustomize build --enable-helm` inside the sidecar, with `HELM_CACHE_HOME`,
   `HELM_CONFIG_HOME` and `HELM_DATA_HOME` under `/tmp`. Record the time
   and whether the repo-server exec timeout (default 90s) is enough
   (Review Focus 5). If not, the timeout goes up in Task 2.
-- [ ] Step 4: Check `argocd-applicationset-controller` is Running and which
+- [x] Step 4: Check `argocd-applicationset-controller` is Running and which
   Argo CD version it reports.
 
 ### Task 2: CMP discover and generate
@@ -212,17 +212,17 @@ re-running the playbook.
   home dirs under `/tmp`, and calls AVP only when the output contains
   `<path:`.
 
-- [ ] Step 1: Extend `discover.find` with `[ -f ../config.yaml ]`, OR-ed with
+- [x] Step 1: Extend `discover.find` with `[ -f ../config.yaml ]`, OR-ed with
   the existing placeholder grep. Keep the swallow-errors behaviour the
   existing comment explains.
-- [ ] Step 2: Rewrite `generate` keeping `set -e` and the write-to-a-file
+- [x] Step 2: Rewrite `generate` keeping `set -e` and the write-to-a-file
   pattern the existing comment explains (no pipe, no `pipefail`): build
   to a temp file, then `grep -q '<path:'` decides AVP versus `cat`.
-- [ ] Step 3: Apply any Task 1 findings (helm install, exec timeout).
-- [ ] Step 4: Verify: `ansible-lint ansible/roles/argocd`;
+- [x] Step 3: Apply any Task 1 findings (helm install, exec timeout).
+- [x] Step 4: Verify: `ansible-lint ansible/roles/argocd`;
   `ansible-playbook ansible/playbooks/argocd-prod.yaml --syntax-check -e @secret.yaml --ask-vault-pass`;
   `pre-commit run --all-files`.
-- [ ] Step 5: Commit `ops: render helm charts in the avp plugin`.
+- [x] Step 5: Commit `ops: render helm charts in the avp plugin`.
 
 **Operator (after merge):** run `argocd-prod.yaml` per the runbook entry;
 the repo-server must restart (check its pod age, and that the sidecar
@@ -246,16 +246,16 @@ a test script beside the existing `scripts/tests/*.test.sh`.
   provides, a set that references no config, a destination not in the
   AppProject, or a misplaced key under `template.spec`.
 
-- [ ] Step 1: Choose the expansion mechanism (`argocd appset generate
+- [x] Step 1: Choose the expansion mechanism (`argocd appset generate
   --core` offline, else `yq` over the cluster Secrets and configs); one
   comment in the script records the choice.
-- [ ] Step 2: Fixtures: a good set; a directory name containing an
+- [x] Step 2: Fixtures: a good set; a directory name containing an
   underscore; a directory name with a capital; an env with no cluster; a misplaced
   key. Verify the check fails each with a distinct message and passes
   the good one.
-- [ ] Step 3: Implement. Verify: `scripts/check-manifests.sh` passes on the
+- [x] Step 3: Implement. Verify: `scripts/check-manifests.sh` passes on the
   repo as it stands, and the fixture test passes.
-- [ ] Step 4: Commit `ops: check applicationset expansion`.
+- [x] Step 4: Commit `ops: check applicationset expansion`.
 
 ### Task 4: Convert the Helm apps (per-chart comparison)
 
@@ -263,20 +263,20 @@ a test script beside the existing `scripts/tests/*.test.sh`.
 the existing `values.yaml` stays in place and keeps serving the old
 Applications until each is flipped.
 
-- [ ] Step 0: Add `charts/` to `.gitignore`:
+- [x] Step 0: Add `charts/` to `.gitignore`:
   `kustomize build --enable-helm` pulls charts into it and none may be committed.
-- [ ] Step 1: Per chart, a kustomization with `helmCharts:` (chart, repo,
+- [x] Step 1: Per chart, a kustomization with `helmCharts:` (chart, repo,
   the pinned version, `releaseName`, `namespace` equal to the app's
   namespace, `valuesFile: values.yaml`, `includeCRDs: true`).
-- [ ] Step 2: Compare, per chart, `kustomize build --enable-helm` with
+- [x] Step 2: Compare, per chart, `kustomize build --enable-helm` with
   `helm template` of the same chart, version, release, namespace and
   values. Diff. Record each difference in the plan's notes: hook
   resources (patch them or set the chart's value that disables them),
   CRDs, anything else. A hook Job that would run on every sync is fixed
   here, not left.
-- [ ] Step 3: Verify: `kustomize build --enable-helm` on each directory
+- [x] Step 3: Verify: `kustomize build --enable-helm` on each directory
   passes `scripts/check-manifests.sh`.
-- [ ] Step 4: Commit one chart per commit,
+- [x] Step 4: Commit one chart per commit,
   `refactor: render <chart> through kustomize`.
 
 ### Task 5: The cluster Secret, the set and the AppProject
@@ -295,14 +295,14 @@ Applications until each is flipped.
   ships as an empty list `[]`, so the set yields nothing until a rollout
   PR adds the entry.
 
-- [ ] Step 1: Secret for `prod` (no credentials: in-cluster); a plain
+- [x] Step 1: Secret for `prod` (no credentials: in-cluster); a plain
   Application `clusters`, sync wave `-1` (orders creation within root-prod only; it does not hold the
   set back), path
   `argocd/apps/clusters/prod`, namespace `argocd`.
-- [ ] Step 2: The eight `config.yaml`: `namespace`,
+- [x] Step 2: The eight `config.yaml`: `namespace`,
   `createNamespace`, `serverSideApply` (and, for ingress-nginx, `namespaceLabels`) as one list entry (`env: prod`), shipped as `[]` until rollout, values from the
   Global Constraints table.
-- [ ] Step 3: The set: matrix of cluster generator (selector `env` exists)
+- [x] Step 3: The set: matrix of cluster generator (selector `env` exists)
   and git-files generator (`argocd/apps/*/config.yaml`), `goTemplate: true`,
   `syncPolicy.applicationsSync: create-update`; template per the spec:
   name `{{cluster}}-{{path.basename}}`, the one `plugin: argocd-vault-plugin` source
@@ -314,16 +314,16 @@ Applications until each is flipped.
   per config list entry, and the matrix's cluster generator selects
   `env: '{{.env}}'` (plus `argocd.argoproj.io/secret-type: cluster`). Task 3's
   check asserts exactly that selector.
-- [ ] Step 4: AppProject: add destinations by name `prod` and `dev`; keep
+- [x] Step 4: AppProject: add destinations by name `prod` and `dev`; keep
   the existing `server` entry until the last rollout PR. Heed the
   lockout warning at the top of the file: this PR touches that file, so
   verify the repo URL entry is unchanged, and have the recovery
   command (`kubectl apply -f argocd/base/projects.yaml`) ready.
-- [ ] Step 5: Verify: `scripts/check-manifests.sh` expands to zero
+- [x] Step 5: Verify: `scripts/check-manifests.sh` expands to zero
   Applications (all configs `[]`) and passes; `kustomize build
   argocd/apps/clusters/prod`.
-- [ ] Step 6: Commit as three: clusters, set and configs, project.
-- [ ] Step 7: The rename is its own commit, made before Step 6's commits:
+- [x] Step 6: Commit as three: clusters, set and configs, project.
+- [x] Step 7: The rename is its own commit, made before Step 6's commits:
   `git mv argocd/apps/nfs_provisioner argocd/apps/nfs-provisioner`, and
   update the `path` in `argocd/environments/prod/applications/nfs.yaml`
   and `argocd/environments/dev/applications/nfs.yaml` (dev's live ArgoCD
@@ -362,14 +362,14 @@ plan is revised before merge.
 `kv-prod`), `ansible/roles/vault/templates/k8s-policy.hcl.j2` if it
 renders them.
 
-- [ ] Step 1: The prod ArgoCD policy also reads `kv-dev/`; dev's policy
+- [x] Step 1: The prod ArgoCD policy also reads `kv-dev/`; dev's policy
   still reads only `kv-dev/`.
-- [ ] Step 2: Verify: `ansible-lint ansible/roles/vault`;
+- [x] Step 2: Verify: `ansible-lint ansible/roles/vault`;
   `ansible-playbook ansible/playbooks/vault.yaml --syntax-check -e @secret.yaml --ask-vault-pass`.
-- [ ] Step 3: Runbook entry for re-running `vault.yaml` for this change
+- [x] Step 3: Runbook entry for re-running `vault.yaml` for this change
   and the check (`vault policy read argocd-read-prod`, a read of a
   `kv-dev/` path as the prod role).
-- [ ] Step 4: Commit `ops: let prod argocd read kv-dev`.
+- [x] Step 4: Commit `ops: let prod argocd read kv-dev`.
 
 ### Task 7: Prometheus receiver ingress
 
@@ -388,19 +388,19 @@ stay unreachable and the sender's credential can only write. Mirror dev's
 pattern for the auth annotations and the Secret name `prometheus-basic-auth`
 (key `auth`).
 
-- [ ] Step 1: Enable the ingress for `prometheus.mgryn.cc`,
+- [x] Step 1: Enable the ingress for `prometheus.mgryn.cc`,
   `ingressClassName: nginx`, the cert-manager annotation for the
   production issuer, basic-auth annotations naming the new Secret, and a
   `proxy-body-size` above the default `1m`.
-- [ ] Step 2: The Secret carries one field, the htpasswd line, as
+- [x] Step 2: The Secret carries one field, the htpasswd line, as
   `<path:kv-prod/data/monitoring/remote-write#htpasswd>`.
   `kv-dev/monitoring/remote-write` (`username`, `password`) is seeded by
   the operator for sub-4's sender.
-- [ ] Step 3: Verify: `kustomize build --enable-helm` on
+- [x] Step 3: Verify: `kustomize build --enable-helm` on
   `argocd/apps/kube-prometheus-stack/prod` shows the Ingress and body
   size; `kustomize build argocd/apps/monitoring-secrets/prod`;
   `scripts/check-manifests.sh`.
-- [ ] Step 4: Commit `feat: expose prometheus receiver with auth`.
+- [x] Step 4: Commit `feat: expose prometheus receiver with auth`.
 
 **Operator (BEFORE merge, not after a rollout):** seed both Vault paths
 per [Seed the remote-write credential](../../runbooks/playbooks-and-terraform.md#seed-the-remote-write-credential)
@@ -421,17 +421,17 @@ names Application files, `CLAUDE.md` (layout section, the AppProject note,
 the "Verifying" list), `docs/runbooks/` (rollout entry, retire-an-app
 entry, vault policy re-run).
 
-- [ ] Step 1: ADR 0026: uniform directories, one set, `applicationsSync:
+- [x] Step 1: ADR 0026: uniform directories, one set, `applicationsSync:
   create-update`, the hub reads both KV trees, AVP only on placeholders.
-- [ ] Step 2: Update the docs listed; the runbook entries link from the PR
+- [x] Step 2: Update the docs listed; the runbook entries link from the PR
   checklists rather than restate commands (ADR 0025).
-- [ ] Step 3: Verify: `scripts/check-runbooks.sh`;
+- [x] Step 3: Verify: `scripts/check-runbooks.sh`;
   `pre-commit run --all-files`.
-- [ ] Step 4: Commit `docs: record uniform apps decision`.
+- [x] Step 4: Commit `docs: record uniform apps decision`.
 
 ### Task 9: Mark draft ready
 
-- [ ] Step 1: `gh pr ready 102` once Tasks 1-8 are implemented, reviewed and
+- [x] Step 1: `gh pr ready 102` once Tasks 1-8 are implemented, reviewed and
   verified. The operator order is the runbook entry
   [Land the uniform-apps PR](../../runbooks/checks.md#land-the-uniform-apps-pr):
   BEFORE merge Vault unsealed, the CMP sidecar checked, the remote-write
@@ -455,40 +455,40 @@ below, on the thing itself.
 
 ### Task 10: Rollout 1, `nfs` (branch `uniform-rollout-1`)
 
-- [ ] Step 1: Flip `nfs-provisioner`; delete `nfs.yaml`.
-- [ ] Step 2: Check: `prod-nfs-provisioner` Synced and Healthy; `nfs-prod` is still the
+- [x] Step 1: Flip `nfs-provisioner`; delete `nfs.yaml`.
+- [x] Step 2: Check: `prod-nfs-provisioner` Synced and Healthy; `nfs-prod` is still the
   default StorageClass; `showmount -e` on `nfs-01` still lists the prod
   export to 111 and 112 only.
 
 ### Task 11: Rollout 2, cert-manager and issuers (branch `uniform-rollout-2`)
 
-- [ ] Step 1: With in-place adoption nothing is reissued, so the staging
+- [x] Step 1: With in-place adoption nothing is reissued, so the staging
   rehearsal is only needed if the fallback (delete and recreate) is used:
   then point the issuer at `letsencrypt-staging` (ADR 0008), confirm
   issuance, switch back.
-- [ ] Step 2: Flip `cert-manager` and `cert-manager-issuers`; delete both
+- [x] Step 2: Flip `cert-manager` and `cert-manager-issuers`; delete both
   files.
-- [ ] Step 3: Check: both `prod-*` Applications Synced and Healthy; a
+- [x] Step 3: Check: both `prod-*` Applications Synced and Healthy; a
   Certificate reaches `Ready`; `argocd.mgryn.cc` still serves a valid
   certificate, with the same serial as before the rollout.
 
 ### Task 12: Rollout 3, `ingress-nginx` (branch `uniform-rollout-3`)
 
-- [ ] Step 1: Flip `ingress-nginx`; delete the file.
-- [ ] Step 2: Check: the DaemonSet is on both workers with host ports
+- [x] Step 1: Flip `ingress-nginx`; delete the file.
+- [x] Step 2: Check: the DaemonSet is on both workers with host ports
   80/443; `curl` with `Host: argocd.mgryn.cc` against a worker returns
   the login page.
 
 ### Task 13: Rollout 4, monitoring group (branch `uniform-rollout-4`)
 
-- [ ] Step 1: Flip `monitoring-secrets`, `kube-prometheus-stack`,
+- [x] Step 1: Flip `monitoring-secrets`, `kube-prometheus-stack`,
   `alerts`, `pve-exporter` and delete their files, in one PR; all four start
   at once and the retry carries the ordering (monitoring-secrets first in
   practice).
-- [ ] Step 2: Drop the `server` entry from the AppProject destinations
+- [x] Step 2: Drop the `server` entry from the AppProject destinations
   only if nothing else uses it (`root-prod` and `argocd-config` still
   do, so it stays; record that).
-- [ ] Step 3: Check: all four Synced and Healthy; Prometheus targets UP
+- [x] Step 3: Check: all four Synced and Healthy; Prometheus targets UP
   (pve-exporter, ingress-nginx, cert-manager); the Telegram test alert
   still arrives; Task 7's receiver checks pass.
 
@@ -500,12 +500,12 @@ kustomizations while the old Applications still carry the same pins
 (Argo manager), so one chart bump may open two PRs. Merge neither
 alone, or close the kustomization one: the rollouts retire the old pins.
 
-- [ ] Step 1: On the first Renovate run after Task 13, check the
+- [x] Step 1: On the first Renovate run after Task 13, check the
   Dependency Dashboard lists the three charts (kustomize manager). If
   not, add the `kustomize` manager's file pattern for
   `argocd/apps/*/*/kustomization.yaml` in `renovate.json5` and open a PR
   for it; the Argo manager keeps its `argocd/environments` pattern.
-- [ ] Step 2: Tick the plan; update the roadmap memory; then, and only then,
+- [x] Step 2: Tick the plan; update the roadmap memory; then, and only then,
   revise the dev-spoke spec and plan on their own branch (#101).
 
 ---
@@ -534,6 +534,23 @@ alone, or close the kustomization one: the rollouts retire the old pins.
   `prod` cluster Secret merges.
 - Task 4 comparison differences per chart (hooks, CRDs, other).
 - Task 3 expansion mechanism chosen.
+
+- Rollouts (2026-10-09), all adopted in place with the same pods, PVCs,
+  Secrets and certificate serial: #106 `nfs-provisioner`, #109 cert-manager
+  and issuers, #112 `ingress-nginx`, #113 `monitoring-secrets`, `alerts`
+  and `pve-exporter`, #114 `kube-prometheus-stack`. Deviations from the
+  plan, each fixed in git or in the runbook: the hand-patched finalizer
+  was restored by root-prod's selfHeal, so a prep PR (#107) dropped
+  `finalizers:` from the old Application files first; rollout 2's first
+  sync sat Running on a deleted hook Job (`terminate-op`, then a manual
+  sync; #111); the prod ApplicationSet controller policy was the chart
+  default `sync` and now reads `create-update`; the control plane needed
+  4 GiB (#103).
+- Task 14: Renovate lists the three prod `kustomization.yaml` files for the
+  chart pins (cert-manager, ingress-nginx, kube-prometheus-stack) with its
+  default kustomize manager, so no `renovate.json5` change was needed. The
+  dev Application files still carry the same pins until sub-project 4, so a
+  chart bump touches both until then.
 
 ## Plan self-review
 
