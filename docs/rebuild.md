@@ -512,8 +512,8 @@ from `secret.yaml`.
     `dev-cert-manager-issuers` and `dev-jobboard`. The commands are the
     runbook entries "Register dev with the prod hub"
     ([runbook](runbooks/playbooks-and-terraform.md#register-dev-with-the-prod-hub))
-    and "adopt dev into the hub" (the adoption runbook, which also covers
-    a dev that has live resources already). Dev's monitoring stack is not
+    and [Adopt dev into the hub](runbooks/checks.md#adopt-dev-into-the-hub)
+    (which also covers a dev that has live resources already). Dev's monitoring stack is not
     in the set yet; it stays unmanaged until PR A4.
 
     ArgoCD syncs the jobboard manifests as soon as this applies, and

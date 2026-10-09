@@ -433,6 +433,225 @@ Expect: `<new>` gone from `kubectl -n argocd get applications` and not
 recreated after the next poll; the resources kept (or gone, if step 1 was
 skipped on purpose). If not: the entry is still on `main`.
 
+### Adopt dev into the hub
+
+When: once, after the dev-spoke adoption PR (A3) is reviewed and before
+it is merged ([ADR 0027](../decisions/0027-dev-is-a-spoke.md)). The merge
+makes the hub's `apps` set generate `dev-cert-manager`,
+`dev-cert-manager-issuers`, `dev-ingress-nginx`, `dev-nfs-provisioner` and
+`dev-jobboard`, which take over dev's live resources in place. Run from the
+operator's workstation: dev commands use `$DEV_KC`
+([Fetch the dev kubeconfig](access.md#fetch-the-dev-kubeconfig)), hub
+commands use `$PROD_KC` and the `argocd` CLI
+([Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli)).
+
+**Gates.** All must hold before the merge.
+
+1. jobboard's database is dumped and the dump validated: from the
+   job-board repo, `tools/db-backup.sh dump jobboard.dump`, then restore it
+   into a scratch database and compare counts. Keep the file; it is the only
+   recovery if the volume is lost.
+2. Vault unsealed: [Is Vault up and unsealed](#is-vault-up-and-unsealed).
+3. The hub reads `kv-dev` (the policy check in
+   [Widen prod's policy to read kv-dev](playbooks-and-terraform.md#widen-prods-policy-to-read-kv-dev)).
+4. Dev is registered:
+
+   ```bash
+   argocd cluster list --grpc-web
+   ```
+
+   Expect: `dev` listed as `Unknown` with "Cluster has no applications
+   and is not being monitored". It turns `Successful` only after the first
+   dev app syncs
+   ([Register dev with the prod hub](playbooks-and-terraform.md#register-dev-with-the-prod-hub)).
+5. No Application on dev carries a finalizer, `root-dev` included. Its own
+   file is excluded from what it syncs (`exclude: "app-of-apps.yaml"`), so
+   nothing reconciles it and the finalizer from bootstrap stays until
+   patched by hand:
+
+   ```bash
+   kubectl --kubeconfig "$DEV_KC" -n argocd get applications \
+     -o custom-columns=NAME:.metadata.name,FINALIZERS:.metadata.finalizers
+   kubectl --kubeconfig "$DEV_KC" -n argocd patch application root-dev \
+     --type=merge -p '{"metadata":{"finalizers":null}}'
+   ```
+
+   Expect: every row `<none>`. Run the `patch` only if `root-dev` shows a
+   finalizer, then list again. The children need no patch: their files in
+   git carry none.
+6. Prod `cp1`'s memory baseline noted
+   ([Memory, VMs and thin pool](#memory-vms-and-thin-pool)); the hub
+   controller caches dev's resources once the first app syncs.
+7. The render-equivalence check below is recorded, with the result.
+
+**Equivalence check.** On the PR branch, for each of `cert-manager` and
+`ingress-nginx`, compare the kustomize render of `dev/` to the old Helm
+render (the old Application's chart, version and values). Per document with
+`yq e`, never `yq eval-all`, which cross-multiplies documents; sort keys,
+because Helm and kustomize order map keys differently. Run from the repo
+root, in a scratch directory for the output files. Shown for cert-manager;
+for ingress-nginx use name `ingress-nginx`, namespace `ingress-nginx`,
+`--repo https://kubernetes.github.io/ingress-nginx`, `--version 4.14.5`.
+
+```bash
+kustomize build --enable-helm argocd/apps/cert-manager/dev > new.yaml
+helm template cert-manager cert-manager --repo https://charts.jetstack.io \
+  --version v1.21.2 --namespace cert-manager --include-crds \
+  -f argocd/apps/cert-manager/dev/values.yaml > old.yaml
+for f in old new; do
+  yq e 'select(.kind) | .kind + "/" + (.metadata.namespace // "-") + "/" + .metadata.name' $f.yaml | sort > $f.ids
+  yq e 'select(.kind=="Deployment" or .kind=="DaemonSet" or .kind=="StatefulSet" or .kind=="Job")
+    | .kind + "/" + .metadata.name + " sel=" + (.spec.selector|sort_keys(..)|to_json(0))
+    + " tpl=" + (.spec.template.metadata.labels|sort_keys(..)|to_json(0))' $f.yaml | sort > $f.sel
+done
+diff old.ids new.ids && diff old.sel new.sel && echo EQUIVALENT
+wc -l old.ids new.ids
+```
+
+Expect: `EQUIVALENT`, and the two id counts equal on both sides. A whole
+render diff after key-sorting shows one difference at most: helm emits
+`annotations: null` on the ingress-nginx ValidatingWebhookConfiguration
+and kustomize drops it; it is a no-op. If not: a name, namespace or
+selector differs. A DaemonSet or Deployment selector is immutable, so the
+hub would fail on it or recreate the workload; fix the kustomization
+(`releaseName`, `namespace`) and re-run, do not merge.
+
+**Order.**
+
+1. Record the before-state, and keep it:
+
+   ```bash
+   kubectl --kubeconfig "$DEV_KC" get pods -A -o wide > before-pods.txt
+   kubectl --kubeconfig "$DEV_KC" get pvc,pv > before-pvc.txt
+   kubectl --kubeconfig "$DEV_KC" -n jobboard exec postgres-0 -- \
+     psql -U jobboard -d jobboard -c \
+     'select relname, n_live_tup from pg_stat_user_tables order by 1' > before-rows.txt
+   ```
+
+   `n_live_tup` is the statistics estimate; it holds still while jobboard
+   is idle, so compare it only on a quiet app.
+2. Stop dev's own controller, so only one ArgoCD tracks the resources.
+   It is a StatefulSet:
+
+   ```bash
+   kubectl --kubeconfig "$DEV_KC" -n argocd scale statefulset/argocd-application-controller --replicas=0
+   kubectl --kubeconfig "$DEV_KC" -n argocd get statefulset argocd-application-controller
+   ```
+
+   Expect: `0/0`.
+3. The owner merges the PR. Wait for `root-prod`'s next poll (about 3
+   minutes), then:
+
+   ```bash
+   kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|dev-'
+   ```
+
+   Each `dev-*` Application adopts the live resources: the tracking-id
+   annotation moves from the old Application's name to the new one.
+   `dev-cert-manager` can wedge on a deleted hook Job
+   (`startupapicheck`); the fix is in
+   [Roll an app into the set](#roll-an-app-into-the-set) (the paragraph on
+   `waiting for completion of hook batch/Job`). `dev-jobboard` or
+   `dev-cert-manager-issuers` `Unknown` with a `ComparisonError` is Vault:
+   check [Is Vault up and unsealed](#is-vault-up-and-unsealed) first, then
+   [Spot ComparisonError](#spot-comparisonerror-the-sealed-vault-tell).
+
+**Checks after adoption, before uninstalling anything.**
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|dev-'
+argocd cluster list --grpc-web
+kubectl --kubeconfig "$DEV_KC" get pods -A -o wide
+kubectl --kubeconfig "$DEV_KC" get pvc,pv
+kubectl --kubeconfig "$DEV_KC" -n jobboard exec postgres-0 -- \
+  psql -U jobboard -d jobboard -c \
+  'select relname, n_live_tup from pg_stat_user_tables order by 1' | diff - before-rows.txt
+curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: jobs.mgryn.cc' https://<dev-node-ip>/
+```
+
+Expect: all five `dev-*` `Synced` and `Healthy`; `dev` `Successful` with a
+version (the first time it can be); the pods match
+`before-pods.txt` by name with older-than-merge ages and no new restarts;
+the PVC and PV names match `before-pvc.txt`;
+the row-count `diff` is empty; the `curl` prints `200` or `302`
+(`<dev-node-ip>` is `host_ips['worker-01']`, as in
+[Add the dev names to /etc/hosts](access.md#add-the-dev-names-to-etchosts)).
+Prod `cp1` memory stays near the baseline. If any check fails, stop here
+and see the rollback below; do not uninstall.
+
+**Uninstall dev's ArgoCD, without cascade.** Only after every check above
+passes. First confirm again that nothing on dev has a finalizer, the
+children and `root-dev`:
+
+```bash
+kubectl --kubeconfig "$DEV_KC" -n argocd get applications \
+  -o custom-columns=NAME:.metadata.name,FINALIZERS:.metadata.finalizers
+```
+
+Expect: every row `<none>`. Then remove the release the old `argocd` role
+installed (release `argocd`, namespace `argocd`), the namespace with the
+leftovers the role created (`cmp-plugin`, `argocd-vault-plugin-config`,
+`vault-ca`, `argocd-redis`), and the CRDs:
+
+```bash
+helm --kubeconfig "$DEV_KC" uninstall argocd -n argocd
+kubectl --kubeconfig "$DEV_KC" delete namespace argocd
+kubectl --kubeconfig "$DEV_KC" delete crd applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io
+```
+
+Delete the CRDs: the chart keeps them on uninstall, and dev should end as
+a rebuilt dev starts, with no ArgoCD and no AppProject CRD
+([rebuild.md](../rebuild.md) step 11). Removing them is safe because no
+Application carries a finalizer. The old Application objects (and the
+AppProject) disappear; the workloads they managed stay, now tracked by the
+hub. The `argocd-manager` ServiceAccount in `kube-system` is the hub's way
+in; leave it. Then re-run the checks above.
+
+Expect: the same as before the uninstall; `kubectl get ns argocd` returns
+`NotFound`.
+
+**Do not:**
+
+- merge while dev's application controller runs: two ArgoCDs fight over
+  the tracking annotation;
+- uninstall dev's ArgoCD before the checks pass;
+- delete a generated `dev-*` Application by hand. Unlike the old dev
+  Applications, they carry `resources-finalizer.argocd.argoproj.io` from the
+  set's template, so deleting one cascades to the workloads (jobboard's
+  Postgres and its PVC, the NFS provisioner). Use
+  [Retire an app from the set](#retire-an-app-from-the-set);
+- leave dev's controller at 0 and walk away: until the uninstall (or a
+  rollback) completes, the old Applications read `Unknown` and nothing
+  reconciles them.
+
+**Rollback, before the uninstall.** Fix forward when you can: the
+workloads were never touched. Reverting the PR does not stop the hub
+adopting: the revert removes the `dev` config entries, but the set never
+deletes Applications (`applicationsSync: create-update`), so the five
+generated `dev-*` Applications stay, with selfHeal, and they would sync the
+reverted `dev/` directories (`cert-manager` and `ingress-nginx` are
+`values.yaml`-only again, so that sync errors). Dev's own `root-dev` has
+`prune: true`, so with its files absent from `main` it would prune the old
+Applications the moment its controller ran. Order matters:
+
+1. Hold the set, then release the hub's grip on the five apps, keeping
+   their resources, per [Hold dev-jobboard still](backups-and-recovery.md#hold-dev-jobboard-still)
+   (scale `argocd-applicationset-controller` to 0) and the finalizer patch
+   plus delete of [Retire an app from the set](#retire-an-app-from-the-set),
+   for each of the five. The set is at 0, so it does not recreate them.
+2. The owner merges the revert PR; the dev Application files are back on
+   `main`.
+3. Only then scale dev's controller back to 1
+   (`kubectl --kubeconfig "$DEV_KC" -n argocd scale statefulset/argocd-application-controller --replicas=1`).
+   `root-dev` finds its children in git, and each adopts back (the
+   tracking-id moves again).
+4. Scale `argocd-applicationset-controller` on the hub back to 1.
+
+This order is reasoned from how the pieces behave, not rehearsed.
+
+**After the uninstall,** dev's hand-rolled `monitoring` workload keeps
+running orphaned (its Application went with dev's ArgoCD) until PR A4.
+
 ### Prove AVP end to end
 
 When: after a Vault, ArgoCD or auth-mount change, or a rebuild. Runs the
