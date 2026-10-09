@@ -3,8 +3,6 @@ kind: Application
 metadata:
   name: cert-manager
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: homelab
   # Two sources, the same shape ingress-nginx.yaml uses: the chart from

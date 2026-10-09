@@ -3,8 +3,6 @@ kind: Application
 metadata:
   name: nfs
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: homelab
   source:
