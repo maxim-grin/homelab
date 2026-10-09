@@ -496,11 +496,12 @@ All must hold before the merge.
    patched by hand. List, patch only if one is shown, list again:
 
    ```bash
-   kubectl --kubeconfig "$DEV_KC" -n argocd get applications,appprojects \
+   kubectl --kubeconfig "${DEV_KC:?}" -n argocd get applications,appprojects \
      -o custom-columns=KIND:.kind,NAME:.metadata.name,FINALIZERS:.metadata.finalizers
+   kubectl --kubeconfig "${DEV_KC:?}" get node master-01 worker-01 worker-02 && \
    kubectl --kubeconfig "$DEV_KC" -n argocd patch application root-dev \
      --type=merge -p '{"metadata":{"finalizers":null}}'
-   kubectl --kubeconfig "$DEV_KC" -n argocd get applications,appprojects \
+   kubectl --kubeconfig "${DEV_KC:?}" -n argocd get applications,appprojects \
      -o custom-columns=KIND:.kind,NAME:.metadata.name,FINALIZERS:.metadata.finalizers
    ```
 
@@ -509,26 +510,35 @@ All must hold before the merge.
 6. Prod `cp1`'s memory baseline noted
    ([Memory, VMs and thin pool](#memory-vms-and-thin-pool)); the hub
    controller caches dev's resources once the first app syncs.
-7. Live dev equals `main`, so the hub's first sync changes nothing but
-   tracking. Every old app `Synced` and `Healthy` on `main`'s HEAD:
-
-   ```bash
-   : "${DEV_KC:?set DEV_KC}"
-   kubectl --kubeconfig "$DEV_KC" -n argocd get applications \
-     -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REV:.status.sync.revision
-   git fetch origin main && git rev-parse origin/main
-   ```
-
-   Expect: `cert-manager`, `cert-manager-issuers`, `ingress-nginx`,
-   `nfs` and `jobboard` all `Synced` and `Healthy`, each `REV` equal to
-   the printed commit. If not: an `OutOfSync` app or an older `REV` is
-   drift or a missed bump the hub would roll in, possibly Postgres; sync
-   it on dev first, or find why, and do not merge.
-8. The hub generates the dev apps against the dev cluster Secret's `env`
+7. The hub generates the dev apps against the dev cluster Secret's `env`
    label: run [Verify the ApplicationSet](#verify-the-applicationset)
    (the only proof Argo itself, not just the check script, matches the
    AVP-rendered Secret) before the merge.
-9. The equivalence and live-diff checks below are recorded, with results.
+8. The equivalence and live-diff checks below are recorded, with results.
+9. Last of the gates, right before Order 2, because `main` can move
+   (Renovate): live dev equals `main`, so the hub's first sync changes
+   nothing but tracking. Every old app `Synced` and `Healthy` on `main`'s
+   HEAD:
+
+   ```bash
+   kubectl --kubeconfig "${DEV_KC:?}" -n argocd get applications \
+     -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REV:.status.sync.revision,REVS:.status.sync.revisions[*]
+   git fetch origin main && git rev-parse origin/main
+   ```
+
+   Expect: `cert-manager`, `cert-manager-issuers`, `ingress-nginx`, `nfs`
+   and `jobboard` all `Synced` and `Healthy`; ignore the other rows
+   (`root-dev`, `argocd-config`, `monitoring`). The single-source apps
+   (`cert-manager-issuers`, `nfs`, `jobboard`) show the full 40-character
+   SHA in `REV`, equal to the printed commit. `cert-manager` and
+   `ingress-nginx` are multi-source, so `REV` is `<none>` and `REVS` reads
+   `v1.21.2,<sha>` and `4.14.5,<sha>` (the chart source's version, then
+   the git source's SHA), `<sha>` being the printed commit. If `main`
+   moved just before, wait about 3 minutes for dev's next refresh and
+   re-run. If not: an `OutOfSync` app or an older SHA is drift or a missed
+   bump the hub would roll in, possibly Postgres; sync it on dev first
+   (that needs dev's ArgoCD, so kubectl on dev, not the hub CLI), or find
+   why, and do not merge.
 
 #### Equivalence and live-diff checks
 
@@ -615,13 +625,14 @@ the hub would recreate or break that workload; do not merge.
    It is a StatefulSet:
 
    ```bash
-   : "${DEV_KC:?set DEV_KC}"; kubectl --kubeconfig "$DEV_KC" get nodes
-   kubectl --kubeconfig "${DEV_KC:?}" -n argocd scale statefulset/argocd-application-controller --replicas=0
-   kubectl --kubeconfig "${DEV_KC:?}" -n argocd get statefulset argocd-application-controller
+   kubectl --kubeconfig "${DEV_KC:?}" get node master-01 worker-01 worker-02 && {
+   kubectl --kubeconfig "$DEV_KC" -n argocd scale statefulset/argocd-application-controller --replicas=0
+   kubectl --kubeconfig "$DEV_KC" -n argocd get statefulset argocd-application-controller
+   }
    ```
 
-   The `get nodes` must list dev's `master-01`, `worker-01` and
-   `worker-02`, not Talos nodes.
+   The chain enforces the cluster check: the commands do not run unless
+   all three dev node names exist (a Talos cluster has none of them).
 
    Expect: `0/0`.
 3. The owner merges the PR. Wait for the set's next poll (about 3
@@ -700,17 +711,19 @@ leftovers the role created (`cmp-plugin`, `argocd-vault-plugin-config`,
 outlives the namespace:
 
 ```bash
-: "${DEV_KC:?set DEV_KC}"; kubectl --kubeconfig "$DEV_KC" get nodes
-helm --kubeconfig "${DEV_KC:?}" uninstall argocd -n argocd
-kubectl --kubeconfig "${DEV_KC:?}" delete namespace argocd
-kubectl --kubeconfig "${DEV_KC:?}" delete crd applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io
-kubectl --kubeconfig "${DEV_KC:?}" delete clusterrolebinding vault-auth-delegator
+kubectl --kubeconfig "${DEV_KC:?}" get node master-01 worker-01 worker-02 && {
+helm --kubeconfig "$DEV_KC" uninstall argocd -n argocd
+kubectl --kubeconfig "$DEV_KC" delete namespace argocd
+kubectl --kubeconfig "$DEV_KC" delete crd applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io
+kubectl --kubeconfig "$DEV_KC" delete clusterrolebinding vault-auth-delegator
+}
 ```
 
-The `get nodes` must list dev's `master-01`, `worker-01` and `worker-02`.
-An empty `$DEV_KC` would fall back to the current context, possibly prod,
-where the generated apps' finalizers cascade; the `:?` makes each command
-fail instead. Stop if the node names are wrong.
+The chain enforces the cluster check: nothing runs unless all three dev
+node names exist. An empty `$DEV_KC` would fall back to the current
+context, possibly prod, where deleting the Application CRD cascades
+through the generated apps' finalizers; the `:?` fails on empty, and the
+node check fails on the wrong cluster.
 
 Delete the CRDs: the chart keeps them on uninstall, and dev should end as
 a rebuilt dev starts, with no ArgoCD and no AppProject CRD
