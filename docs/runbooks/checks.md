@@ -380,6 +380,21 @@ recreated: pod and certificate ages are older than the merge. A hook Job in
 the chart (cert-manager, ingress-nginx) behaves as before; that is
 confirmed here, not assumed.
 
+If the new Application sits `OutOfSync` with `operationState` `Running` and
+the message `waiting for completion of hook batch/Job/<name>`, and that Job
+is not in the namespace (it ran and was deleted by `hook-succeeded`, and
+Argo kept waiting for it; seen on `prod-cert-manager`, rollout 2,
+2026-10-09): it is only the Application's status, the workloads are
+untouched. Confirm with the controller log
+(`kubectl -n argocd logs argocd-application-controller-0 | grep <new>`
+shows the same "Resuming in-progress operation" every couple of minutes),
+then [log in](access.md#log-in-to-the-argocd-cli), run
+`argocd app terminate-op <new> --grpc-web`, and start the sync by hand with
+`argocd app sync <new> --grpc-web`: a terminated operation is not retried
+automatically on the same revision. Charts with install hooks (cert-manager,
+ingress-nginx, kube-prometheus-stack) can do this; expect it again on later
+rollouts and on their first sync after a chart bump.
+
 If not: adoption failed. Delete the old Application's remaining resources
 and let `<new>` recreate them (the fallback, not the plan). For
 cert-manager rehearse first against `letsencrypt-staging`: Let's Encrypt
