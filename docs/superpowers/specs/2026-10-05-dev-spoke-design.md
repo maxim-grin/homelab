@@ -154,7 +154,10 @@ its resources alone.
 
 ## Verification
 
-No test suite, so each step is checked on the thing itself.
+CI covers the manifests, not the cluster: `scripts/check-appsets.sh` (with
+`scripts/tests/check-appsets.test.sh`), `check-manifests.sh` and
+`check-runbooks.sh` run on every PR. Nothing in CI proves a workload
+serves traffic, so each step is also checked on the thing itself.
 
 - After A1: `argocd cluster list` shows dev Successful; the hub controller's
   memory stays well under its limit with dev cached (prod cp1 has 4 GiB,
