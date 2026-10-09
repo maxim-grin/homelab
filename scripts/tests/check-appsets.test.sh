@@ -51,6 +51,9 @@ expect no-empty-filter 1 'set does not drop empty configs'
 expect mixed-empty 0 'prod-nfs-provisioner'
 expect key-collision 1 "key 'name' collides with a generator parameter"
 expect bad-dest-name 1 'destination must be name: "{{.name}}"'
+expect dev-secret 0 'dev-pve-exporter'
+expect dup-cluster 1 "duplicate Application name 'prod-nfs-provisioner'"
+expect no-env-dir 1 'dev-pve-exporter: path argocd/apps/pve-exporter/dev does not exist'
 
 # A tree with no set at all is skipped, not failed.
 empty="$(mktemp -d)"

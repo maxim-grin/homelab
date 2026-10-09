@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clusters-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: homelab
+  source:
+    repoURL: https://github.com/maxim-grin/homelab.git
+    targetRevision: main
+    path: argocd/apps/clusters/dev
+    # Separate from `clusters` because this Secret holds a credential,
+    # which AVP renders from Vault. Prod's cluster list must not depend
+    # on Vault being unsealed: with Vault sealed only this Application
+    # fails and only the dev Secret goes un-rendered.
+    plugin:
+      name: argocd-vault-plugin
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # A failed automated sync is not retried without this (sealed Vault).
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

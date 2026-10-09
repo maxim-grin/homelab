@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The dev spoke's cluster Secret. It carries AVP placeholders, so the
+# `clusters-dev` Application renders it through the argocd-vault-plugin;
+# the prod list in ../prod stays plain.
+resources:
+  - dev.yaml

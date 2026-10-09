@@ -920,8 +920,8 @@ from `secret.yaml`.
        ```
 
        After the uniform-apps rollout (rollout 4 merged): expect
-       `argocd-config`, the `clusters` Secret Application and the set's
-       Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
+       `argocd-config`, the `clusters` Secret Application, `clusters-dev` and
+       the set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
        `prod-cert-manager`, `prod-cert-manager-issuers`,
        `prod-ingress-nginx`, `prod-monitoring-secrets`,
        `prod-kube-prometheus-stack`), all `Synced` and `Healthy` after

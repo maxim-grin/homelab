@@ -1,0 +1,20 @@
+# The dev cluster, a spoke of this hub. The address and credentials are
+# written to Vault by ansible/playbooks/dev_register.yaml; AVP resolves
+# the placeholders at sync time, so no value is committed. bearerToken is
+# plain and caData is base64, both safe inside the JSON string below.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-dev
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    env: dev
+type: Opaque
+stringData:
+  # Literal: the set addresses destinations by this name and the render
+  # check reads it. Renaming it makes the set generate duplicate
+  # Applications `<newname>-<dir>` beside the old `dev-<dir>` ones.
+  name: dev
+  server: <path:kv-prod/data/argocd/clusters/dev#server>
+  config: '{"bearerToken":"<path:kv-prod/data/argocd/clusters/dev#bearerToken>","tlsClientConfig":{"insecure":false,"caData":"<path:kv-prod/data/argocd/clusters/dev#caData>"}}'
