@@ -11,6 +11,7 @@ upgrade or a deleted secret, not a lost disk.
 Sections: [Vault snapshots](#vault-snapshots),
 [Restore Vault](#restore-vault), [What has no backup](#what-has-no-backup),
 [Clean up retained nfs-prod volumes](#clean-up-retained-nfs-prod-volumes),
+[Restore jobboard's database on dev](#restore-jobboards-database-on-dev),
 [Rebuild pointers](#rebuild-pointers).
 
 ## Vault snapshots
@@ -164,6 +165,12 @@ keeps self-healing. `$PROD_KC` is the prod kubeconfig
 kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=0
 argocd app set dev-jobboard --sync-policy none
 ```
+
+Expect: the first command prints `deployment.apps/argocd-applicationset-controller scaled`
+and the second `application 'dev-jobboard' updated`. While the controller
+is at 0 every other generated app keeps self-healing, but changes to config
+entries or the set's template are not processed and generated Applications
+are not updated.
 
 Do the restore with the app scaled to zero for its whole length. Then
 release the set:
