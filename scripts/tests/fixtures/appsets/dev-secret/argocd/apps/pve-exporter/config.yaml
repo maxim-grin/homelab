@@ -1,0 +1,4 @@
+- env: dev
+  namespace: pve-exporter
+  createNamespace: false
+  serverSideApply: false

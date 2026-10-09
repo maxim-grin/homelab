@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-prod-2
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    env: prod
+type: Opaque
+stringData:
+  name: prod
+  server: <path:kv-prod/data/argocd/clusters/dev#server>
+  config: |
+    {"bearerToken": "<path:kv-prod/data/argocd/clusters/dev#token>",
+     "tlsClientConfig": {"caData": "<path:kv-prod/data/argocd/clusters/dev#ca>"}}
