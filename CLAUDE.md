@@ -315,8 +315,7 @@ the tools provide and then looking at the cluster:
 terraform fmt -check && terraform validate     # in environments/dev
 ansible-lint <role-or-playbook>                # profile: production
 ansible-playbook <playbook> --syntax-check -e @secret.yaml --ask-vault-pass
-kustomize build argocd/apps/<app>/dev          # overlays only, not Helm values dirs
-helm template <chart> -f argocd/apps/<app>/dev/values.yaml
+kustomize build --enable-helm argocd/apps/<app>/<env>   # helmCharts need --enable-helm
 pre-commit run --all-files                     # what the CI pre-commit job runs
 scripts/check-manifests.sh                     # every kustomization and Helm chart, rendered and schema-checked
 scripts/tests/pve-bootstrap.test.sh            # bootstrap script against stubbed pveum/qm/pveam
@@ -325,10 +324,6 @@ scripts/check-runbooks.sh                      # runbooks name every playbook; c
 scripts/check-appsets.sh                       # expands the ApplicationSet: names, paths, destinations (bash >= 4)
 scripts/tests/check-appsets.test.sh            # the check against good and broken fixtures
 ```
-
-`argocd/apps/ingress-nginx/dev` holds only `values.yaml` — it is a Helm
-input, not a kustomize overlay, and `kustomize build` on it fails by
-design.
 
 CI runs the same checks on every PR: `pre-commit`, `commits`, `terraform`,
 `manifests`, `scripts`. Green CI is the floor, not the finish: it renders and

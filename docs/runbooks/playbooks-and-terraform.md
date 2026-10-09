@@ -459,7 +459,7 @@ the repo root unless the comment says otherwise. `<role-or-playbook>` and
 (cd terraform/environments/dev && terraform fmt -check && terraform validate)
 (cd ansible && ansible-lint <role-or-playbook>)
 (cd ansible && ansible-playbook playbooks/site.yaml --syntax-check -e @secret.yaml --ask-vault-pass)
-kustomize build argocd/apps/<app>/dev
+kustomize build --enable-helm argocd/apps/<app>/<env>
 pre-commit run --all-files
 scripts/check-manifests.sh
 scripts/check-appsets.sh
@@ -468,9 +468,9 @@ scripts/check-runbooks.sh
 ```
 
 Expect: each exits 0. If not: fix what it names; never bypass a hook with
-`--no-verify`. `kustomize build` works on overlays only: Helm values dirs such
-as `argocd/apps/ingress-nginx/dev` fail by design, so render those with
-`helm template <chart> -f argocd/apps/<app>/dev/values.yaml`.
+`--no-verify`. Charts are rendered by the kustomization's `helmCharts:`,
+so `kustomize build` needs `--enable-helm`; without it a dir with
+`helmCharts:` fails.
 
 `scripts/check-appsets.sh` (also run by `check-manifests.sh`) needs bash 4 or
 later, for `declare -A`. CI is Linux and unaffected; on macOS the system bash

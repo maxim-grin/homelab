@@ -15,8 +15,11 @@ argocd/
 ├── environments/                # Environment-specific ArgoCD apps
 │   └── prod/                     # the hub's ArgoCD; dev's apps come from here too
 │       └── applications/
-│           ├── app-of-apps.yaml      # Root application
-│           └── argocd-config.yaml    # Syncs argocd/base
+│           ├── app-of-apps.yaml      # Root application (root-prod)
+│           ├── appset.yaml           # ApplicationSet: <env>-<dir> apps, prod and dev
+│           ├── argocd-config.yaml    # Syncs argocd/base
+│           ├── clusters.yaml         # The prod cluster Secret
+│           └── clusters-dev.yaml     # The dev cluster Secret
 └── readme.md
 ```
 

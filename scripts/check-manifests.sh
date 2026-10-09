@@ -20,9 +20,9 @@ done
 # Built-in Kubernetes schemas plus the datreeio catalogue for CRDs
 # (Application, AppProject, ClusterIssuer, ServiceMonitor, ...).
 CRD_SCHEMAS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-# Every environment's Application CRs, not only dev's: a mistake in a prod
-# Application (a key at the wrong level, which -strict rejects) reaches the
-# cluster as a silently ignored field.
+# Every environment's Application CRs (only prod has them; the hub runs
+# dev's apps too): a mistake in one (a key at the wrong level, which
+# -strict rejects) reaches the cluster as a silently ignored field.
 app_files=(argocd/environments/*/applications/*.yaml)
 
 work=$(mktemp -d)

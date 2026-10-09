@@ -509,7 +509,26 @@ All must hold before the merge.
 6. Prod `cp1`'s memory baseline noted
    ([Memory, VMs and thin pool](#memory-vms-and-thin-pool)); the hub
    controller caches dev's resources once the first app syncs.
-7. The equivalence and live-diff checks below are recorded, with results.
+7. Live dev equals `main`, so the hub's first sync changes nothing but
+   tracking. Every old app `Synced` and `Healthy` on `main`'s HEAD:
+
+   ```bash
+   : "${DEV_KC:?set DEV_KC}"
+   kubectl --kubeconfig "$DEV_KC" -n argocd get applications \
+     -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REV:.status.sync.revision
+   git fetch origin main && git rev-parse origin/main
+   ```
+
+   Expect: `cert-manager`, `cert-manager-issuers`, `ingress-nginx`,
+   `nfs` and `jobboard` all `Synced` and `Healthy`, each `REV` equal to
+   the printed commit. If not: an `OutOfSync` app or an older `REV` is
+   drift or a missed bump the hub would roll in, possibly Postgres; sync
+   it on dev first, or find why, and do not merge.
+8. The hub generates the dev apps against the dev cluster Secret's `env`
+   label: run [Verify the ApplicationSet](#verify-the-applicationset)
+   (the only proof Argo itself, not just the check script, matches the
+   AVP-rendered Secret) before the merge.
+9. The equivalence and live-diff checks below are recorded, with results.
 
 #### Equivalence and live-diff checks
 
@@ -521,9 +540,10 @@ documents; sort keys, because Helm and kustomize order map keys
 differently. Run from the repo root in a scratch directory for the output
 files. Shown for cert-manager; for ingress-nginx use name `ingress-nginx`,
 namespace `ingress-nginx`, `--repo https://kubernetes.github.io/ingress-nginx`,
-`--version 4.14.5`. `jobboard` and `cert-manager-issuers` carry AVP
-placeholders that only the hub's plugin can fill, so they cannot be
-rendered here; their first hub sync is the check.
+`--version 4.14.5`. The other three apps have no old Helm render to
+compare; they get the live diff below. Their `Secret` objects carry AVP
+placeholders that only the hub's plugin fills, so those are skipped there;
+everything else renders (a placeholder is a plain string).
 
 ```bash
 kustomize build --enable-helm argocd/apps/cert-manager/dev > new.yaml
@@ -551,21 +571,28 @@ the workload; fix the kustomization (`releaseName`, `namespace`) and
 re-run, do not merge.
 
 Both renders were made without the cluster's `--kube-version` and
-`--api-versions`, so also check the new render against what is live. Run
-it right after each app's block above, while `new.yaml` is that app's
-render:
+`--api-versions`, so also check every app's new render against what is
+live, all five, including `nfs-provisioner` (it moves from Argo's built-in
+kustomize to the plugin's) and `jobboard`. `select` works per document on
+the multi-document stream (checked with a scratch stream):
 
 ```bash
-kubectl --kubeconfig "$DEV_KC" diff --server-side \
-  --field-manager=argocd-controller --force-conflicts -f new.yaml
+: "${DEV_KC:?set DEV_KC}"
+for d in cert-manager cert-manager-issuers ingress-nginx nfs-provisioner jobboard; do
+  echo "== $d"
+  kustomize build --enable-helm "argocd/apps/$d/dev" | yq e 'select(.kind != "Secret")' - |
+    kubectl --kubeconfig "${DEV_KC:?}" diff --server-side \
+      --field-manager=argocd-controller --force-conflicts -f -
+done
 ```
 
 Expect: tracking-id and annotation lines, plus whole new objects for the
 hook Jobs and their RBAC (`startupapicheck`; `admission-create` and
-`admission-patch`), which live only while the hook runs. If not: an
-immutable-field error, or a changed spec, selector or pod template on an
-existing Deployment, DaemonSet or StatefulSet, means the hub would
-recreate or break that workload; do not merge.
+`admission-patch`), which live only while the hook runs; no change to the
+Postgres StatefulSet or the jobboard Deployment, and no immutable-field
+error. If not: an immutable-field error, or a changed spec, selector or
+pod template on an existing Deployment, DaemonSet or StatefulSet, means
+the hub would recreate or break that workload; do not merge.
 
 #### Order
 
@@ -588,9 +615,13 @@ recreate or break that workload; do not merge.
    It is a StatefulSet:
 
    ```bash
-   kubectl --kubeconfig "$DEV_KC" -n argocd scale statefulset/argocd-application-controller --replicas=0
-   kubectl --kubeconfig "$DEV_KC" -n argocd get statefulset argocd-application-controller
+   : "${DEV_KC:?set DEV_KC}"; kubectl --kubeconfig "$DEV_KC" get nodes
+   kubectl --kubeconfig "${DEV_KC:?}" -n argocd scale statefulset/argocd-application-controller --replicas=0
+   kubectl --kubeconfig "${DEV_KC:?}" -n argocd get statefulset argocd-application-controller
    ```
+
+   The `get nodes` must list dev's `master-01`, `worker-01` and
+   `worker-02`, not Talos nodes.
 
    Expect: `0/0`.
 3. The owner merges the PR. Wait for the set's next poll (about 3
@@ -616,6 +647,9 @@ recreate or break that workload; do not merge.
    `ComparisonError` is Vault: check
    [Is Vault up and unsealed](#is-vault-up-and-unsealed) first, then
    [Spot ComparisonError](#spot-comparisonerror-the-sealed-vault-tell).
+   A `SharedResourceWarning` on a `dev-*` Application's first compare
+   (the live objects still carry the old app's tracking-id) is harmless
+   until it syncs.
 
 #### Checks after adoption
 
@@ -666,11 +700,17 @@ leftovers the role created (`cmp-plugin`, `argocd-vault-plugin-config`,
 outlives the namespace:
 
 ```bash
-helm --kubeconfig "$DEV_KC" uninstall argocd -n argocd
-kubectl --kubeconfig "$DEV_KC" delete namespace argocd
-kubectl --kubeconfig "$DEV_KC" delete crd applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io
-kubectl --kubeconfig "$DEV_KC" delete clusterrolebinding vault-auth-delegator
+: "${DEV_KC:?set DEV_KC}"; kubectl --kubeconfig "$DEV_KC" get nodes
+helm --kubeconfig "${DEV_KC:?}" uninstall argocd -n argocd
+kubectl --kubeconfig "${DEV_KC:?}" delete namespace argocd
+kubectl --kubeconfig "${DEV_KC:?}" delete crd applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io
+kubectl --kubeconfig "${DEV_KC:?}" delete clusterrolebinding vault-auth-delegator
 ```
+
+The `get nodes` must list dev's `master-01`, `worker-01` and `worker-02`.
+An empty `$DEV_KC` would fall back to the current context, possibly prod,
+where the generated apps' finalizers cascade; the `:?` makes each command
+fail instead. Stop if the node names are wrong.
 
 Delete the CRDs: the chart keeps them on uninstall, and dev should end as
 a rebuilt dev starts, with no ArgoCD and no AppProject CRD

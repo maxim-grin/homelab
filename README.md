@@ -31,7 +31,6 @@ flowchart TB
                 master["master-01 .101"]
                 w1["worker-01 .201"]
                 w2["worker-02 .202"]
-                argocd["ArgoCD + AVP"]
                 ingress["ingress-nginx<br/>host ports 80/443"]
                 certmgr["cert-manager"]
                 mon["Prometheus + Grafana"]
@@ -54,6 +53,7 @@ flowchart TB
 
         subgraph prod["terraform/environments/prod"]
             talos["Talos cluster<br/>cp1 .110 · w1 .111 · w2 .112"]
+            argocd["ArgoCD + AVP<br/>the hub"]
             appset["ApplicationSet apps<br/>one Application per app"]
         end
     end
@@ -62,6 +62,7 @@ flowchart TB
 
     argocd -- "syncs main" --> github
     argocd -- "AVP reads secrets" --> vault
+    argocd -- "deploys dev apps" --> k8s
     k8s -- "PVCs" --> nfs
     vault -- "raft snapshots" --> nfs
     certmgr -- "DNS-01" --> cloudflare
@@ -209,7 +210,7 @@ secret; it only reads. Five jobs, in parallel:
 | `pre-commit` | `pre-commit run --all-files` — the same hooks as above — plus a full-history `gitleaks` scan (the hook itself only scans staged changes)                                                                                                                       |
 | `commits`    | the conventional-commit hook over every non-merge commit in the PR (PRs only; skipped for `renovate[bot]`, whose titles exceed 50 characters and are squash-merged with a short subject, ADR 0023)                                                                                                                                                                                  |
 | `terraform`  | `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev`, `terraform/environments/shared` and `terraform/environments/prod`                                                                                                                                   |
-| `manifests`  | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, `helm template` of every Helm chart in the Application CRs, `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind), then `scripts/check-appsets.sh` expands the ApplicationSet and checks names, paths and destinations |
+| `manifests`  | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, a failure for any `chart:` source in an Application CR (charts are rendered through `helmCharts:` in the kustomizations), `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind), then `scripts/check-appsets.sh` expands the ApplicationSet and checks names, paths and destinations |
 | `scripts`    | `shellcheck` on the bootstrap script, its tests and the pin check; `scripts/check-talos-pins.sh` (the script's Talos version and schematic equal the prod root's defaults); `scripts/tests/pve-bootstrap.test.sh` (the script against stubbed `pveum`, `qm` and `pveam`) |
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs

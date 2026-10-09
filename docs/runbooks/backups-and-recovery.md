@@ -162,7 +162,7 @@ keeps self-healing. `$PROD_KC` is the prod kubeconfig
 ([Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli)).
 
 ```bash
-kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=0
+kubectl --kubeconfig "${PROD_KC:?}" -n argocd scale deploy/argocd-applicationset-controller --replicas=0
 argocd app set dev-jobboard --sync-policy none --grpc-web
 kubectl --kubeconfig "$PROD_KC" -n argocd get application dev-jobboard -o jsonpath='{.spec.syncPolicy.automated}'
 ```
@@ -178,7 +178,7 @@ Do the restore with the app scaled to zero for its whole length. Then
 release the set:
 
 ```bash
-kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=1
+kubectl --kubeconfig "${PROD_KC:?}" -n argocd scale deploy/argocd-applicationset-controller --replicas=1
 kubectl --kubeconfig "$PROD_KC" -n argocd get deploy argocd-applicationset-controller
 ```
 
