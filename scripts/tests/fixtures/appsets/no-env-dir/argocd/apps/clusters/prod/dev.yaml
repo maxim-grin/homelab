@@ -11,5 +11,5 @@ stringData:
   name: dev
   server: <path:kv-prod/data/argocd/clusters/dev#server>
   config: |
-    {"bearerToken": "<path:kv-prod/data/argocd/clusters/dev#token>",
-     "tlsClientConfig": {"caData": "<path:kv-prod/data/argocd/clusters/dev#ca>"}}
+    {"bearerToken": "<path:kv-prod/data/argocd/clusters/dev#bearerToken>",
+     "tlsClientConfig": {"caData": "<path:kv-prod/data/argocd/clusters/dev#caData>"}}

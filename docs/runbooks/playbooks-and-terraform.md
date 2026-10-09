@@ -90,6 +90,7 @@ inventory is `inventories/dev`; `shared` and `prod` runs need `-i`.
 | `cluster_secrets.yaml`| default (dev)                                 | none                                                                     | apply out-of-band cluster Secrets                            |
 | `argocd-dev.yaml`     | default (dev)                                 | none                                                                     | install or re-run ArgoCD on dev                              |
 | `argocd-prod.yaml`    | none (runs on localhost)                      | `prod_kubeconfig=<mode 600 file>`                                        | install or re-run ArgoCD on prod                             |
+| `dev_register.yaml`   | `-i inventories/shared -i inventories/dev`    | `vault_token=<root>`                                                     | register dev with the prod hub; after any dev rebuild        |
 | `coredns_hosts.yaml`  | default (dev)                                 | none                                                                     | pin `vault.mgryn.cc` in CoreDNS; after every kubeadm upgrade|
 | `nfs_server.yaml`     | `-i inventories/shared`                       | none                                                                     | provision `nfs-01`, before `nfs_setup.yaml`                  |
 | `nfs_setup.yaml`      | default (dev)                                 | none                                                                     | `nfs-common` on the dev nodes, after `nfs_server.yaml`       |
@@ -147,6 +148,13 @@ a long-lived token Secret) in `kube-system` on dev, and writes `server`,
 `bearerToken` and `caData` to `kv-prod/argocd/clusters/dev`. Re-running
 replaces a stale token and changes nothing when the values match.
 
+Run it BEFORE merging the PR that adds the `clusters-dev` Secret: the
+playbook does not depend on the merge, and that removes the error window.
+If it runs after the merge, `clusters-dev` shows a `ComparisonError`
+between the merge and the first run while Vault holds no fields; that is
+expected. Deleting the cluster Secret by hand will not stick, since
+`clusters-dev` has selfHeal.
+
 Gate, before running: a sealed Vault looks healthy but the play fails at its
 preflight, so run `vault status`
 ([Is Vault up and unsealed](checks.md#is-vault-up-and-unsealed)). Note prod
@@ -159,10 +167,21 @@ ansible-playbook -i inventories/shared -i inventories/dev playbooks/dev_register
   -e @secret.yaml --ask-vault-pass -e vault_token=<root>
 ```
 
-Expect: `failed=0`. After the cluster Secret is delivered, log in per
-[Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli), then
-`argocd cluster list` shows `dev` with status `Successful`, and `cp1`
-memory has not climbed past the baseline. If not: `Vault answered 503` is
+A Vault write does not change the git revision, and the repo-server caches
+the AVP render by revision, so the hub keeps serving the old render (empty,
+or the stale token) until it is refreshed. After the play, log in per
+[Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli) and
+hard-refresh:
+
+```bash
+argocd app get clusters-dev --hard-refresh --grpc-web
+argocd cluster list --grpc-web
+```
+
+Expect: `failed=0`; `argocd cluster list` shows `dev` with status `Successful`, and `cp1`
+memory has not climbed past the baseline. If `cp1` memory climbs toward
+its ceiling: raise `cp1` memory in the gitignored `prod.tfvars`, apply, then
+`qm reboot 3101` ([Resize a node](#resize-a-node)). If not: `Vault answered 503` is
 sealed, unseal it by hand; a token Secret that stays empty means the
 token controller is not running on dev.
 

@@ -60,7 +60,10 @@ Rejected:
   `- env: dev` entry in its `config.yaml`.
 - A sealed Vault leaves `clusters-dev` `Unknown`. The hub then keeps
   the last-rendered Secret; a rebuilt dev needs the registration
-  playbook re-run.
+  playbook re-run, then a hard refresh of `clusters-dev`: the
+  repo-server caches the render by git revision and a Vault write does
+  not change it. Run the playbook before merging the PR that adds the
+  Secret, or `clusters-dev` shows a `ComparisonError` until it runs.
 - The hub holds a credential for dev (`argocd-manager`, cluster-admin);
   losing the hub's Vault read loses the ability to deploy to dev.
 - Adoption is staged in several PRs, each verified before the next.
