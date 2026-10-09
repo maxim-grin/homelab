@@ -96,10 +96,15 @@
     dev_register_path: kv-prod/data/argocd/clusters/dev
 
   tasks:
+    # public: true exposes the role's defaults (vault_api_url,
+    # vault_tls_dir) to the tasks below; include_role hides them by default.
+    # vault_api_url builds on vault_address, from the facts this play
+    # gathers (gather_facts is left on).
     - name: Check the token and Vault's state
       ansible.builtin.include_role:
         name: vault
         tasks_from: preflight.yaml
+        public: true
 
     - name: Read the current value
       no_log: true
