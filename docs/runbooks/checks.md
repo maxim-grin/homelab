@@ -105,7 +105,7 @@ When: after a merge to `main` (Argo polls about every 3 minutes), or any
 time something looks off.
 
 ```bash
-kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|monitoring'
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|kube-prometheus-stack'
 ```
 
 Expect: every row `Synced` and `Healthy`. Drop the `grep` to list every
@@ -139,7 +139,7 @@ When: a merge is on `main` and you do not want to wait for the poll. A hard
 refresh re-compares only; it does not retry an exhausted sync.
 
 ```bash
-APP=monitoring
+APP=prod-kube-prometheus-stack
 kubectl --kubeconfig "$PROD_KC" -n argocd annotate application "$APP" \
   argocd.argoproj.io/refresh=hard --overwrite
 ```
@@ -156,7 +156,7 @@ When: an Application is `Sync failed` with retries exhausted, typically
 after Vault was sealed. Unseal first. Needs kubectl alone, no `argocd` CLI.
 
 ```bash
-APP=monitoring
+APP=prod-kube-prometheus-stack
 kubectl --kubeconfig "$PROD_KC" -n argocd patch application "$APP" \
   --type merge \
   -p '{"operation":{"initiatedBy":{"username":"operator"},"sync":{}}}'
@@ -165,9 +165,9 @@ kubectl --kubeconfig "$PROD_KC" -n argocd patch application "$APP" \
 Expect: the Application moves to `Synced` and `Healthy` shortly after. An
 empty `sync` uses the Application's own sources and `syncPolicy`.
 
-If not: the `ComparisonError` check above. Prod's `monitoring` needs the
-`monitoring` namespace that `monitoring-secrets` owns, so sync
-`monitoring-secrets` first ([rebuild.md](../rebuild.md), step 18.2).
+If not: the `ComparisonError` check above. Prod's `prod-kube-prometheus-stack`
+needs the `monitoring` namespace that `prod-monitoring-secrets` owns, so
+sync `prod-monitoring-secrets` first ([rebuild.md](../rebuild.md), step 18.2).
 
 ### Check the CMP sidecar
 
@@ -450,7 +450,8 @@ All must hold before the merge.
    the current context, so name the cluster as shown. It runs the dump
    inside the pod, checksums the copy and validates it with `pg_restore -l`.
    To prove it restores, load it into job-board's local compose database
-   (needs docker on the workstation), never into the live pod:
+   (needs docker on the workstation; from the job-board repo, after
+   `docker compose up -d postgres`), never into the live pod:
 
    ```bash
    JOBBOARD_PG_EXEC="docker compose exec -T postgres" tools/db-backup.sh restore jobboard.dump --yes
@@ -559,9 +560,12 @@ kubectl --kubeconfig "$DEV_KC" diff --server-side \
   --field-manager=argocd-controller --force-conflicts -f new.yaml
 ```
 
-Expect: only tracking-id and annotation lines. If not: an immutable-field
-error or a pod-template change means the hub would recreate or break that
-workload; do not merge.
+Expect: tracking-id and annotation lines, plus whole new objects for the
+hook Jobs and their RBAC (`startupapicheck`; `admission-create` and
+`admission-patch`), which live only while the hook runs. If not: an
+immutable-field error, or a changed spec, selector or pod template on an
+existing Deployment, DaemonSet or StatefulSet, means the hub would
+recreate or break that workload; do not merge.
 
 #### Order
 

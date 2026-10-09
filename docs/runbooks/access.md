@@ -153,7 +153,7 @@ Expect: `'admin:login' logged in successfully`, then the Application list.
 If not: a `504` means `argocd-server`, or what it waits on, is not answering:
 `kubectl --kubeconfig "$PROD_KC" -n argocd get pods`, and check that
 `argocd-application-controller-0` is `1/1` (a controller left at 0 replicas
-makes refreshes hang). `argocd app get monitoring` is slow because the chart
+makes refreshes hang). `argocd app get prod-kube-prometheus-stack` is slow because the chart
 has about 90,000 lines of manifests; read what you need with `kubectl -n argocd
 get app <name> -o jsonpath=...` instead. `--core` skips the login but talks to
 whatever cluster and namespace your current kubectl context names, so it hangs
