@@ -159,7 +159,7 @@ CI covers the manifests, not the cluster: `scripts/check-appsets.sh` (with
 `check-runbooks.sh` run on every PR. Nothing in CI proves a workload
 serves traffic, so each step is also checked on the thing itself.
 
-- After A1: `argocd cluster list` shows dev Successful; the hub controller's
+- After A1: `argocd cluster list` lists dev as Unknown ("no applications" is expected; Successful comes after A3); the hub controller's
   memory stays well under its limit with dev cached (prod cp1 has 4 GiB,
   and sat at its ceiling at 2 GiB).
 - After A3: every `dev-*` Application Synced and Healthy; pod ages and the
