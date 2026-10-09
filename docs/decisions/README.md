@@ -16,14 +16,14 @@ Context or Decision.
 | [0001](0001-three-layers-three-tools.md) | Three layers, three tools | Accepted | 2026-09-08 |
 | [0002](0002-ingress-nginx-daemonset.md) | ingress-nginx as a DaemonSet on host ports 80/443 | Accepted | 2026-09-08 |
 | [0003](0003-nfs-default-storageclass.md) | NFS dynamic provisioning as the default StorageClass | Accepted | 2026-09-08 |
-| [0004](0004-secrets-in-vault-via-avp.md) | Secrets in Vault, resolved at sync time by argocd-vault-plugin | Accepted | 2026-09-10 |
+| [0004](0004-secrets-in-vault-via-avp.md) | Secrets in Vault, resolved at sync time by argocd-vault-plugin | Accepted, partly superseded by [0026](0026-uniform-apps.md) | 2026-09-10 |
 | [0005](0005-vault-lxc-for-secrets.md) | Vault in an LXC | Superseded by [0011](0011-vault-on-its-own-vm.md) | 2026-09-11 |
 | [0006](0006-gitops-merge-is-the-deploy.md) | All work lands on `main` only through a merged pull request | Accepted | 2026-09-15 |
 | [0007](0007-pin-image-tags-not-latest.md) | Pin image tags, never `:latest` | Accepted | 2026-09-15 |
 | [0008](0008-acme-dns01-not-http01.md) | Certificates by ACME DNS-01 through Cloudflare, not HTTP-01 or Cloudflare's edge cert | Accepted | 2026-09-17 |
 | [0009](0009-ci-reads-only-lint-blocks.md) | CI only reads, and any lint finding fails the build | Accepted | 2026-09-20 |
 | [0010](0010-one-shared-nfs-server.md) | One shared NFS server, a disk per share, mounted by label | Accepted | 2026-09-22 |
-| [0011](0011-vault-on-its-own-vm.md) | Vault on its own VM outside the cluster | Accepted, supersedes [0005](0005-vault-lxc-for-secrets.md) | 2026-09-25 |
+| [0011](0011-vault-on-its-own-vm.md) | Vault on its own VM outside the cluster | Accepted, supersedes [0005](0005-vault-lxc-for-secrets.md); partly superseded by [0026](0026-uniform-apps.md) | 2026-09-25 |
 | [0012](0012-hub-and-spoke-topology.md) | Hub and spoke: Talos prod hub, kubeadm dev spoke | Accepted, prod built (0021) | 2026-09-26 |
 | [0013](0013-terraform-renames-need-moved-blocks.md) | Every Terraform rename carries a `moved` block | Accepted | 2026-09-27 |
 | [0014](0014-lan-services-as-lxcs.md) | LAN services as one unprivileged LXC each, outside both clusters | Accepted | 2026-09-27 |
@@ -35,6 +35,7 @@ Context or Decision.
 | [0020](0020-pihole-opt-in-per-device.md) | Pi-hole is opt-in per device | Accepted | 2026-10-02 |
 | [0021](0021-talos-prod-via-terraform-provider.md) | Talos prod cluster through the Terraform provider, secrets in state | Accepted | 2026-10-01 |
 | [0022](0022-host-bootstrapped-by-script.md) | Proxmox host bootstrapped by one idempotent script | Accepted | 2026-10-01 |
-| [0023](0023-renovate-hosted-app.md) | Renovate, as the hosted app, proposes pin updates | Accepted | 2026-10-01 |
-| [0024](0024-hub-in-prod.md) | The hub platform runs in prod; dev is a spoke | Accepted | 2026-10-03 |
+| [0023](0023-renovate-hosted-app.md) | Renovate, as the hosted app, proposes pin updates | Accepted, partly superseded by [0026](0026-uniform-apps.md) | 2026-10-01 |
+| [0024](0024-hub-in-prod.md) | The hub platform runs in prod; dev is a spoke | Accepted, partly superseded by [0026](0026-uniform-apps.md) | 2026-10-03 |
 | [0025](0025-runbooks-own-operator-commands.md) | Runbooks own the operator commands; rebuild.md owns the order | Accepted | 2026-10-05 |
+| [0026](0026-uniform-apps.md) | Apps are uniform kustomize directories under one ApplicationSet | Accepted | 2026-10-05 |

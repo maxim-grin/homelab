@@ -1,0 +1,114 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+  annotations:
+    # Wave 0 orders only within root-prod's sync, and the cluster Secrets
+    # (`clusters`, wave -1) do not hold it back. That is harmless: the
+    # set re-runs its generators when a cluster Secret changes.
+    argocd.argoproj.io/sync-wave: "0"
+    # Deleting the set deletes every generated Application, and their
+    # finalizers delete the workloads. root-prod must never prune or
+    # delete it; removing the set is a deliberate manual act.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  goTemplate: true
+  # A typo'd key in a config entry or the template fails the set loudly
+  # instead of rendering "<no value>".
+  goTemplateOptions: ["missingkey=error"]
+  syncPolicy:
+    # The generator never deletes an Application: an empty or broken
+    # generator would otherwise remove them all, and their resources
+    # finalizer would cascade-delete what they run. Retiring an app is a
+    # deliberate delete, after the entry is removed (else it is recreated).
+    # This does not cover deleting the set itself.
+    applicationsSync: create-update
+    # If the set is deleted anyway, its Applications go but the resources
+    # they manage stay.
+    preserveResourcesOnDeletion: true
+  generators:
+    # One Application per (config entry, cluster) pair. Each entry of
+    # argocd/apps/<dir>/config.yaml is one parameter set (`env`,
+    # `namespace`, ...; `path.basename` is <dir>); the cluster
+    # generator then keeps only the cluster whose `env` label matches the
+    # entry.
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/maxim-grin/homelab.git
+              revision: main
+              files:
+                - path: argocd/apps/*/config.yaml
+            # A config of `[]` is turned by the git generator into one
+            # parameter set holding only path.*; without this the cluster
+            # child's `{{.env}}` fails under missingkey=error and the matrix
+            # generates nothing for any app. Dropped here, `[]` yields
+            # nothing.
+            selector:
+              matchExpressions:
+                - key: env
+                  operator: Exists
+          - clusters:
+              selector:
+                matchLabels:
+                  argocd.argoproj.io/secret-type: cluster
+                  env: "{{.env}}"
+  template:
+    metadata:
+      name: "{{.name}}-{{.path.basename}}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: homelab
+      source:
+        repoURL: https://github.com/maxim-grin/homelab.git
+        targetRevision: main
+        path: "argocd/apps/{{.path.basename}}/{{.env}}"
+        # Every app renders through the CMP; AVP runs only when the
+        # kustomize output carries a <path:...> placeholder, so a sealed
+        # Vault stops only the apps that hold secrets.
+        plugin:
+          name: argocd-vault-plugin
+      destination:
+        name: "{{.name}}"
+        namespace: "{{.namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        # The set creates its Applications directly, not through a parent
+        # sync, so sync waves would order nothing: every app starts at once.
+        # A first sync can then run before a CRD or the namespace it needs
+        # exists, and a failed automated sync is not retried without this.
+        # The ordering each app depends on is written in its config.yaml.
+        # Finite (about 37 minutes): after a sealed-Vault outage or slow
+        # CRDs at bootstrap the retries run out and the app stays `Sync
+        # failed` until a manual sync.
+        retry:
+          limit: 10
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+  # The per-entry options: CreateNamespace and ServerSideApply from the
+  # config's booleans, and the namespace labels (ingress-nginx's Pod
+  # Security level) as managedNamespaceMetadata, under syncPolicy where
+  # Argo reads it. Merged into the template above; an entry that sets
+  # none renders the no-op patch `{}`.
+  templatePatch: |
+    {{- if or .createNamespace (hasKey . "namespaceLabels") }}
+    spec:
+      syncPolicy:
+        {{- if .createNamespace }}
+        syncOptions:
+          - CreateNamespace=true
+        {{- end }}
+        {{- if hasKey . "namespaceLabels" }}
+        managedNamespaceMetadata:
+          labels:
+            {{- toYaml .namespaceLabels | nindent 8 }}
+        {{- end }}
+    {{- else }}
+    {}
+    {{- end }}

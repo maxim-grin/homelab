@@ -645,7 +645,7 @@ from `secret.yaml`.
     `gatus_basic_user`, `gatus_basic_password` and
     `gatus_basic_password_bcrypt` in `secret.yaml` (the comments in
     `secret.yaml.example` say where each comes from, including the
-    `htpasswd -nbB <user> '<password>' | cut -d: -f2` command for the
+    `argocd account bcrypt --password '<password>'` command for the
     hash) and `~/.homelab-ca/ca.crt` on the workstation, which
     `playbooks/vault.yaml` created. Re-run the Traefik play too, for the
     `status.hl.mgryn.cc` route. Check: `https://status.hl.mgryn.cc` asks
@@ -736,7 +736,12 @@ from `secret.yaml`.
     keeps running with the old size until restarted, because the module sets
     `automatic_reboot = false`. One node at a time: `kubectl drain`, then
     `qm reboot <vmid>` on `pve` (a guest-level `talosctl reboot` does not pick
-    up the new size), then `kubectl uncordon`.
+    up the new size), then `kubectl uncordon`. The control plane is the
+    exception to "one node at a time, drained": it is the only one, so its
+    resize takes the API down for a few minutes (workloads keep running);
+    skip the drain when the API is already unreachable. Give it 4096 MiB:
+    at 2048 the API server stopped answering under ArgoCD's server-side
+    apply of the monitoring chart (2026-10-06).
 
 17. **Bootstrap the prod hub** — ArgoCD on the Talos cluster, with Vault's
     prod auth ([ADR 0024](decisions/0024-hub-in-prod.md)). Every command
@@ -892,7 +897,11 @@ from `secret.yaml`.
     (the admin login), `monitoring/alertmanager` (the Telegram bot
     token and chat id) and `monitoring/pve-exporter` (its token and the
     Proxmox address, step 19; a full rebuild already has the PR 4 apps on
-    `main`); the seed data is `secret.yaml`'s `kv-prod` block.
+    `main`) and `monitoring/remote-write` (the receiver's `htpasswd`
+    line, without which `monitoring-secrets` cannot render; `kv-dev`
+    holds the plain pair,
+    [runbook](runbooks/playbooks-and-terraform.md#seed-the-remote-write-credential));
+    the seed data is `secret.yaml`'s `kv-prod` and `kv-dev` blocks.
 
     1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
        `argocd` and `grafana`, each to `10.0.0.111` and to `10.0.0.112`.
@@ -910,22 +919,34 @@ from `secret.yaml`.
        kubectl --kubeconfig "$PROD_KC" -n argocd get applications
        ```
 
-       Expect `argocd-config`, `nfs`, `cert-manager`,
-       `cert-manager-issuers`, `ingress-nginx`, `monitoring-secrets` and
-       `monitoring` all `Synced` and `Healthy` after about 3 minutes plus
-       chart pulls. Sync waves (nfs 0, cert-manager 1, issuers 2,
-       ingress-nginx 3, monitoring-secrets 4, monitoring 5) only order
-       creation: this ArgoCD has no Application health check, so a wave
-       does not wait for the one before it. A retry on the issuers
-       covers the missing cert-manager CRDs, and one on `monitoring`
-       covers the `monitoring` namespace that `monitoring-secrets` owns.
+       After the uniform-apps rollout (rollout 4 merged): expect
+       `argocd-config`, the `clusters` Secret Application and the set's
+       Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
+       `prod-cert-manager`, `prod-cert-manager-issuers`,
+       `prod-ingress-nginx`, `prod-monitoring-secrets`,
+       `prod-kube-prometheus-stack`), all `Synced` and `Healthy` after
+       about 3 minutes plus chart pulls. One ApplicationSet generates
+       them ([ADR 0026](decisions/0026-uniform-apps.md)); the set's
+       Applications carry no sync waves, since the set, not a parent
+       sync, creates them. They all start at once and each retries
+       (limit 10, 30s doubling to 5m: about 37 minutes), which covers the
+       missing cert-manager CRDs for the issuers and the `monitoring`
+       namespace that `monitoring-secrets` owns for the monitoring
+       chart. On a from-scratch bootstrap the retries can run out, so
+       expect to need one manual sync below. Moving an existing app into
+       the set is [Roll an app into the set](runbooks/checks.md#roll-an-app-into-the-set).
+       Until rollout 4 is on `main`, a rebuild from `main` creates the
+       old per-app Applications (`nfs`, `cert-manager`, `monitoring`,
+       ...) instead, beside an `apps` set that generates only the apps
+       already rolled out.
 
        After a sealed or briefly unreachable Vault, `monitoring-secrets`
        and `cert-manager-issuers` show a `ComparisonError` and sync on
        their own once it is unsealed. `monitoring` needs the namespace
        `monitoring-secrets` creates, so it can stay `Sync failed` with its
-       finite retries used up. Unseal (`vault status` on `vault-02`), then
-       start a sync by hand with kubectl alone:
+       finite retries used up (after the roughly 37 minutes). Unseal
+       (`vault status` on `vault-02`), then start a sync by hand with
+       kubectl alone:
 
        ```bash
        kubectl --kubeconfig "$PROD_KC" -n argocd patch application <name> \
@@ -1016,11 +1037,11 @@ from `secret.yaml`.
     (`rm "$PROD_KC"` when done). Prerequisite: step 18 done. On a full
     rebuild everything here is already on `main`: do 2 and 3, then 4 on.
 
-    1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, are in
-       wave 6, after `monitoring` (5) and `monitoring-secrets` (4), which
-       own the CRDs and the namespace; both carry finite retries for the
-       race. Until Vault holds `monitoring/pve-exporter`, `pve-exporter`
-       shows a `ComparisonError`: expected and harmless. AVP fails at
+    1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, need
+       the CRDs of `kube-prometheus-stack` and the namespace
+       `monitoring-secrets` owns; with no sync waves they rely on the
+       set's finite retry for the race. Until Vault holds
+       `monitoring/pve-exporter`, `pve-exporter` shows a `ComparisonError`: expected and harmless. AVP fails at
        comparison, not at sync, so no retry is consumed, and it syncs on
        its own once Vault is seeded. A sealed Vault is handled as in
        step 18.2.

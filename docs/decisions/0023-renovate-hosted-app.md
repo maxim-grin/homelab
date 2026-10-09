@@ -1,6 +1,6 @@
 # 0023. Renovate, as the hosted app, proposes pin updates
 
-**Status:** Accepted (2026-10-01)
+**Status:** Accepted (2026-10-01); partly superseded by [0026](0026-uniform-apps.md)
 
 ## Context
 

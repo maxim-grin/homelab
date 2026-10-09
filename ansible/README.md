@@ -101,14 +101,12 @@ touches disk.
 
 `argocd_admin_password_hash` is a bcrypt hash, not a password, and the
 plaintext belongs in a password manager. ArgoCD uses Go's bcrypt, which
-accepts `$2a$` and `$2b$` but rejects the `$2y$` that `htpasswd` emits --
-hence the `sed` below. Use whichever tool you have:
+accepts `$2a$` and `$2b$` but rejects `$2y$`. The `argocd` CLI emits `$2a$`
+and needs no login for this:
 
 ```bash
-htpasswd -nbBC 10 "" 'thepassword' | tr -d ':\n' | sed 's/$2y/$2a/'
-python3 -c "import bcrypt;print(bcrypt.hashpw(b'thepassword',bcrypt.gensalt(10)).decode())"
 argocd account bcrypt --password 'thepassword'
-docker run --rm httpd:alpine htpasswd -nbBC 10 "" 'thepassword' | tr -d ':\n' | sed 's/$2y/$2a/'
+python3 -c "import bcrypt;print(bcrypt.hashpw(b'thepassword',bcrypt.gensalt(10)).decode())"
 ``` The `argocd` role asserts it is
 present and starts with `$2a$` before running Helm, because an unset value
 makes the chart fall back to a random password in `argocd-initial-admin-secret`

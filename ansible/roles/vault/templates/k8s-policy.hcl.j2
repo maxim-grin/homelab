@@ -1,8 +1,12 @@
+{#- A spoke reads only its own mount. The hub (prod) also reads every mount in
+    extra_kv_mounts, because its AVP renders the spokes' apps too. -#}
 # Managed by ansible (roles/vault). Cluster {{ cluster.name | default('') }}
-# reads its own mount and nothing else.
-path "{{ cluster.kv_mount }}/data/*" {
+# reads {{ ([cluster.kv_mount] + (cluster.extra_kv_mounts | default([]))) | join(', ') }} and nothing else.
+{% for mount in [cluster.kv_mount] + (cluster.extra_kv_mounts | default([])) %}
+path "{{ mount }}/data/*" {
   capabilities = ["read"]
 }
-path "{{ cluster.kv_mount }}/metadata/*" {
+path "{{ mount }}/metadata/*" {
   capabilities = ["list", "read"]
 }
+{% endfor %}

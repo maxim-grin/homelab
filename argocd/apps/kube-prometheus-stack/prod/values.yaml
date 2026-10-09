@@ -43,9 +43,34 @@ prometheusOperator:
         memory: 64Mi
 
 prometheus:
-  # Reached through Grafana only: no Ingress, as the spec decides.
+  # The UI and query API stay reached through Grafana only. The one
+  # Ingress exposes just the remote-write path, so dev's Prometheus
+  # (agent mode, sub-project 4) can push here and its credential can only
+  # write. Until sub-project 4 retires dev's own Prometheus, that
+  # Prometheus uses this same host name on the operator's workstation
+  # (/etc/hosts).
   ingress:
-    enabled: false
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      # Htpasswd line from the prometheus-basic-auth Secret
+      # (monitoring-secrets app, from Vault).
+      nginx.ingress.kubernetes.io/auth-type: basic
+      nginx.ingress.kubernetes.io/auth-secret: prometheus-basic-auth
+      nginx.ingress.kubernetes.io/auth-realm: "Prometheus"
+      # Remote-write batches are snappy-compressed protobuf and can exceed
+      # the 1m default, which would answer 413.
+      nginx.ingress.kubernetes.io/proxy-body-size: 32m
+    hosts:
+      - prometheus.mgryn.cc
+    paths:
+      - /api/v1/write
+    pathType: Exact
+    tls:
+      - secretName: prometheus-tls
+        hosts:
+          - prometheus.mgryn.cc
   prometheusSpec:
     # Open selectors: pick up every ServiceMonitor, PodMonitor, Probe and
     # PrometheusRule in any namespace, not only those carrying this

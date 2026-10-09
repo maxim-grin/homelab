@@ -24,8 +24,8 @@
     fail_msg: >-
       argocd_admin_password_hash must be set in ansible/secret.yaml to a
       bcrypt hash beginning $2a$ or $2b$ -- ArgoCD uses Go's bcrypt, which
-      accepts those two and rejects the $2y$ that htpasswd emits. htpasswd:
-      htpasswd -nbBC 10 "" 'pw' | tr -d ':\n' | sed 's/$2y/$2a/'  --  python:
+      accepts those two and rejects $2y$. The argocd CLI emits $2a$:
+      argocd account bcrypt --password 'pw'  --  or python:
       python3 -c "import bcrypt;print(bcrypt.hashpw(b'pw',bcrypt.gensalt(10)).decode())"
 
 - name: Create the AVP plugin ConfigMap

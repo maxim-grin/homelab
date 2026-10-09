@@ -14,8 +14,12 @@ pm_api_token_secret = "<UUID>"
 # (.2-.99), in the block the README diagram reserves for Talos.
 gateway = "10.0.0.1"
 
+# cp1 is 4096, not Talos's documented minimum of 2048: at 2048 the API server
+# became unresponsive (connection refused, TLS handshake timeouts, the VM's
+# memory at its ceiling) when ArgoCD re-applied the monitoring chart, with its
+# large CRDs, after a merge on 2026-10-06.
 talos_nodes = {
-  cp1 = { role = "controlplane", vmid = 3101, ip = "10.0.0.110", memory = 2048 }
+  cp1 = { role = "controlplane", vmid = 3101, ip = "10.0.0.110", memory = 4096 }
   w1  = { role = "worker", vmid = 3201, ip = "10.0.0.111", memory = 4096 }
   w2  = { role = "worker", vmid = 3202, ip = "10.0.0.112", memory = 4096 }
 }

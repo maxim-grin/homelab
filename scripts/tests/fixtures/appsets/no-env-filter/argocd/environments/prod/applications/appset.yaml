@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  syncPolicy:
+    applicationsSync: create-update
+    preserveResourcesOnDeletion: true
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/maxim-grin/homelab.git
+              revision: main
+              files:
+                - path: argocd/apps/*/config.yaml
+            selector:
+              matchExpressions:
+                - key: env
+                  operator: Exists
+          - clusters:
+              selector:
+                matchLabels:
+                  argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: "{{.name}}-{{.path.basename}}"
+    spec:
+      project: homelab
+      source:
+        repoURL: https://github.com/maxim-grin/homelab.git
+        targetRevision: main
+        path: "argocd/apps/{{.path.basename}}/{{.env}}"
+        plugin:
+          name: argocd-vault-plugin
+      destination:
+        name: "{{.name}}"
+        namespace: "{{.namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

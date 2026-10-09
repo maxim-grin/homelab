@@ -1,0 +1,23 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys this app: one list entry per env, each generating
+# `<cluster>-<dir>` from argocd/apps/<dir>/<env>. `[]` would deploy it
+# nowhere. Rolled in on 2026-10-09 (uniform-rollout-4a).
+#
+# The API token and the Proxmox address are <path:...> placeholders; AVP
+# resolves them against Vault (kv-prod) at sync time.
+#
+# Ordering: after monitoring-secrets (the `monitoring` namespace) and
+# kube-prometheus-stack (the ServiceMonitor CRD).
+# Generated Applications all start at once (the set creates them, so sync
+# waves order nothing). The set's retry (limit 10, backoff 30s x2, max
+# 5m: about 37 minutes) carries a sync that runs before its dependency is
+# ready; after that, sync the app by hand.
+#
+- env: prod
+  namespace: monitoring
+  # monitoring-secrets owns the Namespace and its Pod Security label.
+  createNamespace: false
+  # Client-side apply would copy the AVP-rendered Secret, token and
+  # all, into the last-applied-configuration annotation in clear text.
+  # Server-side apply keeps no such copy.
+  serverSideApply: true

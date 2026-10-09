@@ -4,7 +4,7 @@
 #
 # Create the value once (bcrypt, never the plain password) and seed it
 # through secret.yaml's vault_kv block -- see secret.yaml.example:
-#   htpasswd -nbB prometheus '<password>' | tr -d '\n'
+#   printf '%s:%s' prometheus "$(argocd account bcrypt --password '<password>')"
 apiVersion: v1
 kind: Secret
 metadata:

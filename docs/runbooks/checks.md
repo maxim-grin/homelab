@@ -182,6 +182,257 @@ If not: the `ComparisonError` check above. Prod's `monitoring` needs the
 `monitoring` namespace that `monitoring-secrets` owns, so sync
 `monitoring-secrets` first ([rebuild.md](../rebuild.md), step 18.2).
 
+### Check the CMP sidecar
+
+When: once, before the first app moves into the set
+([ADR 0026](../decisions/0026-uniform-apps.md)), and after any change to the
+AVP sidecar image or `argocd_avp_plugin_config`. Every set-generated
+Application renders through the `avp` container with
+`kustomize build --enable-helm`, so the sidecar must have `helm` and
+`kustomize`, must be able to write Helm's directories, and must render the
+largest chart inside the repo-server's exec timeout (default 90 seconds).
+Nothing is committed or applied. The unreachable `VAULT_ADDR` is a
+throwaway address in the TEST-NET range.
+
+```bash
+R="$(kubectl --kubeconfig "$PROD_KC" -n argocd get pod \
+  -l app.kubernetes.io/name=argocd-repo-server -o name | head -1)"
+kubectl --kubeconfig "$PROD_KC" -n argocd get deploy argocd-applicationset-controller \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}{.status.readyReplicas}{"\n"}'
+kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c 'helm version; kustomize version'
+# the controller's own policy must be create-update: the chart's default
+# `sync` deletes Applications a generator stops yielding, and with a
+# controller policy set the controller ignores a set's applicationsSync
+kubectl --kubeconfig "$PROD_KC" -n argocd get cm argocd-cmd-params-cm -o yaml \
+  | grep applicationsetcontroller
+# AVP on a manifest with no placeholder: does it still try to log in?
+kubectl --kubeconfig "$PROD_KC" -n argocd exec -i "$R" -c avp -- \
+  env VAULT_ADDR=https://192.0.2.1:8200 argocd-vault-plugin generate - <<'EOF2'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: no-placeholder
+EOF2
+# the heaviest render, timed, with Helm's dirs under /tmp
+kubectl --kubeconfig "$PROD_KC" -n argocd exec "$R" -c avp -- sh -c '
+  export HELM_CACHE_HOME=/tmp/h/cache HELM_CONFIG_HOME=/tmp/h/config HELM_DATA_HOME=/tmp/h/data
+  d=$(mktemp -d); cd "$d"
+  printf "helmCharts:\n  - name: kube-prometheus-stack\n    repo: https://prometheus-community.github.io/helm-charts\n    version: 91.9.0\n    releaseName: monitoring\n    includeCRDs: true\n" > kustomization.yaml
+  s=$(date +%s)
+  kustomize build --enable-helm . > out.yaml; echo "rc=$?"
+  e=$(date +%s); echo "seconds: $((e-s))"; wc -l out.yaml; ls
+  rm -rf "$d"'
+```
+
+Expect: the applicationset controller image tag and `1` ready replica; the
+`grep applicationsetcontroller` prints `applicationsetcontroller.policy:
+create-update`. Before the `argocd` role is re-run from this branch it
+prints the chart default `sync` (seen on prod 2026-10-06): that default
+deletes Applications a generator stops yielding, so the policy must read
+`create-update` before the first rollout; both binaries print a version; the placeholder-free generate either prints the
+ConfigMap or fails, and the result is the finding: if it errors on the
+unreachable address, AVP logs in regardless, which is why the CMP calls it
+only when `<path:` is present. The render prints `rc=0`, finishes well
+under 90 `seconds` (the sidecar's `sh` is dash and has no `time`, hence
+`date`) and shows a `charts` directory in the listing: `--enable-helm` writes
+`charts/` under the app directory, which is gitignored.
+
+If not: no `helm` binary means the sidecar image or an init container has
+to supply it; a read-only filesystem error means the three `HELM_*`
+directories in the plugin's `generate` command are not under `/tmp`; a
+render over 90 seconds means raising the repo-server's exec timeout
+(`ARGOCD_EXEC_TIMEOUT`) before moving `kube-prometheus-stack`.
+
+### Land the uniform-apps PR
+
+When: merging the PR that adds the set, the `clusters` Application and the
+Prometheus receiver ([ADR 0026](../decisions/0026-uniform-apps.md)). The
+merge changes prod at once: the empty set `apps`, the `prod` cluster
+Secret (which renames `in-cluster`), the AppProject destinations, the
+`nfs` path rename and the receiver Ingress and Secret through the live
+`monitoring` and `monitoring-secrets`. This entry is the order; each step
+links the entry that owns its commands.
+
+BEFORE merge, in order:
+
+1. Vault unsealed: [Is Vault up and unsealed](#is-vault-up-and-unsealed).
+2. [Check the CMP sidecar](#check-the-cmp-sidecar): `helm` present, the
+   heaviest render under 90 seconds, the applicationset controller Ready.
+   Its `applicationsetcontroller.policy` reads `sync` until the `argocd`
+   role is re-run after merge; it must read `create-update` before any
+   rollout.
+3. [Seed the remote-write credential](playbooks-and-terraform.md#seed-the-remote-write-credential),
+   which ends by re-running `vault.yaml`'s seed.
+4. [Verify the ApplicationSet](#verify-the-applicationset) against the
+   pushed branch: no Applications and no error while every config is
+   `[]`, exactly `prod-<dir>` with one scratch entry.
+
+AFTER merge, wait for `root-prod`'s next poll (about 3 minutes), then:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd get applicationset apps \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.message}{"\n"}{end}'
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications
+argocd cluster list
+kubectl --kubeconfig "$PROD_KC" -n monitoring get certificate prometheus-tls
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://prometheus.mgryn.cc/api/v1/write
+```
+
+Expect: the set has no `ErrorOccurred=True` condition and has generated no
+Applications (no `prod-*` in the list); `clusters` and every existing prod
+Application, `monitoring-secrets` included, `Synced` and `Healthy`;
+`argocd cluster list` shows `prod` at `https://kubernetes.default.svc`;
+`prometheus-tls` `READY` `True`; the unauthenticated `curl` prints `401`
+(a `503` means the auth Secret is missing: step 3 was skipped). The
+receiver needs two grey-cloud A records for `prometheus.mgryn.cc`, one per
+prod worker, before the `curl`. With the credential, a body above 1 MiB
+must not return `413`.
+
+Then re-run the argocd role for the CMP
+([Deploy ArgoCD to prod](playbooks-and-terraform.md#deploy-argocd-to-prod)):
+the repo-server restarts, the ApplicationSet controller restarts with
+`applicationsetcontroller.policy: create-update` (the chart default `sync`
+can delete Applications; check it with the gate in
+[Roll an app into the set](#roll-an-app-into-the-set)), and `monitoring-secrets`, `pve-exporter`,
+`cert-manager-issuers`, `alerts` and `nfs` stay `Synced` (`alerts` and
+`nfs` move to the sidecar here). Re-run `vault.yaml` for the policy
+([Widen prod's policy to read kv-dev](playbooks-and-terraform.md#widen-prods-policy-to-read-kv-dev)).
+Only then start the rollouts
+([Roll an app into the set](#roll-an-app-into-the-set)).
+
+If not: an `ErrorOccurred` condition naming `env` means empty configs are
+not dropped; see [Verify the ApplicationSet](#verify-the-applicationset).
+`monitoring-secrets` `Unknown` with a `ComparisonError` means the
+remote-write field is missing or Vault is sealed; see
+[Spot ComparisonError](#spot-comparisonerror-the-sealed-vault-tell).
+
+### Verify the ApplicationSet
+
+When: BEFORE merging any change to
+`argocd/environments/prod/applications/appset.yaml` or a config entry,
+including the PR that adds the set. This is the only proof that Argo
+accepts the templated `env` selector inside the matrix and drops empty
+configs; `scripts/check-appsets.sh` expands the set with `yq`, not with
+Argo's own generators. The git generator reads its repository at
+`revision`, so run it against the pushed branch, never `main`: before the
+merge `main` has no `config.yaml`, and the check passes falsely. Set
+`revision` in the local copy of the set to the branch; that edit is a
+scratch change: revert it and never commit it. `argocd` is the CLI,
+logged in to prod's hub ([Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli)).
+`--core` instead uses the current kubectl context and its namespace, so it
+hangs if that context is not prod (set it with `KUBECONFIG=<copy of
+$PROD_KC> kubectl config set-context --current --namespace=argocd`).
+
+```bash
+# scratch: point the git generator at the pushed branch (never commit this)
+yq -i '.spec.generators[0].matrix.generators[0].git.revision = "<branch>"' \
+  argocd/environments/prod/applications/appset.yaml
+argocd appset generate argocd/environments/prod/applications/appset.yaml
+# with one scratch entry (env: prod, namespace, createNamespace,
+# serverSideApply) in one app's config.yaml, pushed to the branch:
+argocd appset generate argocd/environments/prod/applications/appset.yaml
+git checkout -- argocd/environments/prod/applications/appset.yaml
+```
+
+Expect: while every `config.yaml` is `[]`, no Applications and no error
+(no `ErrorOccurred` condition, nothing about a missing `env` key). With
+the one scratch entry, exactly one Application, `prod-<dir>`, with source
+path `argocd/apps/<dir>/prod`. Remove the scratch entry from the branch
+before merging.
+
+If not: `map has no entry for key "env"` means empty configs are not
+dropped: the git child's `selector` (`env` `Exists`) is missing or not
+honoured ([ADR 0026](../decisions/0026-uniform-apps.md) names the
+fallback). Any other error naming the selector or a template key is the
+finding; fix the set before it reaches `main`.
+
+### Roll an app into the set
+
+When: moving one app from its own Application to the set, one PR per group
+([ADR 0026](../decisions/0026-uniform-apps.md)). `<old>` is the old
+Application's name, `<new>` is `prod-<dir>`.
+
+```bash
+# Vault must be unsealed first
+ssh vault-02 'VAULT_ADDR=https://10.0.0.133:8200 vault status'
+# gate: the controller must not delete Applications a generator stops
+# yielding; this must print create-update (re-run the argocd role if not)
+kubectl --kubeconfig "$PROD_KC" -n argocd get cm argocd-cmd-params-cm \
+  -o jsonpath='{.data.applicationsetcontroller\.policy}{"\n"}'
+# before merging: the old Application must carry no finalizer, or pruning
+# it cascade-deletes what it runs. The old files have none in git; this
+# must print nothing. Do NOT patch it off by hand: root-prod's selfHeal
+# puts a finalizer back within seconds if git still lists one.
+kubectl --kubeconfig "$PROD_KC" -n argocd get application <old> \
+  -o jsonpath='{.metadata.finalizers}{"\n"}'
+# after merging: the old one is pruned by root-prod, the new one appears
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications | grep -E '^NAME|<old>|<new>'
+kubectl --kubeconfig "$PROD_KC" get pods,certificate -A -o wide | grep <namespace>
+```
+
+The PR replaces `[]` in the app's `config.yaml` with the uncommented entry
+and deletes the old Application file in the same commit. Wait for
+`root-prod` to prune the old Application (about 3 minutes) and for the set
+to create `<new>`.
+
+Expect: `<old>` gone, `<new>` `Synced` and `Healthy`, and nothing
+recreated: pod and certificate ages are older than the merge. A hook Job in
+the chart (cert-manager, ingress-nginx) behaves as before; that is
+confirmed here, not assumed.
+
+If the new Application sits `OutOfSync` with `operationState` `Running` and
+the message `waiting for completion of hook batch/Job/<name>`, and that Job
+is not in the namespace (it ran and was deleted by `hook-succeeded`, and
+Argo kept waiting for it; seen on `prod-cert-manager`, rollout 2,
+2026-10-09): it is only the Application's status, the workloads are
+untouched. Confirm with the controller log
+(`kubectl -n argocd logs argocd-application-controller-0 | grep <new>`
+shows the same "Resuming in-progress operation" every couple of minutes),
+then [log in](access.md#log-in-to-the-argocd-cli), run
+`argocd app terminate-op <new> --grpc-web`, and start the sync by hand with
+`argocd app sync <new> --grpc-web`: a terminated operation is not retried
+automatically on the same revision. Charts with install hooks (cert-manager,
+ingress-nginx, kube-prometheus-stack) can do this; expect it again on later
+rollouts and on their first sync after a chart bump.
+
+If not: adoption failed. Delete the old Application's remaining resources
+and let `<new>` recreate them (the fallback, not the plan). For
+cert-manager rehearse first against `letsencrypt-staging`: Let's Encrypt
+allows five duplicate production certificates per week
+([ADR 0008](../decisions/0008-acme-dns01-not-http01.md)). Anything stuck:
+[Sync an Application by hand](#sync-an-application-by-hand).
+
+### Retire an app from the set
+
+When: an app leaves a cluster. The set never deletes Applications
+(`applicationsSync: create-update`), so removing the config entry alone
+leaves the generated Application running; and an Application deleted while
+its entry is still on `main` is recreated by the set. So: merge the PR that
+leaves `[]` in the app's `config.yaml` (and removes nothing else), then
+delete the Application.
+
+The default keeps the app's resources: remove the finalizer first. Skip
+that step only when deleting the resources is intended. **Warning:** an app
+that owns a Namespace or PVCs takes them with it when its finalizer
+cascades. `monitoring-secrets` owns the `monitoring` Namespace, and with it
+the Prometheus and Grafana PVCs; `nfs-prod` then deletes their data. Never
+skip the patch for such an app unless that data loss is the point.
+
+```bash
+# <new> is the generated Application, prod-<dir>.
+# 1. keep the app's resources (skip ONLY to delete them on purpose). Run 1
+#    and 2 back to back: the set's controller puts the finalizer back on a
+#    generated Application on its next reconcile, like root-prod's selfHeal.
+kubectl --kubeconfig "$PROD_KC" -n argocd patch application <new> \
+  --type merge -p '{"metadata":{"finalizers":null}}'
+# 2. delete the Application
+kubectl --kubeconfig "$PROD_KC" -n argocd delete application <new>
+```
+
+Expect: `<new>` gone from `kubectl -n argocd get applications` and not
+recreated after the next poll; the resources kept (or gone, if step 1 was
+skipped on purpose). If not: the entry is still on `main`.
+
 ### Prove AVP end to end
 
 When: after a Vault, ArgoCD or auth-mount change, or a rebuild. Runs the

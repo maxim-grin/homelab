@@ -1,0 +1,4 @@
+- env: dev
+  namespace: nfs-provisioner
+  createNamespace: true
+  serverSideApply: false

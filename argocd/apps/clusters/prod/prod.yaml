@@ -1,0 +1,21 @@
+# The hub itself. A cluster Secret for the in-cluster address gives the
+# local cluster the name `prod` (instead of the built-in `in-cluster`)
+# and the `env` label the set selects on. No credentials: the controller
+# reaches its own cluster with its service account, as it always has.
+# Applications that still name `server: https://kubernetes.default.svc`
+# keep working; the address is unchanged.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-prod
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    env: prod
+type: Opaque
+stringData:
+  # Renaming this later makes the set generate duplicate Applications
+  # `<newname>-<dir>` beside the old `prod-<dir>` ones.
+  name: prod
+  server: https://kubernetes.default.svc
+  config: '{"tlsClientConfig":{"insecure":false}}'
