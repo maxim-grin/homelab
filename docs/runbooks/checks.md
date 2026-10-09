@@ -565,7 +565,7 @@ for f in old new; do
   yq e 'select(.kind=="Deployment" or .kind=="DaemonSet" or .kind=="StatefulSet" or .kind=="Job")
     | .kind + "/" + .metadata.name + " sel=" + (.spec.selector|sort_keys(..)|to_json(0))
     + " tpl=" + (.spec.template.metadata.labels|sort_keys(..)|to_json(0))' $f.yaml | sort > $f.sel
-  yq e 'select(. != null) | sort_keys(..)' $f.yaml > $f.sorted
+  yq e -o=json -I=0 'select(. != null) | sort_keys(..)' $f.yaml | sort > $f.sorted
 done
 diff old.ids new.ids && diff old.sel new.sel && echo EQUIVALENT
 wc -l old.ids new.ids
@@ -573,7 +573,8 @@ diff old.sorted new.sorted
 ```
 
 Expect: `EQUIVALENT`, the two id counts equal on both sides, and the whole
-render `diff` empty, or at most `annotations: null` on the ingress-nginx
+render `diff` (sorted one-line JSON per document, so Helm's `# Source:`
+comments and quote style do not show) empty, or at most `annotations: null` on the ingress-nginx
 ValidatingWebhookConfiguration (helm emits it, kustomize drops it; a
 no-op). If not: a name, namespace or selector differs. A DaemonSet or
 Deployment selector is immutable, so the hub would fail on it or recreate
