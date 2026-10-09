@@ -93,7 +93,7 @@ inventory is `inventories/dev`; `shared` and `prod` runs need `-i`.
 | `coredns_hosts.yaml`  | default (dev)                                 | none                                                                     | pin `vault.mgryn.cc` in CoreDNS; after every kubeadm upgrade|
 | `nfs_server.yaml`     | `-i inventories/shared`                       | none                                                                     | provision `nfs-01`, before `nfs_setup.yaml`                  |
 | `nfs_setup.yaml`      | default (dev)                                 | none                                                                     | `nfs-common` on the dev nodes, after `nfs_server.yaml`       |
-| `vault.yaml`          | `-i inventories/shared` (+ `-i inventories/dev` for dev configure) | none for install; seed, configure dev and configure prod each take their own set of `vault_seed`, `vault_configure`, `vault_token`, `vault_k8s_cluster_names`, `vault_prod_kubeconfig` (see [Vault playbook](#vault-playbook)) | install, seed, configure `vault-02` |
+| `vault.yaml`          | `-i inventories/shared` | none for install; seed, configure dev and configure prod each take their own set of `vault_seed`, `vault_configure`, `vault_token`, `vault_k8s_cluster_names`, `vault_prod_kubeconfig` (see [Vault playbook](#vault-playbook)) | install, seed, configure `vault-02` |
 | `lan_services.yaml`   | `-i inventories/shared`                       | none; `--limit <service>` for one                                        | the LAN LXCs, see [LAN services](#lan-services)              |
 | `support_tools.yaml`  | default (dev)                                 | none; `support_tools_enabled: true` in `group_vars/all.yaml`             | kubectl aliases and helpers on the control plane             |
 | `workstation.yaml`    | default (dev)                                 | none                                                                     | toolchain on `claude-code-01`                                |
@@ -308,22 +308,23 @@ unseal, see [access.md](access.md) and [checks.md](checks.md).
 
 ### Configure dev
 
-When: after `argocd-config` has synced `argocd/base/` and created the
-`vault-auth-token` Secret, which configure reads. Dev's control plane is
-reached over SSH and lives in `inventories/dev`, so both inventories are
-needed. This also seeds.
+When: first build or after a Vault rebuild, to create the KV mounts and
+seed them for dev. Dev has no Vault Kubernetes auth of its own (AVP runs on
+the hub and reads `kv-dev` through prod's auth), so
+`vault_configure_k8s_auth=false` skips it and dev's control plane is not
+touched. This also seeds.
 
 ```bash
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo
-ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+ansible-playbook -i inventories/shared playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-  -e vault_token="$VAULT_TOKEN" -e '{"vault_k8s_cluster_names":["dev"]}'
+  -e vault_configure_k8s_auth=false -e vault_token="$VAULT_TOKEN"
 unset VAULT_TOKEN
 ```
 
 Expect: `failed=0`; placeholder Applications leave `Unknown` on Argo's next
-poll. If not: the `vault-auth-token` Secret missing means `argocd-config` has
-not synced yet; wait and re-run.
+poll. If not: `vault status` on `vault-02` (sealed), then
+[checks.md](checks.md).
 
 ### Configure prod
 

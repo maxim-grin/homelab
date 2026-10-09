@@ -490,8 +490,8 @@ from `secret.yaml`.
    ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
    ```
 
-   **Run this before step 11**, which starts ArgoCD syncing the monitoring
-   app: Grafana seeds its admin password only when it first creates its
+   **Run this before the monitoring stack is created** (the namespace
+   comes with it): Grafana seeds its admin password only when it first creates its
    database, so an install without the Secret keeps the default until it
    is destroyed and rebuilt.
    - **Grafana** reads `GF_SECURITY_ADMIN_PASSWORD` through a `secretKeyRef`
@@ -500,15 +500,14 @@ from `secret.yaml`.
      silently starting on the default password. On an instance whose PVC
      already holds a Grafana database, reset it explicitly:
      `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
-10. **`kubectl apply -f argocd/base/projects.yaml`** — the AppProject. Nothing
-    has applied it yet at this point in a rebuild, so it must go on by hand;
-    from here on, the `argocd-config` Application syncs it. This same command
-    is also the only recovery if the AppProject is ever deleted from a running
-    cluster: `argocd-config` declares `project: homelab`, so once that project
-    is gone ArgoCD can no longer sync `argocd-config` either, and nothing is
-    left that can recreate the AppProject except this manual apply.
-11. **Hand dev to the hub** — after step 17 the hub has ArgoCD, so
-    register dev with it and let the `apps` ApplicationSet generate
+10. **No AppProject on dev.** The `homelab` AppProject lives on the prod
+    hub, where `kubectl apply -f argocd/base/projects.yaml` is step 17's
+    bootstrap (the same command is also the only recovery if it is ever
+    deleted). Dev has no ArgoCD and no AppProject CRD, so nothing to apply
+    here. (Numbering kept so other steps' references hold.)
+11. **Hand dev to the hub** — skip for now and return after step 17
+    (the hub does not exist before it; steps 12-16 run first, as listed).
+    The hub has ArgoCD by then, so register dev with it and let the `apps` ApplicationSet generate
     `dev-ingress-nginx`, `dev-nfs-provisioner`, `dev-cert-manager`,
     `dev-cert-manager-issuers` and `dev-jobboard`. The commands are the
     runbook entries "Register dev with the prod hub"
@@ -526,31 +525,20 @@ from `secret.yaml`.
     the one ordering hazard that used to be silent: with `:latest` the pod
     would happily start the *previous* build instead.
 
-    Separately, expect jobboard's sync status to sit at `Unknown` with a
-    `ComparisonError` naming a permission denied or a sealed Vault for
-    however long it takes to reach step 12 below — Vault's Kubernetes auth
-    is not configured until then. That is expected, not a wiring fault; it
-    clears once step 12 runs.
-12. **Configure and seed `vault-02`** — finish step 7 above:
-
-    ```bash
-    ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
-      -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-      -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
-    ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
-    ```
-
-    then add a DNS-only Cloudflare record, `vault.mgryn.cc` → `10.0.0.133`.
-    `vault-02` is the Vault that AVP reads, so this configures the Vault
-    that jobboard and ArgoCD read from today. `vault_configure=true` also
-    wires Vault's Kubernetes auth method (`disable_local_ca_jwt: true`),
-    the `argocd-read` policy, and the `argocd` role bound to
-    `system:serviceaccount:argocd:argocd-repo-server` — the path AVP
-    actually uses to authenticate, never the root token —
-    `vault_configure_k8s_auth` defaults to true. The task that posts the
-    config is `no_log: true` (the body carries the root token, the
-    reviewer JWT and the cluster CA together); see `ansible/README.md`
-    for how to diagnose a failure here.
+    Applications whose manifests carry `<path:...>` placeholders show
+    `Unknown` with a `ComparisonError` until `vault-02` is unsealed and
+    seeded (step 12) and the hub's registration of dev is in place; that
+    is a missing prerequisite, not a wiring fault, and clears on Argo's
+    next poll.
+12. **Configure and seed `vault-02`** — finish step 7 above. Dev needs
+    no Kubernetes auth in Vault: AVP runs on the hub, authenticates with
+    the hub's own (prod) auth and reads `kv-dev` for dev's apps. So this
+    run creates the KV mounts and seeds them with
+    `vault_configure_k8s_auth=false`; the prod auth mount is step 17.6.
+    Commands: [Configure and seed KV](runbooks/playbooks-and-terraform.md#configure-dev).
+    Then pin `vault.mgryn.cc` in CoreDNS
+    ([runbook](runbooks/playbooks-and-terraform.md#pin-names-in-coredns))
+    and add a DNS-only Cloudflare record, `vault.mgryn.cc` → `10.0.0.133`.
 13. **The workstation VM:**
 
     ```bash
@@ -1152,17 +1140,12 @@ ssh <master-ip> sudo cat /etc/kubernetes/admin.conf > ~/.kube/homelab-dev.conf
 export KUBECONFIG=~/.kube/homelab-dev.conf
 
 ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
-
-# Point Vault's Kubernetes auth at the new cluster's CA and reviewer JWT.
-# The KV store is already seeded, so no seed.
-ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
-  -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=false \
-  -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
 ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
 ```
 
-Then re-register dev with the hub, which holds the new cluster's CA and
-token: the runbook entry "Register dev with the prod hub"
+Vault needs nothing for dev: its Kubernetes auth is the hub's, and the
+KV store is already seeded. Then re-register dev with the hub, which
+holds the new cluster's CA and token: the runbook entry "Register dev with the prod hub"
 ([runbook](runbooks/playbooks-and-terraform.md#register-dev-with-the-prod-hub)).
 The hub's `apps` ApplicationSet then syncs the dev apps; dev has no
 ArgoCD of its own.
@@ -1183,13 +1166,13 @@ Every PVC is new, so `nfs-dev` gives each one a new directory,
 `/srv/nfs/k8s/<namespace>-<pvc>-<pv>`. The old cluster's directories are
 still there, untouched — their PVCs were never deleted, so the provisioner
 never removed them. jobboard comes up with its schema and no rows. To bring
-the old database back, pause the hub's `dev-jobboard` first; otherwise
-selfHeal scales Postgres back up mid-copy. Against the hub, with the
-ArgoCD CLI logged in
-([runbook](runbooks/access.md#log-in-to-the-argocd-cli)):
+the old database back, hold the hub's `dev-jobboard` still first,
+otherwise selfHeal scales Postgres back up mid-copy: stop the
+ApplicationSet controller and set the sync policy to none
+([runbook](runbooks/backups-and-recovery.md#hold-dev-jobboard-still)).
+Then, against dev:
 
 ```bash
-argocd app set dev-jobboard --sync-policy none
 kubectl -n jobboard scale deploy/jobboard --replicas=0
 kubectl -n jobboard scale sts/postgres --replicas=0
 kubectl -n jobboard wait --for=delete pod/postgres-0 --timeout=2m
@@ -1207,11 +1190,10 @@ sudo cp -a "$O/pgdata" "$N/pgdata"       # -a keeps UID 999 ownership
 ```
 
 Then scale `postgres` to 1, wait for Ready, check a row count with `psql`,
-scale `jobboard` to 1, and restore auto-sync with
-`argocd app set dev-jobboard --sync-policy automated --self-heal`. The
-ApplicationSet restores the policy by itself on its next reconcile, so
-finish the copy promptly. The password matches because both databases were
-initialised from the same Vault secret. Delete the old directory and
+scale `jobboard` to 1, then release the set as the same runbook entry
+ends: scale the ApplicationSet controller back to 1 and check it shows
+`1/1`; the set restores the sync policy itself. The password matches
+because both databases were initialised from the same Vault secret. Delete the old directory and
 `pgdata.empty` once the app is confirmed working.
 
 ## Gaps worth closing before the disk is replaced

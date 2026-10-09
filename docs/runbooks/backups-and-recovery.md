@@ -146,6 +146,41 @@ If not: a PV that is `Bound` is in use; do not delete it. A PV listed as
 `Released` whose directory is missing needs no further action. Source:
 [rebuild.md](../rebuild.md) step 18, "Cleaning up retained volumes".
 
+## Restore jobboard's database on dev
+
+### Hold dev-jobboard still
+
+When: before copying an old Postgres data directory into a new PVC (order
+in [rebuild.md](../rebuild.md#the-new-cluster-starts-with-empty-volumes)).
+Hand-editing the generated `dev-jobboard` Application is not enough: the
+`apps` ApplicationSet owns it and reverts the edit within seconds, and
+selfHeal then scales Postgres back up mid-copy. Stop the ApplicationSet
+controller first, not the application controller, so every other prod app
+keeps self-healing. `$PROD_KC` is the prod kubeconfig
+([Kubeconfigs](access.md#kubeconfigs)); the `argocd` CLI is logged in
+([Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli)).
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=0
+argocd app set dev-jobboard --sync-policy none
+```
+
+Do the restore with the app scaled to zero for its whole length. Then
+release the set:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=1
+kubectl --kubeconfig "$PROD_KC" -n argocd get deploy argocd-applicationset-controller
+```
+
+Expect: `1/1` ready, and within a minute `argocd app get dev-jobboard`
+shows the automated sync policy (prune and self-heal) back, restored by the
+set. Scaling the controller back to 1 is the last step; do not skip it, or no
+generated Application is ever updated again.
+
+If not: `0/1` after a minute, describe the Deployment's pods; the sync
+policy still `none` means the controller is not running.
+
 ## Rebuild pointers
 
 - Whole rebuild, in order: [rebuild.md](../rebuild.md#rebuild-order).

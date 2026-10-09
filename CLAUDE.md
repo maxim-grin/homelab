@@ -27,7 +27,8 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 against a live cluster.
 
 `dev` is the kubeadm cluster, a spoke of the prod hub: it has no ArgoCD
-of its own, and the hub's `apps` ApplicationSet generates its `dev-*` apps. `terraform/environments/prod` is the Talos
+of its own, and the hub's `apps` ApplicationSet generates its `dev-*`
+apps. `terraform/environments/prod` is the Talos
 cluster: three nodes through the `siderolabs/talos` provider, applied from
 the operator's workstation; the prod app-of-apps delivers the hub platform apps.
 `terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs.
@@ -40,9 +41,9 @@ lands.
 ansible/          roles/ + playbooks/, inventory per environment,
                   secrets in an ansible-vault file
 argocd/           base/       AppProject
-                  apps/       kustomize bases and dev overlays, or Helm values;
-                              prod apps are <app>/prod kustomize directories
-                              with a config.yaml per app (ADR 0026)
+                  apps/       <app>/base and <app>/<env> kustomize directories
+                              (Helm via helmCharts), with a config.yaml
+                              per app (ADR 0026)
                   environments/prod/applications/ root-prod's children; appset.yaml
                               generates the prod apps from the config.yaml files
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,

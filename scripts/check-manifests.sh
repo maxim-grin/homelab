@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Render everything ArgoCD would render from this repository and schema-check
-# it: every kustomization, every Helm source in an Application CR, and the
-# Application CRs and AppProject themselves. Runs in CI (the `manifests`
-# job) and locally -- same command, same result.
+# it: every kustomization (Helm charts included, as helmCharts), and the
+# Application CRs and AppProject themselves, which must carry no chart.
+# Runs in CI (the `manifests` job) and locally -- same command, same
+# result.
 #
 # Needs on PATH: kustomize, helm, yq (mikefarah v4), kubeconform.
 #
@@ -40,10 +41,10 @@ trap cleanup EXIT
 failed=0
 
 # This applies to every schema_check call (kustomize output, argocd/base and
-# the Application CRs too), not only the Helm ones; a CRD committed under
-# argocd/ is therefore not validated.
-# CustomResourceDefinition is skipped: --include-crds renders the charts' own
-# CRDs (cert-manager) and neither the built-in schemas nor the datree
+# the Application CRs too); a CRD committed under argocd/ is therefore not
+# validated.
+# CustomResourceDefinition is skipped: the charts' own CRDs (cert-manager)
+# are rendered, and neither the built-in schemas nor the datree
 # catalogue publish one for that kind.
 schema_check() {
   kubeconform -strict -summary -skip CustomResourceDefinition \
@@ -60,50 +61,23 @@ while IFS= read -r kfile; do
   dir=$(dirname "$kfile")
   echo "-- $dir"
   kustomize build --enable-helm "$dir" > "$work/out.yaml" || { fail "kustomize build $dir"; continue; }
+  # A kustomization that names helmCharts and renders nothing has lost its
+  # chart silently; the schema check below passes on an empty file.
+  if grep -q '^helmCharts:' "$kfile"; then
+    docs=$(grep -c '^kind:' "$work/out.yaml" || true)
+    [ "$docs" -gt 0 ] || { fail "kustomize build $dir rendered no documents"; continue; }
+  fi
   schema_check "$work/out.yaml" || fail "kubeconform $dir"
 done < <(find argocd -name kustomization.yaml | sort)
 
-echo "== helm"
-# Helm sources sit under spec.sources[] (multi-source) or spec.source.
-chart_source='(.spec.sources[]?, .spec.source) | select(. != null) | select(.chart)'
+echo "== no Helm sources in Application CRs"
+# ADR 0026: charts are rendered by kustomize helmCharts (built above), never
+# by an Application or the ApplicationSet template with a `chart:` source.
+# Any map carrying a `chart` key under an Application CR fails here.
 for app in "${app_files[@]}"; do
-  # A source with `chart:` is a Helm source; the plain git source is not.
-  count=$(yq "[$chart_source] | length" "$app")
-  [ "$count" -gt 0 ] || continue
-
-  name=$(yq '.metadata.name' "$app")
-
-  # Inline values are not passed to helm below, so the render would use chart
-  # defaults, not the app's real config, and still report success.
-  inline=$(yq "[$chart_source | (.helm.values, .helm.valuesObject, .helm.parameters, .helm.fileParameters) | select(. != null)] | length" "$app")
-  if [ "$inline" -gt 0 ]; then
-    fail "helm inline values not supported in $name: keep values in a values file"
-    continue
-  fi
-
-  ns=$(yq '.spec.destination.namespace' "$app")
-  repo=$(yq "$chart_source | .repoURL" "$app")
-  chart=$(yq "$chart_source | .chart" "$app")
-  version=$(yq "$chart_source | .targetRevision" "$app")
-  release=$(yq "$chart_source | .helm.releaseName // \"$name\"" "$app")
-
-  # `$values/argocd/...` is ArgoCD's reference to the git source; locally
-  # the same file is simply relative to the repository root.
-  values=()
-  while IFS= read -r vf; do
-    [ -n "$vf" ] || continue
-    values+=(-f "${vf#\$values/}")
-  done < <(yq "$chart_source | .helm.valueFiles[]?" "$app")
-
-  echo "-- $name ($chart $version)"
-  helm template "$release" "$chart" --repo "$repo" --version "$version" \
-    --namespace "$ns" --include-crds "${values[@]}" > "$work/out.yaml" \
-    || { fail "helm template $name"; continue; }
-  schema_check "$work/out.yaml" || fail "kubeconform $name"
+  count=$(yq '[.. | select(tag == "!!map") | select(has("chart"))] | length' "$app" | awk '{ n += $1 } END { print n + 0 }')
+  [ "$count" -eq 0 ] || fail "$app has a chart: source; use kustomize helmCharts"
 done
-# No guard that something rendered: since dev's Applications went, no
-# Application CR carries a chart (charts are kustomize helmCharts, built
-# above), so zero is the normal count.
 
 echo "== argocd resources"
 # Not the kustomization.yaml files: those are not Kubernetes objects.

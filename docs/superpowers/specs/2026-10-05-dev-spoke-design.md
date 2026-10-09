@@ -119,10 +119,12 @@ its resources alone.
   `cluster=dev`, remote-write to `https://prometheus.mgryn.cc/api/v1/write`
   with credentials from `kv-dev/monitoring/remote-write`. `monitoring-secrets/dev`
   owns the namespace and the credentials Secret, as on prod.
-- Dev's hand-rolled `monitoring/{base,dev}` go. Its Application owns the
-  namespace, so the order matters: the operator deletes the `monitoring`
-  namespace on dev first, then the PR merges and the hub creates the new
-  pair. The dev entries for the two new apps land in this PR, not A3, so
+- Dev's hand-rolled `monitoring/{base,dev}` directories go in A4. Its
+  `monitoring` Application file is already deleted from git in A3 (with
+  the rest of `argocd/environments/dev`), and dev's ArgoCD is uninstalled
+  without cascade, so the live workload runs on, orphaned, until A4. The
+  order still matters: the operator deletes the `monitoring` namespace on
+  dev first, then the PR merges and the hub creates the new pair. The dev entries for the two new apps land in this PR, not A3, so
   the set cannot create them while the old namespace still exists.
 - The owner's `/etc/hosts` lines for dev's Prometheus and Grafana go;
   `prometheus.mgryn.cc` is the hub's receiver.
@@ -138,7 +140,10 @@ its resources alone.
   leave the Proxmox name, the hostname and the kubeadm node name
   disagreeing.
 - The existing kubeadm roles bootstrap the cluster, including the CoreDNS
-  hosts play for `vault.mgryn.cc` and Vault's `kubernetes-dev` auth.
+  hosts play for `vault.mgryn.cc`. Vault's `kubernetes-dev` auth is not
+  recreated: AVP runs on the hub and reads `kv-dev` through prod's auth, so
+  no dev workload authenticates to Vault (the role's
+  `vault_configure_k8s_auth=false` skips it).
 - Re-running A1's registration playbook reconnects the hub, and the `dev-*`
   Applications restore every app. They all start at once (generated apps
   have no sync waves); the set's retry carries cert-manager's issuers past
