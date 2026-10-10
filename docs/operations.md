@@ -37,8 +37,7 @@ is a stop — see
 | `http://10.0.0.111:32080`                                                                        | ArgoCD UI (prod), NodePort break-glass on a prod worker; `.112` and HTTPS `32443` work too            | none         |
 | `https://argocd.mgryn.cc`                                                                        | ArgoCD UI (prod hub); HTTP 308s to HTTPS                                                              | cert-manager |
 | `https://grafana.mgryn.cc`                                                                       | Grafana (prod hub); HTTP 308s to HTTPS                                                                | cert-manager |
-| `https://dev-grafana.mgryn.cc`                                                                  | Grafana (dev); HTTP 308s to HTTPS                                                                     | cert-manager |
-| `http://prometheus.mgryn.cc`                                                                     | Prometheus, basic auth from ingress-nginx — Prometheus ships none; login in `vault_kv` as `kv-dev/monitoring/prometheus` | none         |
+| `https://prometheus.mgryn.cc/api/v1/write`                                                      | the hub's write-only Prometheus receiver for dev's agent; basic auth, `kv-dev/monitoring/remote-write` | cert-manager |
 | `https://vault.mgryn.cc:8200`                                                                    | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA   |
 | `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc`, `lan.hl.mgryn.cc`, `home.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus, LAN Orangutan, Glance                                               | Traefik      |
 

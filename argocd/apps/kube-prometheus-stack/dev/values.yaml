@@ -1,0 +1,90 @@
+# kube-prometheus-stack for the dev spoke: the operator, a Prometheus in
+# agent mode, kube-state-metrics and node-exporter. No Grafana, no
+# Alertmanager, no rule evaluation: the agent scrapes and remote-writes
+# to the hub (prometheus.mgryn.cc), whose Prometheus and Grafana serve
+# dev as cluster=dev.
+#
+# No credential and no <path:...> placeholder belongs in this file: the
+# prometheus-remote-write Secret comes from the monitoring-secrets
+# Application, which also owns the `monitoring` namespace.
+#
+# Memory limits only, no CPU limits. Dev nodes have about 3G of RAM;
+# limits total about 476Mi (node-exporter counted once). The agent's
+# limit was 160Mi; that risked an OOM loop scraping three nodes, so the
+# spec's 400Mi target is relaxed to this total.
+
+grafana:
+  enabled: false
+alertmanager:
+  enabled: false
+# An agent evaluates no rules; the rule objects would only sit unused.
+defaultRules:
+  create: false
+
+# kubeadm binds these to 127.0.0.1, so their targets would sit down.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 48Mi
+    limits:
+      memory: 96Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        memory: 32Mi
+
+prometheus:
+  agentMode: true
+  prometheusSpec:
+    # Pick up every ServiceMonitor and PodMonitor in any namespace.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    externalLabels:
+      cluster: dev
+    # The agent's WAL only buffers for remote-write; no PVC.
+    remoteWrite:
+      - url: https://prometheus.mgryn.cc/api/v1/write
+        basicAuth:
+          username:
+            name: prometheus-remote-write
+            key: username
+          password:
+            name: prometheus-remote-write
+            key: password
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+
+# One per node.
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 32Mi

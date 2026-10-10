@@ -1,0 +1,19 @@
+# Owned here, not by the chart Application, so exactly one Application
+# writes its labels: two owners of one Namespace fight over them on
+# every sync.
+#
+# node-exporter needs hostNetwork, hostPID and hostPath mounts, which
+# Pod Security `baseline` rejects. kubeadm enforces nothing by default;
+# the `privileged` label keeps this namespace working if that changes,
+# and matches prod.
+#
+# Delete=false: deleting the monitoring-secrets Application must not
+# take the namespace, and with it the Prometheus agent, along.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
