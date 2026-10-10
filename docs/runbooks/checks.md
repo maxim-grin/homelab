@@ -767,7 +767,128 @@ Expect: the same as before the uninstall; `kubectl get ns argocd` returns
   the validated dump.
 
 After the uninstall, dev's hand-rolled `monitoring` workload keeps running
-orphaned (its Application went with dev's ArgoCD) until PR A4.
+orphaned (its Application went with dev's ArgoCD) until
+[Move dev to agent-mode monitoring](#move-dev-to-agent-mode-monitoring).
+
+### Move dev to agent-mode monitoring
+
+When: once, after [Adopt dev into the hub](#adopt-dev-into-the-hub) (A3)
+is done, around the dev monitoring PR (A4). The PR deletes dev's
+hand-rolled Prometheus, Grafana, kube-state-metrics and node-exporter
+from git and adds `argocd/apps/monitoring-secrets/dev` and
+`argocd/apps/kube-prometheus-stack/dev`, so the hub's `apps` set
+generates `dev-monitoring-secrets` and `dev-kube-prometheus-stack`: a
+Prometheus in agent mode that remote-writes to the hub as `cluster=dev`.
+Preconditions:
+
+- A3 done: dev's ArgoCD is uninstalled and the hub's `dev-*` apps are
+  `Synced`.
+- `kv-dev/monitoring/remote-write` is seeded
+  ([Seed the remote-write credential](playbooks-and-terraform.md#seed-the-remote-write-credential)),
+  without printing values: `vault kv list kv-dev/monitoring` names it
+  ([Is KV seeded](#is-kv-seeded-without-printing-values)).
+- Prod's receiver is up: the unauthenticated `curl` in step 4 below
+  prints `401` already, before dev sends anything.
+
+Order matters. The old `monitoring` namespace has no owner in git. If the
+PR merges first, the hub creates the new apps inside it and the delete
+then takes them too.
+
+1. Record what is in dev's `monitoring` namespace:
+
+   ```bash
+   kubectl --kubeconfig "${DEV_KC:?}" -n monitoring get pods,pvc
+   ```
+
+   Expect: the old Prometheus, Grafana, kube-state-metrics and
+   node-exporter pods and their PVCs (`nfs-dev`). Paste the output.
+
+2. Delete the namespace. This destroys dev's Prometheus history, Grafana's
+   database and dashboards, and the `grafana-admin` Secret; `nfs-dev`
+   deletes a volume's data with its PVC and there is no backup. All of it
+   is purgeable. Nothing else lives in this namespace. Chained to the node
+   check, so a wrong kubeconfig stops it:
+
+   ```bash
+   kubectl --kubeconfig "${DEV_KC:?}" get node ubuntu-k8s-master-01 worker-01 worker-02 && {
+     kubectl --kubeconfig "$DEV_KC" delete namespace monitoring --timeout=300s
+     kubectl --kubeconfig "$DEV_KC" get namespace monitoring
+   }
+   ```
+
+   Expect: `deleted`, then `NotFound`.
+
+   If it sticks in `Terminating`, find what holds it before forcing
+   anything. The namespace's own conditions name the blocker, and the
+   second command lists what is left in it:
+
+   ```bash
+   kubectl --kubeconfig "${DEV_KC:?}" get namespace monitoring \
+     -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.message}{"\n"}{end}'
+   kubectl --kubeconfig "${DEV_KC:?}" api-resources --verbs=list --namespaced -o name \
+     | xargs -n1 kubectl --kubeconfig "$DEV_KC" -n monitoring get --ignore-not-found --show-kind --no-headers
+   ```
+
+   A leftover with a finalizer (often a PVC held by a pod that has not
+   gone yet, or a resource whose controller is already deleted) is the
+   usual cause. Give pods time to end; if a controller-less resource
+   keeps a finalizer, read it first
+   (`kubectl ... -n monitoring get <kind>/<name> -o jsonpath='{.metadata.finalizers}'`)
+   and tell the owner before clearing it.
+
+3. The owner merges the PR. The hub's next poll (about 3 minutes)
+   generates the two apps. Their sync retry (10 tries, backoff to 5
+   minutes) covers the order: `dev-kube-prometheus-stack` may sit
+   `OutOfSync` or fail a try before `dev-monitoring-secrets` has created
+   the namespace and the Secret. If it is still `OutOfSync` after the
+   secrets app is `Synced`, sync it by hand
+   ([Sync an Application by hand](#sync-an-application-by-hand)).
+
+4. Check:
+
+   ```bash
+   argocd app list | grep -E 'dev-(monitoring-secrets|kube-prometheus-stack)'
+   kubectl --kubeconfig "${DEV_KC:?}" -n monitoring get pods
+   kubectl --kubeconfig "${DEV_KC:?}" -n monitoring get secret prometheus-remote-write
+   kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
+     svc/monitoring-kube-prometheus-prometheus 9090 >/dev/null &
+   pf=$!; sleep 3
+   curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=count(up{cluster="dev"})'
+   kill $pf
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST https://prometheus.mgryn.cc/api/v1/write
+   ```
+
+   Expect: both Applications `Synced` and `Healthy`; in dev a
+   `prometheus-monitoring-kube-prometheus-prometheus-0` pod `Running`
+   beside the operator, kube-state-metrics and node-exporter pods, and
+   the Secret present; the query returns a non-empty `result` (give it a
+   minute after the pod starts); the unauthenticated write prints `401`
+   (it needs the two grey-cloud A records for `prometheus.mgryn.cc`).
+
+   If not: `up{cluster="dev"}` empty with the pod `Running` means the
+   agent cannot write: read its log
+   (`kubectl --kubeconfig "${DEV_KC:?}" -n monitoring logs prometheus-monitoring-kube-prometheus-prometheus-0 -c prometheus | tail`)
+   for `401` (credential differs from kv-prod's `htpasswd`) or a TLS or
+   name error. An app `Unknown` is
+   [the sealed-Vault tell](#spot-comparisonerror-the-sealed-vault-tell).
+
+5. Clean up the workstation: remove the `/etc/hosts` line for
+   `dev-grafana.mgryn.cc` and `prometheus.mgryn.cc`
+   ([Add the dev names to /etc/hosts](access.md#add-the-dev-names-to-etchosts)
+   says which). `prometheus.mgryn.cc` is now the hub's receiver, a public
+   DNS record; a line pointing it at a dev node breaks the check above.
+
+#### What must not be done
+
+- merge before step 2: the delete then takes the new apps' namespace;
+- delete `dev-monitoring-secrets` by hand. Like every generated app it
+  carries `resources-finalizer.argocd.argoproj.io`, so the delete removes
+  its `prometheus-remote-write` Secret (the namespace has `Delete=false`
+  and stays). The agent keeps running but every remote-write is rejected
+  with `401` and dev's series stop arriving at the hub. Use
+  [Retire an app from the set](#retire-an-app-from-the-set);
+- delete `dev-kube-prometheus-stack` by hand: the finalizer removes the
+  agent and its operator, and dev sends nothing until it is back.
 
 ### Prove AVP end to end
 
@@ -960,9 +1081,9 @@ change"). Otherwise rerun the LAN services playbook
 ### Prometheus targets (prod)
 
 When: an alert says a metric is absent, or after the alerting rollout.
-Dev's Prometheus is at `http://prometheus.mgryn.cc` (basic auth, the login
-is in Vault at `kv-dev/monitoring/prometheus`); its `/targets` page lists
-the targets. Prod has no Ingress for it; port-forward in its own terminal.
+Prod's Prometheus has no UI Ingress (`prometheus.mgryn.cc` is only the
+write-only receiver); port-forward in its own terminal. Dev's agent
+writes into it as `cluster=dev`.
 
 ```bash
 kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
