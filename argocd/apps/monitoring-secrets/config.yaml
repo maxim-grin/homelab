@@ -24,3 +24,9 @@
   # and all, into the last-applied-configuration annotation in clear
   # text. Server-side apply keeps no such copy.
   serverSideApply: true
+- env: dev
+  namespace: monitoring
+  # The Namespace is a manifest in this app, as on prod.
+  createNamespace: false
+  # Keeps the credentials out of the last-applied annotation.
+  serverSideApply: true

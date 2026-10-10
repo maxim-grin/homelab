@@ -74,30 +74,31 @@ If not: `talosctl -n <ip> services` shows what a node is waiting for, and
 
 ## Names
 
-Two kinds. The dev names have no public DNS and need `/etc/hosts` on the
-workstation. The rest are DNS-only (grey cloud) Cloudflare records and
-resolve on their own.
+Two kinds. A name with no public DNS needs `/etc/hosts` on the
+workstation; none is left for dev. The rest are DNS-only (grey cloud)
+Cloudflare records and resolve on their own.
 
 ### Add the dev names to /etc/hosts
 
-When: a dev UI does not resolve. ingress-nginx is a DaemonSet on host ports
-80/443, so any dev node answers. `<dev-node-ip>` is `host_ips['worker-01']`
-in `secret.yaml`. Prod's `argocd.mgryn.cc` and `grafana.mgryn.cc` are
-Cloudflare records to the prod workers and need no entry. Delete any old
-`grafana.mgryn.cc` line that points at a dev node.
+When: almost never. Dev has no Grafana or Prometheus UI of its own since
+the monitoring cutover ([Move dev to agent-mode monitoring](checks.md#move-dev-to-agent-mode-monitoring)):
+the hub's Grafana (`grafana.mgryn.cc`) shows dev as `cluster=dev`, and
+`prometheus.mgryn.cc` is the hub's write-only receiver. Both are
+Cloudflare records to the prod workers and need no entry. Delete any
+leftover `/etc/hosts` line for `dev-grafana.mgryn.cc`,
+`prometheus.mgryn.cc` or `grafana.mgryn.cc` that points at a dev node;
+one hides the hub's name from you.
 
 ```bash
-sudo tee -a /etc/hosts >/dev/null <<'EOF'
-<dev-node-ip> dev-grafana.mgryn.cc prometheus.mgryn.cc
-EOF
-getent hosts dev-grafana.mgryn.cc prometheus.mgryn.cc
+grep -nE 'dev-grafana|prometheus\.mgryn|grafana\.mgryn' /etc/hosts
 ```
 
-Expect: each name prints the node address. Replace the placeholder before
-running; the heredoc is written literally.
-
-If not: Grafana renders absolute URLs from its configured root URL, so an
-unresolved name shows as broken login redirects, not a connection error.
+Expect: no line pointing at a dev node. If one shows, remove it with
+`sudo sed -i.bak '/dev-grafana\.mgryn\.cc/d' /etc/hosts` (adjust the
+pattern to the line shown). A dev app that later needs a name without
+public DNS gets a line `<dev-node-ip> <name>`, where `<dev-node-ip>` is
+`host_ips['worker-01']` in `secret.yaml`; ingress-nginx is a DaemonSet on
+host ports 80/443, so any dev node answers.
 
 ### Names that resolve without /etc/hosts
 
@@ -122,8 +123,6 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 | ----------------- | ---------------------------------------- | -------------------------- |
 | ArgoCD (prod hub) | `https://argocd.mgryn.cc`; break-glass `http://10.0.0.111:32080` (or `.112`, HTTPS `32443`) | user `admin`; password is not in Vault, its bcrypt hash is `argocd_admin_password_hash` in `secret.yaml` (the plaintext is yours) |
 | Grafana (prod)    | `https://grafana.mgryn.cc`               | `kv-prod/monitoring/grafana`, fields `admin-user`, `admin-password` (only read when Grafana first creates its database) |
-| Grafana (dev)     | `https://dev-grafana.mgryn.cc`           | `grafana_admin_password` in `secret.yaml`, kept in the `grafana-admin` Secret |
-| Prometheus (dev)  | `http://prometheus.mgryn.cc`             | basic auth, `monitoring/prometheus` in `secret.yaml`'s `vault_kv` block, Vault `kv-dev/monitoring/prometheus` |
 | Prometheus, Alertmanager (prod) | no UI Ingress; through Grafana, or `kubectl port-forward` ([operations.md](../operations.md)). The one Ingress is write-only: `https://prometheus.mgryn.cc/api/v1/write`, for dev's sender | basic auth, `kv-prod/monitoring/remote-write` (`htpasswd`; the plain pair is `kv-dev/monitoring/remote-write`) |
 | jobboard          | `https://jobs.mgryn.cc`                  | app login; no infrastructure credential |
 | Vault             | `https://vault.mgryn.cc:8200`            | root token from `vault operator init`, kept in the password manager; trust `~/.homelab-ca/ca.crt` |

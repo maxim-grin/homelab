@@ -490,16 +490,9 @@ from `secret.yaml`.
    ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
    ```
 
-   **Run this before the monitoring stack is created** (the namespace
-   comes with it): Grafana seeds its admin password only when it first creates its
-   database, so an install without the Secret keeps the default until it
-   is destroyed and rebuilt.
-   - **Grafana** reads `GF_SECURITY_ADMIN_PASSWORD` through a `secretKeyRef`
-     with no `optional: true`, so until this runs the pod sits in
-     `CreateContainerConfigError` — loud, deliberately, rather than
-     silently starting on the default password. On an instance whose PVC
-     already holds a Grafana database, reset it explicitly:
-     `kubectl -n monitoring exec deploy/grafana -- grafana-cli admin reset-admin-password <pw>`.
+   Dev runs no Grafana any more: its monitoring is a Prometheus agent that
+   remote-writes to the hub (step 11), and the hub's Grafana shows it. The
+   playbook still creates this Secret, which nothing on dev reads.
 10. **No AppProject on dev.** The `homelab` AppProject lives on the prod
     hub, where `kubectl apply -f argocd/base/projects.yaml` is step 17's
     bootstrap (the same command is also the only recovery if it is ever
@@ -514,8 +507,13 @@ from `secret.yaml`.
     ([runbook](runbooks/playbooks-and-terraform.md#register-dev-with-the-prod-hub))
     and [Adopt dev into the hub](runbooks/checks.md#adopt-dev-into-the-hub)
     (the one-time cutover of a dev that ran its own ArgoCD; on a fresh dev,
-    registering is enough). Dev's monitoring stack is not
-    in the set yet; it stays unmanaged until PR A4.
+    registering is enough). The set also generates
+    `dev-monitoring-secrets` and `dev-kube-prometheus-stack`: a Prometheus
+    in agent mode that remote-writes to the hub, with the credential from
+    `kv-dev/monitoring/remote-write`. On a fresh dev there is no old
+    `monitoring` namespace to clear; the cutover of the old hand-rolled
+    stack is
+    [Move dev to agent-mode monitoring](runbooks/checks.md#move-dev-to-agent-mode-monitoring).
 
     ArgoCD syncs the jobboard manifests as soon as this applies, and
     `argocd/apps/jobboard/dev/kustomization.yaml` names a specific published
@@ -546,18 +544,15 @@ from `secret.yaml`.
     ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-14. **Point `/etc/hosts`** at a node IP for `dev-grafana.mgryn.cc` and
-    `prometheus.mgryn.cc`. One line per name, all pointing at the same node
-    -- ingress-nginx is a DaemonSet on host ports 80/443, so any node
-    answers.
+14. **`/etc/hosts`** needs no dev lines: dev has no Grafana or Prometheus
+    UI, and `grafana.mgryn.cc` and `prometheus.mgryn.cc` are the hub's
+    public records. Remove any old line that points one at a dev node
+    ([Add the dev names to /etc/hosts](runbooks/access.md#add-the-dev-names-to-etchosts)).
 
     `jobs.mgryn.cc` needs no entry: it is a DNS-only Cloudflare record
     holding a node IP. If the node IPs changed in this rebuild, update that
     record in Cloudflare instead. Its certificate re-issues on its own,
     provided the Vault seed in step 12 included `cert-manager/cloudflare`.
-    Grafana renders absolute URLs from `GF_SERVER_ROOT_URL`, so a name
-    that does not resolve produces broken login redirects rather than a
-    connection error.
 
     `vault.mgryn.cc`, like `jobs.mgryn.cc`, needs no `/etc/hosts` entry
     either: it is a DNS-only Cloudflare record pointing at `vault-02`
@@ -878,8 +873,8 @@ from `secret.yaml`.
        On the workstation, point both names at a worker in `/etc/hosts`
        (`10.0.0.111 argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
        `grafana.mgryn.cc` and `argocd.mgryn.cc` lines that point at a dev
-       node: dev's Grafana is now `dev-grafana.mgryn.cc`, and dev has no
-       ArgoCD UI.
+       node: dev has no Grafana or
+       ArgoCD UI of its own.
 
     2. Get the platform apps onto `main`, which `root-prod` reads (on
        the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then

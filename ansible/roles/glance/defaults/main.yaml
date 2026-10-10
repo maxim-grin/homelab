@@ -29,6 +29,5 @@ glance_bookmarks:
   - { title: Vault UI, url: "https://vault.mgryn.cc:8200/ui/" }
   - { title: ArgoCD, url: "https://argocd.mgryn.cc/" }
   - { title: Grafana, url: "https://grafana.mgryn.cc/" }
-  - { title: Grafana (dev), url: "https://dev-grafana.mgryn.cc/" }
   - { title: jobboard, url: "https://jobs.mgryn.cc/" }
   - { title: GitHub, url: "https://github.com/maxim-grin/homelab" }

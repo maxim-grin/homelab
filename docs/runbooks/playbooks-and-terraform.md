@@ -228,14 +228,16 @@ it is, dev `nfs` moves the same way, so check it as well.
 ### Pin names in CoreDNS
 
 When: after every kubeadm upgrade (it can rewrite the ConfigMap), and once
-when `vault.mgryn.cc` is first needed in-cluster.
+when `vault.mgryn.cc` or `prometheus.mgryn.cc` is first needed in-cluster.
 
 ```bash
 ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
 kubectl --kubeconfig "$DEV_KC" run -it --rm dnscheck --image=busybox:1.36 --restart=Never -- nslookup vault.mgryn.cc
+kubectl --kubeconfig "$DEV_KC" run -it --rm dnscheck --image=busybox:1.36 --restart=Never -- nslookup prometheus.mgryn.cc
 ```
 
-Expect: the lookup answers `10.0.0.133`. If not: re-run the playbook; check
+Expect: the first lookup answers `10.0.0.133`; the second answers the two
+prod workers, `10.0.0.111` and `10.0.0.112`. If not: re-run the playbook; check
 `coredns_hosts_entries` in the role.
 
 ### Provision NFS
