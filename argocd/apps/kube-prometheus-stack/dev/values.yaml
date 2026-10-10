@@ -22,6 +22,17 @@ defaultRules:
   create: false
 
 # kubeadm binds these to 127.0.0.1, so their targets would sit down.
+kubelet:
+  serviceMonitor:
+    # The agent drops kubelet cAdvisor samples as out of order (about 67
+    # per second from the three nodes): cAdvisor stamps its own
+    # timestamps, refreshed on its housekeeping cycle, and a 10s scrape
+    # can see a stamp that does not advance. Stamp samples with the
+    # scrape time instead. The chart keeps honoring them while
+    # trackTimestampsStaleness is on, so both go off.
+    honorTimestamps: false
+    trackTimestampsStaleness: false
+
 kubeControllerManager:
   enabled: false
 kubeScheduler:
