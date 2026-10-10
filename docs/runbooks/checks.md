@@ -820,7 +820,7 @@ below).
    node-exporter pods and their PVCs (`nfs-dev`). Paste the output.
 
 2. Delete the namespace. This destroys dev's Prometheus history, Grafana's
-   database and dashboards, and the `grafana-admin` Secret; `nfs-dev`
+   database and dashboards, and the unused `grafana-admin` Secret; `nfs-dev`
    deletes a volume's data with its PVC and there is no backup. All of it
    is purgeable. Nothing else lives in this namespace. Chained to the node
    check, so a wrong kubeconfig stops it:

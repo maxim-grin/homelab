@@ -87,7 +87,6 @@ inventory is `inventories/dev`; `shared` and `prod` runs need `-i`.
 | `site.yaml`           | default (dev)                                 | none                                                                     | build the kubeadm cluster: OS prep, control plane, join      |
 | `cluster_init.yaml`   | default (dev)                                 | none                                                                     | redo control-plane init after a reset                        |
 | `join_workers.yaml`   | default (dev)                                 | none                                                                     | add workers, always with `cluster_init.yaml` in one run      |
-| `cluster_secrets.yaml`| default (dev)                                 | none                                                                     | apply out-of-band cluster Secrets                            |
 | `argocd-prod.yaml`    | none (runs on localhost)                      | `prod_kubeconfig=<mode 600 file>`                                        | install or re-run ArgoCD on prod                             |
 | `dev_register.yaml`   | `-i inventories/shared -i inventories/dev`    | `vault_token=<root>`                                                     | register dev with the prod hub; after any dev rebuild        |
 | `coredns_hosts.yaml`  | default (dev)                                 | none                                                                     | pin `vault.mgryn.cc` in CoreDNS; after every kubeadm upgrade|
@@ -127,16 +126,6 @@ ansible-playbook playbooks/cluster_init.yaml playbooks/join_workers.yaml \
 
 Expect: `failed=0`; workers show `Ready` in `kubectl get nodes`. If not: see
 [checks.md](checks.md).
-
-### Apply out-of-band cluster Secrets
-
-When: after ArgoCD is up on a fresh dev cluster; these Secrets are not in git.
-
-```bash
-ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
-```
-
-Expect: `failed=0`. If not: values come from `ansible/secret.yaml`.
 
 ### Register dev with the prod hub
 
