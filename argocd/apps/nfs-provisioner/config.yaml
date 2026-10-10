@@ -14,3 +14,7 @@
   namespace: nfs-system
   createNamespace: true
   serverSideApply: false
+- env: dev
+  namespace: nfs-system
+  createNamespace: true
+  serverSideApply: false

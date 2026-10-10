@@ -12,7 +12,6 @@
 │           ├── k8s_control_plane.yaml
 │           └── k8s_workers.yaml
 ├── playbooks/
-│   ├── argocd-dev.yaml          # ArgoCD Setup to Dev Server
 │   ├── site.yaml                # Initial Setup for all hosts
 │   ├── cluster_init.yaml        # Applied to control-plane only
 │   ├── join_workers.yaml        # Applied to workers only
@@ -202,15 +201,14 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
    ansible-playbook -i inventories/shared playbooks/vault.yaml -e @secret.yaml --ask-vault-pass
    ```
 
-   Configure reaches each cluster's control plane, in `inventories/dev`,
-   so it needs both, and it must run once `argocd-config` has synced
-   `argocd/base/` and created the `vault-auth-token` Secret -- configure
-   reads it:
+   Dev has no Vault Kubernetes auth any more (AVP runs on the hub, which
+   authenticates through prod's auth and reads `kv-dev`), so configuring
+   and seeding for dev skips that part and touches no cluster:
 
    ```bash
-   ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+   ansible-playbook -i inventories/shared playbooks/vault.yaml \
      -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-     -e vault_token=<root token> -e '{"vault_k8s_cluster_names":["dev"]}'
+     -e vault_configure_k8s_auth=false -e vault_token=<root token>
    ```
 
    `vault_seed` replays `vault_kv` from `secret.yaml` into the mounts it
@@ -223,7 +221,7 @@ ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
    this repository.
 
    **Troubleshooting the k8s-auth step.** k8s auth runs under
-   `-e vault_configure=true` with both inventories (see item 7 above). The
+   `-e vault_configure=true` for prod (see item 7 above). The
    task that posts `auth/kubernetes/config` is `no_log: true` -- its request
    body carries the root token, the token-reviewer JWT and the cluster CA
    all at once, and there is no way to hide one without hiding all three. A

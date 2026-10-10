@@ -25,7 +25,7 @@ kubectl --kubeconfig "$KC_TMP" get nodes
 echo "kubeconfig is at $KC_TMP"
 ```
 
-Expect: three nodes `Ready` (`master-01`, `worker-01`, `worker-02`). Point
+Expect: three nodes `Ready` (`ubuntu-k8s-master-01`, `worker-01`, `worker-02`). Point
 `$DEV_KC` at the printed path while you work and `rm` the file afterwards.
 
 If not: `Permission denied (publickey)` means the key is not the one
@@ -88,9 +88,9 @@ Cloudflare records to the prod workers and need no entry. Delete any old
 
 ```bash
 sudo tee -a /etc/hosts >/dev/null <<'EOF'
-<dev-node-ip> dev-argocd.mgryn.cc dev-grafana.mgryn.cc prometheus.mgryn.cc
+<dev-node-ip> dev-grafana.mgryn.cc prometheus.mgryn.cc
 EOF
-getent hosts dev-argocd.mgryn.cc dev-grafana.mgryn.cc prometheus.mgryn.cc
+getent hosts dev-grafana.mgryn.cc prometheus.mgryn.cc
 ```
 
 Expect: each name prints the node address. Replace the placeholder before
@@ -121,7 +121,6 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 | UI                | URL                                      | Where the login comes from |
 | ----------------- | ---------------------------------------- | -------------------------- |
 | ArgoCD (prod hub) | `https://argocd.mgryn.cc`; break-glass `http://10.0.0.111:32080` (or `.112`, HTTPS `32443`) | user `admin`; password is not in Vault, its bcrypt hash is `argocd_admin_password_hash` in `secret.yaml` (the plaintext is yours) |
-| ArgoCD (dev)      | `http://dev-argocd.mgryn.cc`             | same `argocd_admin_password_hash` in `secret.yaml` |
 | Grafana (prod)    | `https://grafana.mgryn.cc`               | `kv-prod/monitoring/grafana`, fields `admin-user`, `admin-password` (only read when Grafana first creates its database) |
 | Grafana (dev)     | `https://dev-grafana.mgryn.cc`           | `grafana_admin_password` in `secret.yaml`, kept in the `grafana-admin` Secret |
 | Prometheus (dev)  | `http://prometheus.mgryn.cc`             | basic auth, `monitoring/prometheus` in `secret.yaml`'s `vault_kv` block, Vault `kv-dev/monitoring/prometheus` |
@@ -154,7 +153,7 @@ Expect: `'admin:login' logged in successfully`, then the Application list.
 If not: a `504` means `argocd-server`, or what it waits on, is not answering:
 `kubectl --kubeconfig "$PROD_KC" -n argocd get pods`, and check that
 `argocd-application-controller-0` is `1/1` (a controller left at 0 replicas
-makes refreshes hang). `argocd app get monitoring` is slow because the chart
+makes refreshes hang). `argocd app get prod-kube-prometheus-stack` is slow because the chart
 has about 90,000 lines of manifests; read what you need with `kubectl -n argocd
 get app <name> -o jsonpath=...` instead. `--core` skips the login but talks to
 whatever cluster and namespace your current kubectl context names, so it hangs

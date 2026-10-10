@@ -88,13 +88,12 @@ inventory is `inventories/dev`; `shared` and `prod` runs need `-i`.
 | `cluster_init.yaml`   | default (dev)                                 | none                                                                     | redo control-plane init after a reset                        |
 | `join_workers.yaml`   | default (dev)                                 | none                                                                     | add workers, always with `cluster_init.yaml` in one run      |
 | `cluster_secrets.yaml`| default (dev)                                 | none                                                                     | apply out-of-band cluster Secrets                            |
-| `argocd-dev.yaml`     | default (dev)                                 | none                                                                     | install or re-run ArgoCD on dev                              |
 | `argocd-prod.yaml`    | none (runs on localhost)                      | `prod_kubeconfig=<mode 600 file>`                                        | install or re-run ArgoCD on prod                             |
 | `dev_register.yaml`   | `-i inventories/shared -i inventories/dev`    | `vault_token=<root>`                                                     | register dev with the prod hub; after any dev rebuild        |
 | `coredns_hosts.yaml`  | default (dev)                                 | none                                                                     | pin `vault.mgryn.cc` in CoreDNS; after every kubeadm upgrade|
 | `nfs_server.yaml`     | `-i inventories/shared`                       | none                                                                     | provision `nfs-01`, before `nfs_setup.yaml`                  |
 | `nfs_setup.yaml`      | default (dev)                                 | none                                                                     | `nfs-common` on the dev nodes, after `nfs_server.yaml`       |
-| `vault.yaml`          | `-i inventories/shared` (+ `-i inventories/dev` for dev configure) | none for install; seed, configure dev and configure prod each take their own set of `vault_seed`, `vault_configure`, `vault_token`, `vault_k8s_cluster_names`, `vault_prod_kubeconfig` (see [Vault playbook](#vault-playbook)) | install, seed, configure `vault-02` |
+| `vault.yaml`          | `-i inventories/shared` | none for install; seed, configure dev and configure prod each take their own set of `vault_seed`, `vault_configure`, `vault_token`, `vault_k8s_cluster_names`, `vault_prod_kubeconfig` (see [Vault playbook](#vault-playbook)) | install, seed, configure `vault-02` |
 | `lan_services.yaml`   | `-i inventories/shared`                       | none; `--limit <service>` for one                                        | the LAN LXCs, see [LAN services](#lan-services)              |
 | `support_tools.yaml`  | default (dev)                                 | none; `support_tools_enabled: true` in `group_vars/all.yaml`             | kubectl aliases and helpers on the control plane             |
 | `workstation.yaml`    | default (dev)                                 | none                                                                     | toolchain on `claude-code-01`                                |
@@ -189,20 +188,6 @@ should not climb past the baseline; if it climbs toward its ceiling, raise
 
 If not: `Vault answered 503` is sealed, unseal it by hand; a token Secret
 that stays empty means the token controller is not running on dev.
-
-### Deploy ArgoCD to dev
-
-When: first install, or to change the dev ArgoCD settings (host
-`dev-argocd.mgryn.cc`). The role needs the `cmp-plugin` ConfigMap and AVP
-Secret first; the role creates them before Helm runs.
-
-```bash
-ansible-playbook playbooks/argocd-dev.yaml -e @secret.yaml --ask-vault-pass
-```
-
-Expect: `failed=0`; `kubectl --kubeconfig "$DEV_KC" -n argocd get pods` all
-`Running` or `Completed`. If not: `repo-server` stuck in `Init` means the AVP
-ConfigMap or Secret is missing ([checks.md](checks.md)).
 
 ### Deploy ArgoCD to prod
 
@@ -323,22 +308,23 @@ unseal, see [access.md](access.md) and [checks.md](checks.md).
 
 ### Configure dev
 
-When: after `argocd-config` has synced `argocd/base/` and created the
-`vault-auth-token` Secret, which configure reads. Dev's control plane is
-reached over SSH and lives in `inventories/dev`, so both inventories are
-needed. This also seeds.
+When: first build or after a Vault rebuild, to create the KV mounts and
+seed them for dev. Dev has no Vault Kubernetes auth of its own (AVP runs on
+the hub and reads `kv-dev` through prod's auth), so
+`vault_configure_k8s_auth=false` skips it and dev's control plane is not
+touched. This also seeds.
 
 ```bash
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo
-ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+ansible-playbook -i inventories/shared playbooks/vault.yaml \
   -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true \
-  -e vault_token="$VAULT_TOKEN" -e '{"vault_k8s_cluster_names":["dev"]}'
+  -e vault_configure_k8s_auth=false -e vault_token="$VAULT_TOKEN"
 unset VAULT_TOKEN
 ```
 
 Expect: `failed=0`; placeholder Applications leave `Unknown` on Argo's next
-poll. If not: the `vault-auth-token` Secret missing means `argocd-config` has
-not synced yet; wait and re-run.
+poll. If not: `vault status` on `vault-02` (sealed), then
+[checks.md](checks.md).
 
 ### Configure prod
 
@@ -473,7 +459,7 @@ the repo root unless the comment says otherwise. `<role-or-playbook>` and
 (cd terraform/environments/dev && terraform fmt -check && terraform validate)
 (cd ansible && ansible-lint <role-or-playbook>)
 (cd ansible && ansible-playbook playbooks/site.yaml --syntax-check -e @secret.yaml --ask-vault-pass)
-kustomize build argocd/apps/<app>/dev
+kustomize build --enable-helm argocd/apps/<app>/<env>
 pre-commit run --all-files
 scripts/check-manifests.sh
 scripts/check-appsets.sh
@@ -482,9 +468,9 @@ scripts/check-runbooks.sh
 ```
 
 Expect: each exits 0. If not: fix what it names; never bypass a hook with
-`--no-verify`. `kustomize build` works on overlays only: Helm values dirs such
-as `argocd/apps/ingress-nginx/dev` fail by design, so render those with
-`helm template <chart> -f argocd/apps/<app>/dev/values.yaml`.
+`--no-verify`. Charts are rendered by the kustomization's `helmCharts:`,
+so `kustomize build` needs `--enable-helm`; without it a dir with
+`helmCharts:` fails.
 
 `scripts/check-appsets.sh` (also run by `check-manifests.sh`) needs bash 4 or
 later, for `declare -A`. CI is Linux and unaffected; on macOS the system bash

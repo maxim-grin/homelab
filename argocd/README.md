@@ -13,15 +13,13 @@ argocd/
 │       ├── grafana/            # Grafana configs
 │       └── kustomization.yaml
 ├── environments/                # Environment-specific ArgoCD apps
-│   ├── dev/
-│   │   └── applications/
-│   │       ├── app-of-apps.yaml      # Root application
-│   │       ├── argocd-config.yaml    # Syncs argocd/base
-│   │       └── monitoring.yaml       # Monitoring app definition
-│   └── prod/
+│   └── prod/                     # the hub's ArgoCD; dev's apps come from here too
 │       └── applications/
-│           ├── app-of-apps.yaml      # Root application
-│           └── argocd-config.yaml    # Syncs argocd/base
+│           ├── app-of-apps.yaml      # Root application (root-prod)
+│           ├── appset.yaml           # ApplicationSet: <env>-<dir> apps, prod and dev
+│           ├── argocd-config.yaml    # Syncs argocd/base
+│           ├── clusters.yaml         # The prod cluster Secret
+│           └── clusters-dev.yaml     # The dev cluster Secret
 └── readme.md
 ```
 
@@ -33,7 +31,7 @@ kubectl apply -f argocd/base/projects.yaml
 
 Genuinely one-time: this bootstraps the `homelab` AppProject before
 anything else can sync. From then on, the `argocd-config` Application
-(`argocd/environments/dev/applications/argocd-config.yaml`) owns
+(`argocd/environments/prod/applications/argocd-config.yaml`) owns
 `argocd/base/` and syncs it on every push — a `sourceRepos` change no
 longer needs a manual apply. Its `syncPolicy` sets `prune: false`
 because it manages the AppProject that authorises every other
@@ -49,8 +47,8 @@ AppProject outright is a similar dead end: `argocd-config` declares
 nothing is left to recreate the AppProject except that same manual
 apply.
 
-### Step 2: Deploy Root Application (App of Apps)
+### Step 2: Deploy Root Application (App of Apps), on the prod hub
 
 ```bash
-kubectl apply -f argocd/environments/dev/applications/app-of-apps.yaml
+kubectl apply -f argocd/environments/prod/applications/app-of-apps.yaml
 ```

@@ -26,3 +26,9 @@
   # under syncPolicy.managedNamespaceMetadata.labels.
   namespaceLabels:
     pod-security.kubernetes.io/enforce: privileged
+- env: dev
+  namespace: ingress-nginx
+  createNamespace: true
+  # Same reason as prod: the admission webhook and its CA bundle race on
+  # resync without it.
+  serverSideApply: true

@@ -34,7 +34,6 @@ is a stop — see
 | Name                                                                                             | What                                                                                                | TLS          |
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------ |
 | `https://jobs.mgryn.cc`                                                                          | jobboard; HTTP 308s to HTTPS                                                                        | cert-manager |
-| `http://dev-argocd.mgryn.cc`                                                                     | ArgoCD UI (dev; `argocd.mgryn.cc` is the prod hub)                                                  | none         |
 | `http://10.0.0.111:32080`                                                                        | ArgoCD UI (prod), NodePort break-glass on a prod worker; `.112` and HTTPS `32443` work too            | none         |
 | `https://argocd.mgryn.cc`                                                                        | ArgoCD UI (prod hub); HTTP 308s to HTTPS                                                              | cert-manager |
 | `https://grafana.mgryn.cc`                                                                       | Grafana (prod hub); HTTP 308s to HTTPS                                                                | cert-manager |
