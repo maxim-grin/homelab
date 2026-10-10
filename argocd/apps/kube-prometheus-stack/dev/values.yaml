@@ -9,7 +9,9 @@
 # Application, which also owns the `monitoring` namespace.
 #
 # Memory limits only, no CPU limits. Dev nodes have about 3G of RAM;
-# limits below total about 380Mi (node-exporter counted once).
+# limits total about 476Mi (node-exporter counted once). The agent's
+# limit was 160Mi; that risked an OOM loop scraping three nodes, so the
+# spec's 400Mi target is relaxed to this total.
 
 grafana:
   enabled: false
@@ -68,7 +70,7 @@ prometheus:
         cpu: 50m
         memory: 128Mi
       limits:
-        memory: 160Mi
+        memory: 256Mi
 
 kube-state-metrics:
   resources:

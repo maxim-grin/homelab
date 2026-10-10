@@ -205,7 +205,7 @@ entry from its operator checklist instead of restating the command. (ADR
   is bare metal with no LoadBalancer and no MetalLB. Dev has no
   names that need `/etc/hosts`; `argocd.mgryn.cc`, `grafana.mgryn.cc` and
   `prometheus.mgryn.cc` (the write-only receiver) are the prod hub's.
-  `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
+  `jobs.mgryn.cc` is the one dev name that needs no entry: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
   Traefik on `10.0.0.141`, which terminates TLS for the LAN services and

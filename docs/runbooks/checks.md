@@ -789,10 +789,27 @@ Preconditions:
   ([Is KV seeded](#is-kv-seeded-without-printing-values)).
 - Prod's receiver is up: the unauthenticated `curl` in step 4 below
   prints `401` already, before dev sends anything.
+- Dev pods resolve `prometheus.mgryn.cc`. The router may answer pods with
+  nothing for a public name that points at a private address (rebind
+  protection), and the `curl` from the workstation does not prove the
+  in-cluster answer. Read-only:
+
+  ```bash
+  kubectl --kubeconfig "${DEV_KC:?}" run dnscheck --image=busybox:1.36 --restart=Never --rm -i -- nslookup prometheus.mgryn.cc
+  ```
+
+  Expect: the two prod worker addresses, `10.0.0.111` and `10.0.0.112`.
+  If the answer is empty, pin the name for dev first: add
+  `prometheus.mgryn.cc` with those two addresses to
+  `coredns_hosts_entries` for dev and re-run the playbook
+  ([Pin names in CoreDNS](playbooks-and-terraform.md#pin-names-in-coredns)),
+  then repeat this lookup. Without it every dev series silently fails to
+  arrive.
 
 Order matters. The old `monitoring` namespace has no owner in git. If the
 PR merges first, the hub creates the new apps inside it and the delete
-then takes them too.
+then takes them too (recovery under "What must not be done"
+below).
 
 1. Record what is in dev's `monitoring` namespace:
 
@@ -818,7 +835,24 @@ then takes them too.
 
    Expect: `deleted`, then `NotFound`.
 
-   If it sticks in `Terminating`, find what holds it before forcing
+   The old stack also left cluster-scoped RBAC behind. List it first and
+   confirm the names:
+
+   ```bash
+   kubectl --kubeconfig "${DEV_KC:?}" get clusterrole,clusterrolebinding prometheus kube-state-metrics
+   ```
+
+   Expect: a ClusterRole and ClusterRoleBinding named `prometheus` and
+   `kube-state-metrics`, and nothing else. Then delete them, chained to
+   the node check:
+
+   ```bash
+   kubectl --kubeconfig "${DEV_KC:?}" get node ubuntu-k8s-master-01 worker-01 worker-02 && {
+     kubectl --kubeconfig "$DEV_KC" delete clusterrole,clusterrolebinding prometheus kube-state-metrics
+   }
+   ```
+
+   If the namespace sticks in `Terminating`, find what holds it before forcing
    anything. The namespace's own conditions name the blocker, and the
    second command lists what is left in it:
 
@@ -858,6 +892,18 @@ then takes them too.
    curl -s -o /dev/null -w '%{http_code}\n' -X POST https://prometheus.mgryn.cc/api/v1/write
    ```
 
+   After five minutes, check the agent has not been OOM-killed (there is
+   no metrics-server on dev, so `kubectl top` does not work):
+
+   ```bash
+   kubectl --kubeconfig "${DEV_KC:?}" -n monitoring get pods
+   ```
+
+   Expect: `RESTARTS` still `0` on every pod. A restarting
+   `prometheus-monitoring-kube-prometheus-prometheus-0` with
+   `OOMKilled` in `kubectl describe` means raise its memory limit in
+   `argocd/apps/kube-prometheus-stack/dev/values.yaml`.
+
    Expect: both Applications `Synced` and `Healthy`; in dev a
    `prom-agent-monitoring-kube-prometheus-prometheus-0` pod `Running`
    beside the operator, kube-state-metrics and node-exporter pods, and
@@ -880,7 +926,12 @@ then takes them too.
 
 #### What must not be done
 
-- merge before step 2: the delete then takes the new apps' namespace;
+- merge before step 2. If it happened, still delete the namespace: the
+  apps recreate it (self-heal plus retry); if they do not, sync
+  `dev-monitoring-secrets` and then `dev-kube-prometheus-stack` by hand
+  ([Sync an Application by hand](#sync-an-application-by-hand)). Until the
+  old node-exporter is gone it holds hostNetwork port 9100 and the new
+  one stays `Pending`;
 - delete `dev-monitoring-secrets` by hand. Like every generated app it
   carries `resources-finalizer.argocd.argoproj.io`, so the delete removes
   its `prometheus-remote-write` Secret (the namespace has `Delete=false`

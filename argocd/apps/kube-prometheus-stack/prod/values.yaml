@@ -45,10 +45,7 @@ prometheusOperator:
 prometheus:
   # The UI and query API stay reached through Grafana only. The one
   # Ingress exposes just the remote-write path, so dev's Prometheus
-  # (agent mode, sub-project 4) can push here and its credential can only
-  # write. Until sub-project 4 retires dev's own Prometheus, that
-  # Prometheus uses this same host name on the operator's workstation
-  # (/etc/hosts).
+  # (agent mode) pushes here and its credential can only write.
   ingress:
     enabled: true
     ingressClassName: nginx
@@ -81,8 +78,7 @@ prometheus:
     podMonitorSelectorNilUsesHelmValues: false
     probeSelectorNilUsesHelmValues: false
 
-    # Dev's Prometheus will remote-write here (sub-project 4); the
-    # receiver is on now so that only the sender has to be added.
+    # Dev's Prometheus agent remote-writes here.
     enableRemoteWriteReceiver: true
 
     # Size-based retention below the 20Gi claim, so the TSDB can never

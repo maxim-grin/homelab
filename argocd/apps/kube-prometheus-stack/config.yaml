@@ -27,5 +27,5 @@
   # monitoring-secrets owns the namespace, as on prod.
   createNamespace: false
   # The operator's CRDs exceed the 256KiB last-applied-configuration
-  # annotation, as on prod; carried over from dev's old Application.
+  # annotation, as on prod.
   serverSideApply: true
