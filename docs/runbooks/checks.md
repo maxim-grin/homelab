@@ -799,12 +799,11 @@ Preconditions:
   ```
 
   Expect: the two prod worker addresses, `10.0.0.111` and `10.0.0.112`.
-  If the answer is empty, pin the name for dev first: add
-  `prometheus.mgryn.cc` with those two addresses to
-  `coredns_hosts_entries` for dev and re-run the playbook
-  ([Pin names in CoreDNS](playbooks-and-terraform.md#pin-names-in-coredns)),
-  then repeat this lookup. Without it every dev series silently fails to
-  arrive.
+  If the answer is empty, the pin is missing. The `coredns_hosts` role
+  pins `prometheus.mgryn.cc` to the two prod workers by default: run
+  [Pin names in CoreDNS](playbooks-and-terraform.md#pin-names-in-coredns)
+  from this branch (it is safe before the merge), then repeat the lookup.
+  Without it every dev series silently fails to arrive.
 
 Order matters. The old `monitoring` namespace has no owner in git. If the
 PR merges first, the hub creates the new apps inside it and the delete

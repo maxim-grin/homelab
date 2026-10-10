@@ -5,5 +5,13 @@
 coredns_hosts_entries:
   - ip: "{{ host_ips['vault-02'] }}"
     names: [vault.mgryn.cc]
+  # The hub's remote-write receiver. The router's rebind protection
+  # answers pods with nothing for a public name that points at a private
+  # address, so dev's Prometheus agent could not find it. Either prod
+  # worker serves it (ingress-nginx on host ports).
+  - ip: "{{ host_ips['talos-w1'] }}"
+    names: [prometheus.mgryn.cc]
+  - ip: "{{ host_ips['talos-w2'] }}"
+    names: [prometheus.mgryn.cc]
 
 coredns_hosts_kubeconfig: /etc/kubernetes/admin.conf
