@@ -847,7 +847,7 @@ then takes them too.
 4. Check:
 
    ```bash
-   argocd app list | grep -E 'dev-(monitoring-secrets|kube-prometheus-stack)'
+   argocd app list --grpc-web | grep -E 'dev-(monitoring-secrets|kube-prometheus-stack)'
    kubectl --kubeconfig "${DEV_KC:?}" -n monitoring get pods
    kubectl --kubeconfig "${DEV_KC:?}" -n monitoring get secret prometheus-remote-write
    kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
@@ -859,7 +859,7 @@ then takes them too.
    ```
 
    Expect: both Applications `Synced` and `Healthy`; in dev a
-   `prometheus-monitoring-kube-prometheus-prometheus-0` pod `Running`
+   `prom-agent-monitoring-kube-prometheus-prometheus-0` pod `Running`
    beside the operator, kube-state-metrics and node-exporter pods, and
    the Secret present; the query returns a non-empty `result` (give it a
    minute after the pod starts); the unauthenticated write prints `401`
@@ -867,7 +867,7 @@ then takes them too.
 
    If not: `up{cluster="dev"}` empty with the pod `Running` means the
    agent cannot write: read its log
-   (`kubectl --kubeconfig "${DEV_KC:?}" -n monitoring logs prometheus-monitoring-kube-prometheus-prometheus-0 -c prometheus | tail`)
+   (`kubectl --kubeconfig "${DEV_KC:?}" -n monitoring logs prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus | tail`)
    for `401` (credential differs from kv-prod's `htpasswd`) or a TLS or
    name error. An app `Unknown` is
    [the sealed-Vault tell](#spot-comparisonerror-the-sealed-vault-tell).
