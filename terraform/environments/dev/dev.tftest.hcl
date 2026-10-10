@@ -23,15 +23,15 @@ run "exactly_the_kubeadm_dev_vms" {
   command = plan
 
   assert {
-    condition     = sort([for n in values(output.master_nodes) : n.vm_name]) == ["kubeadm-dev-cp1"]
+    condition     = toset([for n in values(output.master_nodes) : n.vm_name]) == toset(["kubeadm-dev-cp1"])
     error_message = "the only control plane must be kubeadm-dev-cp1"
   }
   assert {
-    condition     = sort([for n in values(output.worker_nodes) : n.vm_name]) == ["kubeadm-dev-w1"]
+    condition     = toset([for n in values(output.worker_nodes) : n.vm_name]) == toset(["kubeadm-dev-w1"])
     error_message = "the only worker must be kubeadm-dev-w1"
   }
   assert {
-    condition     = sort(values(output.all_node_vmids)) == [4101, 4201]
+    condition     = toset(values(output.all_node_vmids)) == toset([4101, 4201])
     error_message = "vmids must be 4101 and 4201 (cluster_id 4)"
   }
 }

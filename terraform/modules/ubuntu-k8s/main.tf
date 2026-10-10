@@ -9,7 +9,7 @@ locals {
       role       = "master"
       role_code  = 1
       sequence   = idx + 1
-      vm_name    = format("%s-master-%02d", var.cluster_name, idx + 1)
+      vm_name    = format(var.master_name_format, var.cluster_name, idx + 1)
       vmid       = tonumber(format("%d1%02d", var.cluster_id, idx + 1))
       ip_address = cidrhost(var.network_cidr, 100 + idx + 1)
       memory     = var.master_memory
@@ -25,7 +25,7 @@ locals {
       role       = "worker"
       role_code  = 2
       sequence   = idx + 1
-      vm_name    = format("%s-worker-%02d", var.cluster_name, idx + 1)
+      vm_name    = format(var.worker_name_format, var.cluster_name, idx + 1)
       vmid       = tonumber(format("%d2%02d", var.cluster_id, idx + 1))
       ip_address = cidrhost(var.network_cidr, 200 + idx + 1)
       memory     = var.worker_memory

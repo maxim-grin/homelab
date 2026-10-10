@@ -13,6 +13,18 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "master_name_format" {
+  description = "format() string for master VM names; receives cluster_name and the 1-based index."
+  type        = string
+  default     = "%s-master-%02d"
+}
+
+variable "worker_name_format" {
+  description = "format() string for worker VM names; receives cluster_name and the 1-based index."
+  type        = string
+  default     = "%s-worker-%02d"
+}
+
 variable "master_count" {
   description = "Number of control-plane nodes."
   type        = number
