@@ -145,6 +145,12 @@ jobs:
             terraform -chdir=terraform/environments/$env init -backend=false -input=false
             terraform -chdir=terraform/environments/$env validate
           done
+      # Mock-provider tests: nothing reaches Proxmox or a Talos node.
+      - name: terraform test
+        run: |
+          for env in dev prod; do
+            terraform -chdir=terraform/environments/$env test
+          done
       - name: tflint
         run: |
           for env in dev shared prod; do
