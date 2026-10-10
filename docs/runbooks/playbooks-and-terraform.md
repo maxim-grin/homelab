@@ -301,9 +301,10 @@ unseal, see [access.md](access.md) and [checks.md](checks.md).
 
 When: first build or after a Vault rebuild, to create the KV mounts and
 seed them for dev. Dev has no Vault Kubernetes auth of its own (AVP runs on
-the hub and reads `kv-dev` through prod's auth), so
-`vault_configure_k8s_auth=false` skips it and dev's control plane is not
-touched. This also seeds.
+the hub and reads `kv-dev` through prod's auth) and no entry in
+`vault_k8s_clusters`; `vault_configure_k8s_auth=false` skips Kubernetes
+auth altogether, which a run without a prod kubeconfig needs. This also
+seeds.
 
 ```bash
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo

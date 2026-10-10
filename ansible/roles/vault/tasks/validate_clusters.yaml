@@ -39,15 +39,14 @@
       {{ 'is a string, not a list' if vault_k8s_cluster_names is string
       else 'names ' ~ (vault_k8s_cluster_names | difference(vault_k8s_clusters | map(attribute='name')) | join(', '))
       ~ ', which vault_k8s_clusters does not have' }}.
-      Pass it as JSON, e.g. -e '{"vault_k8s_cluster_names":["dev"]}'.
+      Pass it as JSON, e.g. -e '{"vault_k8s_cluster_names":["prod"]}'.
       Valid names: {{ vault_k8s_clusters | map(attribute='name') | join(', ') }}.
     quiet: true
 
 # The kubeconfig is checked here, before anything writes to Vault, rather
 # than when its cluster's turn comes: an empty path would otherwise reach
 # kubernetes.core, which can fall back to ~/.kube/config and read
-# another cluster's Secret. Only selected clusters are checked, so a run
-# for dev alone needs no prod kubeconfig.
+# another cluster's Secret. Only selected clusters are checked.
 - name: Require every selected kubeconfig to be a file on the workstation
   ansible.builtin.assert:
     that:
@@ -58,9 +57,8 @@
       kubeconfig, and {{ item.kubeconfig | default('', true) | quote }} is
       not a file on this machine. For prod, write terraform output -raw
       kubeconfig from terraform/environments/prod to a temporary file and
-      pass -e vault_prod_kubeconfig=<that file>. If this run is meant for
-      some clusters only, name them, e.g.
-      -e '{"vault_k8s_cluster_names":["dev"]}'.
+      pass -e vault_prod_kubeconfig=<that file>. If this run is meant to
+      write no Kubernetes auth, pass -e vault_configure_k8s_auth=false.
     quiet: true
   loop: >-
     {{ vault_k8s_clusters | selectattr('name', 'in', vault_k8s_cluster_names)
