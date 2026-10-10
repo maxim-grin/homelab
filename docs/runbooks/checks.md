@@ -681,7 +681,7 @@ select format('select %L, count(*) from %I.%I', schemaname||'.'||relname, schema
 \gexec
 EOF2
 diff before-rows.txt after-rows.txt
-curl -s -o /dev/null -w '%{http_code}\n' https://jobs.mgryn.cc/
+curl -s -o /dev/null -w '%{http_code} ssl_verify=%{ssl_verify_result}\n' -L https://jobs.mgryn.cc/
 ```
 
 Expect: all five `dev-*` `Synced` and `Healthy`; `dev` `Successful` with a
@@ -690,8 +690,8 @@ version (the first time it can be); the long-running pods match
 The only new pods allowed are hook Jobs that run again on the first hub
 sync and are deleted on success (ingress-nginx `admission-create` and
 `admission-patch`, cert-manager `startupapicheck`). The PVC and PV names
-match `before-pvc.txt`; the row-count `diff` is empty; the `curl` prints
-`200` or `302` without `-k`, so it also proves the certificate
+match `before-pvc.txt`; the row-count `diff` is empty; the `curl -L` prints
+`200 ssl_verify=0` without `-k`, so it also proves the certificate
 (`jobs.mgryn.cc` resolves on the LAN; if it does not on this device, add
 `--resolve jobs.mgryn.cc:443:<dev-node-ip>`, with `<dev-node-ip>` from
 [Add the dev names to /etc/hosts](access.md#add-the-dev-names-to-etchosts)).
