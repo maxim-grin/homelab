@@ -2,12 +2,13 @@
 # writes its labels: two owners of one Namespace fight over them on
 # every sync.
 #
-# Talos enforces Pod Security `baseline` cluster-wide, which rejects
-# node-exporter's hostNetwork, hostPID and hostPath mounts. This
-# namespace alone is labelled `privileged`, as ingress-nginx's is.
+# node-exporter needs hostNetwork, hostPID and hostPath mounts, which
+# Pod Security `baseline` rejects. kubeadm enforces nothing by default;
+# the `privileged` label keeps this namespace working if that changes,
+# and matches prod.
 #
 # Delete=false: deleting the monitoring-secrets Application must not
-# take the namespace, and with it Prometheus and its PVC, along.
+# take the namespace, and with it the Prometheus agent, along.
 apiVersion: v1
 kind: Namespace
 metadata:
