@@ -900,7 +900,7 @@ below).
    ```
 
    Expect: `RESTARTS` still `0` on every pod. A restarting
-   `prometheus-monitoring-kube-prometheus-prometheus-0` with
+   `prom-agent-monitoring-kube-prometheus-prometheus-0` with
    `OOMKilled` in `kubectl describe` means raise its memory limit in
    `argocd/apps/kube-prometheus-stack/dev/values.yaml`.
 
