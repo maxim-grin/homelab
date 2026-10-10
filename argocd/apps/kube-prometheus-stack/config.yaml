@@ -22,3 +22,10 @@
   # writes, so a plain apply fails with "metadata.annotations: Too
   # long". Server-side apply keeps no such annotation.
   serverSideApply: true
+- env: dev
+  namespace: monitoring
+  # monitoring-secrets owns the namespace, as on prod.
+  createNamespace: false
+  # The operator's CRDs exceed the 256KiB last-applied-configuration
+  # annotation, as on prod; carried over from dev's old Application.
+  serverSideApply: true
