@@ -48,6 +48,16 @@ prometheusOperator:
 
 prometheus:
   agentMode: true
+  serviceMonitor:
+    # The agent has no Alertmanager, and prod's stock rule
+    # PrometheusNotConnectedToAlertmanagers matches this series by job
+    # and namespace alone, so it fires for the dev agent too. Drop just
+    # that series; the agent's other self-metrics (remote-write health)
+    # still reach prod.
+    metricRelabelings:
+      - sourceLabels: [__name__]
+        regex: prometheus_notifications_alertmanagers_discovered
+        action: drop
   prometheusSpec:
     # Pick up every ServiceMonitor and PodMonitor in any namespace.
     serviceMonitorSelectorNilUsesHelmValues: false
