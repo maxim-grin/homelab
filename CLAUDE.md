@@ -202,9 +202,9 @@ entry from its operator checklist instead of restating the command. (ADR
   export with no client list is exported to everyone. (ADR
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
-  is bare metal with no LoadBalancer and no MetalLB. The cluster's own
-  names (`dev-grafana.`, `prometheus.mgryn.cc`) resolve via
-  `/etc/hosts` on the workstation; `argocd.mgryn.cc` is the prod hub.
+  is bare metal with no LoadBalancer and no MetalLB. Dev has no
+  names that need `/etc/hosts`; `argocd.mgryn.cc`, `grafana.mgryn.cc` and
+  `prometheus.mgryn.cc` (the write-only receiver) are the prod hub's.
   `jobs.mgryn.cc` is the exception: a DNS-only (grey cloud) Cloudflare
   record pointing at a node IP, so it resolves on any device on the LAN.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
