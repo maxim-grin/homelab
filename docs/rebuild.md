@@ -547,8 +547,8 @@ from `secret.yaml`.
 
     `jobs.mgryn.cc` needs no entry: it is a DNS-only Cloudflare record
     holding the prod workers' IPs. If they changed in this rebuild, update
-    that record in Cloudflare instead. Its certificate re-issues on its own,
-    provided the Vault seed in step 12 included `cert-manager/cloudflare`.
+    that record in Cloudflare instead. Its certificate is prod's: it re-issues on its own once step 17 has
+    seeded `kv-prod/cert-manager/cloudflare`.
 
     `vault.mgryn.cc`, like `jobs.mgryn.cc`, needs no `/etc/hosts` entry
     either: it is a DNS-only Cloudflare record pointing at `vault-02`
@@ -990,6 +990,11 @@ from `secret.yaml`.
     `Released` and its data directory under `/srv/nfs/prod` on `nfs-01`.
     Nothing deletes them: `kubectl delete pv <name>`, then remove the
     directory on `nfs-01` once the data is not wanted.
+
+    **jobboard.** `prod-jobboard` starts with an empty database. Once
+    its Application is `Healthy`, restore the newest prod dump with
+    [Restore the dump into prod-jobboard](runbooks/backups-and-recovery.md#restore-the-dump-into-prod-jobboard);
+    its `kv-prod/jobboard/*` seed comes from `secret.yaml` in step 17.
 
 19. **Alerting rollout** — the Proxmox exporter, scrapes and alert rules,
     delivered by `root-prod` once PR 4 (hub-alerting) is on `main`

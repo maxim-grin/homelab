@@ -79,9 +79,12 @@ unset VAULT_TOKEN
 
 Expect: four lines, each `present`. If not: `MISSING` means the field was
 never written. `JOBBOARD_SECRET` is a fresh value for prod (it only signs
-the login cookie); the ghcr field is copied from `kv-dev/jobboard/ghcr`.
-Write with `vault kv put` reading from a prompt or a file, never a value on
-the command line. A sealed Vault prints `MISSING` for all four: run
+the login cookie); the ghcr field is the same pull credential as dev's.
+The owner edits the encrypted `ansible/secret.yaml`: fill its `kv-prod`
+block's `jobboard/db` and `jobboard/ghcr` (shape in
+`secret.yaml.example`), then run the prod seed play
+([Seed](playbooks-and-terraform.md#seed), `-e vault_seed=true`) and run this check again. Never put a value on a
+command line. A sealed Vault prints `MISSING` for all four: run
 [Is Vault up and unsealed](#is-vault-up-and-unsealed) first.
 
 ### Snapshot age

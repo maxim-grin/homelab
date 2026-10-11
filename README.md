@@ -146,7 +146,8 @@ Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT record
 through the Cloudflare API — but by two different components with two
 different tokens. `jobs.mgryn.cc`'s and the prod hub's come from
 cert-manager on prod, with a token held in Vault at
-`kv-prod/cert-manager/cloudflare`;
+`kv-prod/cert-manager/cloudflare` (dev's cert-manager still uses
+`kv-dev/cert-manager/cloudflare` for dev's own certificate);
 `*.hl.mgryn.cc`'s comes from
 Traefik itself, with its own token in `secret.yaml`
 (`traefik_cloudflare_api_token`) — kept separate so either can be revoked

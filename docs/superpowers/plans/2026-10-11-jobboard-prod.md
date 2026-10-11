@@ -165,8 +165,9 @@ Healthy; Vault unsealed; the dump present with the checksum above.
 - [ ] **Step 4: Prove prod before DNS.** `curl` with
   `--resolve jobs.mgryn.cc:443:10.0.0.111` and `.112`; certificate
   `Ready`; log in with a restored account.
-- [ ] **Step 5: Add the `dev-jobs.mgryn.cc` record** (dev `.101`), then
-  repoint `jobs.mgryn.cc` to `.111`/`.112`. Check by name from the Mac.
+- [ ] **Step 5: Repoint `jobs.mgryn.cc`** to `.111`/`.112`. Check by
+  name from the Mac. The `dev-jobs.mgryn.cc` record comes with the
+  follow-up PR (Task 5).
 - [ ] **Step 6: Keep the dump copies** until the SSD drill.
 
 ### Task 5: Dev as staging (follow-up PR, after the flip)

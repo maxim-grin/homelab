@@ -223,7 +223,9 @@ entry from its operator checklist instead of restating the command. (ADR
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME
   DNS-01 with a Cloudflare API token from Vault
-  (`kv-prod/cert-manager/cloudflare`) and renews on its own. Debug a failed
+  (`kv-prod/cert-manager/cloudflare` for prod's cert-manager;
+  `kv-dev/cert-manager/cloudflare` is still used by dev's, which renews
+  dev's own cert until the dev host is renamed) and renews on its own. Debug a failed
   issuance by pointing the Ingress annotation at `letsencrypt-staging` --
   production limits 5 failed validations per hostname per hour. (ADR
   [0008](docs/decisions/0008-acme-dns01-not-http01.md))

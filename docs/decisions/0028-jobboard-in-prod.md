@@ -7,7 +7,7 @@
 jobboard is the owner's own web app, and it was the one app whose real
 data lived on dev. Dev is now a spoke
 ([0027](0027-dev-is-a-spoke.md)) that gets replaced and rebuilt, and
-the dev replacement left its database empty. Every app is a directory the
+dev's jobboard database is empty. Every app is a directory the
 one ApplicationSet can deploy to any cluster
 ([0026](0026-uniform-apps.md)), and prod has the storage (`nfs-prod`) and
 the secrets mount (`kv-prod`) to host it. The only copy of the data is
@@ -49,6 +49,9 @@ Rejected:
 
 ## Consequences
 
+- Order: seed `kv-prod/jobboard/db` and `/ghcr` first (from
+  `secret.yaml`'s `kv-prod` block), then merge; otherwise `prod-jobboard`
+  sits in `ComparisonError`.
 - Prod workers have about 3.3 GiB allocatable, one is near its memory
   limits and `cp1` sits at 80% of 4 GiB, so the first sync is bracketed by
   memory reads of all three.
