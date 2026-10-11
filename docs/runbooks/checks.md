@@ -951,8 +951,11 @@ Ansible from `ansible/`, hub commands with `$PROD_KC` and the `argocd` CLI
 ([Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli)). The
 nodes are named `kubeadm-dev-cp1` and `worker-01`: the control plane takes
 the VM hostname, the worker takes its inventory name
-(`--node-name {{ inventory_hostname }}` in `node_join`). Every
-`$DEV_KC` guard below uses those names.
+(`--node-name {{ inventory_hostname }}` in `node_join`), so the worker's
+VM and hostname (`kubeadm-dev-w1`) differ from its node name. That
+mismatch is known and accepted: a node name is fixed for the cluster's
+life, and the next rebuild can choose differently. Every `$DEV_KC` guard
+below uses the node names.
 
 What it destroys: dev's three VMs, every dev workload (cert-manager,
 ingress-nginx, nfs-provisioner, jobboard, the monitoring agent), the
@@ -966,20 +969,8 @@ restored into prod Postgres in sub-project 5, not here.
 
 Gates, all before step 1:
 
-1. A second copy of the validated jobboard dump exists off the workstation,
-   and both copies are the same file and restore-listable. Run on each
-   machine that holds a copy, the second one included (`jobboard.dump` is
-   the path of the copy there):
-
-   ```bash
-   sha256sum jobboard.dump
-   pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
-   ```
-
-   Expect: the same digest everywhere and `pg_restore rc=0`. How the dump
-   was taken and proven is in
-   [Adopt dev into the hub](#adopt-dev-into-the-hub), gate 1. If not: stop.
-   After step 1 there is no other copy of dev's data.
+1. The validated 2026-10-09 jobboard dump still exists (the fallback if
+   step 0 cannot run). Step 0 takes a fresh one, which supersedes it.
 2. Vault unsealed: [Is Vault up and unsealed](#is-vault-up-and-unsealed).
    The hub renders `dev-*` through AVP and the registration play writes to
    Vault.
@@ -1002,16 +993,47 @@ Gates, all before step 1:
    replacement broke.
 
 Order matters; each step ends with a check, and a failed check is a stop.
+Dev is destroyed before its replacement exists and there is no overlap, so
+the rollback for dev's data is the dump, not the old VMs. Gatus will alert
+Telegram for `jobs.mgryn.cc` and for dev checks from step 1 until dev is
+back (step 7); expect it, and silence or ignore it.
+
+0. Take a fresh jobboard dump from dev, immediately before step 1. Rows
+   written since the 2026-10-09 dump exist only in this one. From the
+   job-board repo (`~/job-board`), as in
+   [Adopt dev into the hub](#adopt-dev-into-the-hub), gate 1 (the dump
+   command and what it checks; `backups-and-recovery.md` covers only the
+   restore side, [Hold dev-jobboard still](backups-and-recovery.md#hold-dev-jobboard-still)):
+
+   ```bash
+   KUBECONFIG="${DEV_KC:?}" tools/db-backup.sh dump jobboard.dump
+   ```
+
+   Copy it off the workstation, then on each machine holding a copy
+   (`jobboard.dump` is the path there):
+
+   ```bash
+   sha256sum jobboard.dump
+   pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
+   ```
+
+   Expect: the same digest everywhere and `pg_restore rc=0`. If not: stop.
+   Skipping this step is a choice to lose the rows written since 2026-10-09
+   (dev data is otherwise purgeable); after step 1 there is no other copy.
 
 1. Read the destroy plan. The old module is gone from the configuration but
-   still in state, so a targeted plan holds only its destroy:
+   still in state, so a targeted plan holds only its destroy. `terraform
+   init` first: the new local module `kubeadm-dev` must be installed, or
+   even the targeted plan fails with "Module not installed":
 
    ```bash
    cd terraform/environments/dev
+   terraform init
    terraform plan -target=module.dev-cluster -var-file=dev.tfvars
    ```
 
-   Expect: `Plan: 0 to add, 0 to change, 3 to destroy.` and the three
+   Expect: `Terraform has been successfully initialized`, then
+   `Plan: 0 to add, 0 to change, 3 to destroy.` and the three
    addresses are `module.dev-cluster.module.nodes["master-01"]`,
    `["worker-01"]` and `["worker-02"]`. Anything else (a fourth resource, a
    name you do not know, an add) is a stop. Then apply the same targeted
@@ -1072,7 +1094,13 @@ Order matters; each step ends with a check, and a failed check is a stop.
    a host that does not exist, so it is not kept.
 
 4. Build the cluster, in the order of [rebuild.md](../rebuild.md) steps 5
-   and 6, with the runbook entries for the commands:
+   and 6, with the runbook entries for the commands. First drop the old
+   host keys for the reused addresses, or SSH refuses the new nodes:
+
+   ```bash
+   ssh-keygen -R 10.0.0.101
+   ssh-keygen -R 10.0.0.201
+   ```
 
    1. NFS client prep on the new nodes:
       [Provision NFS](playbooks-and-terraform.md#provision-nfs), the
