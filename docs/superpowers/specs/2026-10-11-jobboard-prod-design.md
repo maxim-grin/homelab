@@ -37,7 +37,9 @@ staging on its own name. The SSD rebuild drill follows this.
    `serverSideApply: true` as for dev). `base/` stays environment-free:
    `base/postgres-statefulset.yaml` hard-codes `storageClassName:
    nfs-dev`, so each overlay patches it (dev `nfs-dev`, prod `nfs-prod`).
-   Dev's `ingress.yaml` host becomes `dev-jobs.mgryn.cc`.
+   Dev's `ingress.yaml` host becomes `dev-jobs.mgryn.cc` in a
+   follow-up PR after the DNS flip: renaming it in the same merge would
+   leave `jobs.mgryn.cc` answering 404 on dev until the flip.
 2. **Prod overlay.** Its own `images.newTag` pin, independent of dev's.
    Memory limits 512Mi for the app and 512Mi for Postgres (dev keeps
    1Gi each); requests unchanged (256Mi each). A 76 MB database does not
