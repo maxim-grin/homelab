@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jobboard
+  annotations:
+    # ClusterIssuer owned by cert-manager-issuers.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - jobs.mgryn.cc
+      secretName: jobboard-tls
+  rules:
+    - host: jobs.mgryn.cc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jobboard
+                port:
+                  number: 80

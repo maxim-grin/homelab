@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: jobboard
+
+resources:
+  - ../base
+  - secret.yaml
+  - ghcr-secret.yaml
+  - ingress.yaml
+
+# Quoted deliberately: `newTag: 1.0` parses as a float.
+images:
+  - name: ghcr.io/maxim-grin/jobboard
+    newTag: "0.2.7"
+
+patches:
+  # Prod's workers are smaller than dev's: halve both memory limits.
+  - target:
+      kind: Deployment
+      name: jobboard
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 512Mi
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 512Mi
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: nfs-prod
