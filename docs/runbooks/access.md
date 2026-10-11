@@ -81,7 +81,7 @@ Cloudflare records and resolve on their own.
 ### Add the dev names to /etc/hosts
 
 When: almost never. Dev has no Grafana or Prometheus UI of its own since
-the monitoring cutover ([Move dev to agent-mode monitoring](checks.md#move-dev-to-agent-mode-monitoring)):
+agent-mode monitoring (ADR 0027):
 the hub's Grafana (`grafana.mgryn.cc`) shows dev as `cluster=dev`, and
 `prometheus.mgryn.cc` is the hub's write-only receiver. Both are
 Cloudflare records to the prod workers and need no entry. Delete any

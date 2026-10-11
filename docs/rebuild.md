@@ -496,17 +496,20 @@ from `secret.yaml`.
     The hub has ArgoCD by then, so register dev with it and let the `apps` ApplicationSet generate
     `dev-ingress-nginx`, `dev-nfs-provisioner`, `dev-cert-manager`,
     `dev-cert-manager-issuers` and `dev-jobboard`. The commands are the
-    runbook entries "Register dev with the prod hub"
-    ([runbook](runbooks/playbooks-and-terraform.md#register-dev-with-the-prod-hub))
-    and [Adopt dev into the hub](runbooks/checks.md#adopt-dev-into-the-hub)
-    (the one-time cutover of a dev that ran its own ArgoCD; on a fresh dev,
-    registering is enough). The set also generates
+    runbook entry "Register dev with the prod hub"
+    ([runbook](runbooks/playbooks-and-terraform.md#register-dev-with-the-prod-hub)),
+    including its hard refresh of `clusters-dev`. The set also generates
     `dev-monitoring-secrets` and `dev-kube-prometheus-stack`: a Prometheus
     in agent mode that remote-writes to the hub, with the credential from
-    `kv-dev/monitoring/remote-write`. On a fresh dev there is no old
-    `monitoring` namespace to clear; the cutover of the old hand-rolled
-    stack is
-    [Move dev to agent-mode monitoring](runbooks/checks.md#move-dev-to-agent-mode-monitoring).
+    `kv-dev/monitoring/remote-write`. Sync `dev-monitoring-secrets` first
+    (it owns the `monitoring` namespace), and pin
+    `prometheus.mgryn.cc` in CoreDNS before that
+    ([Pin names in CoreDNS](runbooks/playbooks-and-terraform.md#pin-names-in-coredns)).
+    If an app sits `OutOfSync` on `waiting for completion of hook`,
+    `argocd app terminate-op <app> --grpc-web`, then sync it. Never delete
+    a `dev-*` Application, `clusters-dev` or the `apps` set by hand to
+    reset the hub: their finalizers delete the workloads once dev is
+    reachable.
 
     ArgoCD syncs the jobboard manifests as soon as this applies, and
     `argocd/apps/jobboard/dev/kustomization.yaml` names a specific published
