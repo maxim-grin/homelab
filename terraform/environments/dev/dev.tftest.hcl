@@ -31,6 +31,10 @@ run "exactly_the_kubeadm_dev_vms" {
     error_message = "the only worker must be kubeadm-dev-w1"
   }
   assert {
+    condition     = values(output.master_nodes)[0].ip == "10.0.0.101" && values(output.worker_nodes)[0].ip == "10.0.0.201"
+    error_message = "the nodes must reuse .101 and .201"
+  }
+  assert {
     condition     = toset(values(output.all_node_vmids)) == toset([4101, 4201])
     error_message = "vmids must be 4101 and 4201 (cluster_id 4)"
   }

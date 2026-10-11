@@ -12,8 +12,8 @@
 #      its destroy). The summary must show exactly 3 to destroy, 0 to add,
 #      0 to change. Then the same command with `apply`.
 #   2. terraform apply -var-file=dev.tfvars
-#      The plan must show exactly 2 VMs to create, plus their dependent
-#      resources, and nothing to destroy.
+#      The plan must show exactly 2 to add (the two VMs; provisioners are
+#      off), 0 to change and 0 to destroy.
 # Read each plan before applying; an unexpected destroy is a stop.
 #
 # cluster_id 4 gives vmids 4101 and 4201 (3 is prod); check `qm list` for
