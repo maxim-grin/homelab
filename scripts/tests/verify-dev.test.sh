@@ -228,7 +228,7 @@ test_password_with_quote_and_backslash() {
   run 10.0.0.101
   assert_rc 0
   # curl config line: both characters escaped, nothing else changed
-  grep -Fq 'user = "dev-remote-write:pa\"ss\\w\\\\rd"' "$S/curl.stdin" || fail "password not escaped: $(cat "$S/curl.stdin" | sed 's/:.*/:<pw>/')"
+  grep -Fq 'user = "dev-remote-write:pa\"ss\\w\\\\rd"' "$S/curl.stdin" || fail "password not escaped: $(sed 's/:.*/:<pw>/' "$S/curl.stdin")"
   assert_out_lacks 'pa"ss'
 }
 
