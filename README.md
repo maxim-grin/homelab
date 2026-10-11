@@ -30,7 +30,6 @@ flowchart TB
             subgraph k8s["kubeadm cluster"]
                 master["master-01 .101"]
                 w1["worker-01 .201"]
-                w2["worker-02 .202"]
                 ingress["ingress-nginx<br/>host ports 80/443"]
                 certmgr["cert-manager"]
                 mon["Prometheus agent"]
@@ -93,7 +92,7 @@ diagram has a static address above that pool.
 | Layer      | What                                                                                                                                                                            | Where it is defined                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                                                                                                                                          | not in git — see `docs/rebuild.md`                                                                      |
-| VMs        | k8s master + 2 workers, `claude-code` workstation                                                                                                                               | `terraform/environments/dev`                                                                            |
+| VMs        | `kubeadm-dev`: one control plane and one worker (`.101`, `.201`), `claude-code` workstation                                                                                     | `terraform/environments/dev`                                                                            |
 | VM         | Talos prod cluster: one control plane and two workers, `.110`–`.112`; the hub, platform apps delivered by `root-prod`                                                           | `terraform/environments/prod`, `terraform/modules/talos-node`                                           |
 | VM         | `nfs-01`, NFS for dev and prod; `nfs-prod` is exported to the prod workers only                                                                                    | `terraform/environments/shared`                                                                         |
 | VM         | `vault-02`, the Vault VM; `kv-dev` and `kv-prod` both read by AVP                                                                                                               | `terraform/environments/shared`                                                                         |

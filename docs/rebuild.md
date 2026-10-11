@@ -379,11 +379,11 @@ re-running that host's playbook. Weigh that against what the space is worth:
 the pool is 21% used, so a 60 GiB allocation using 4.9 costs nothing but an
 inflated warning.
 
-**The pressure is per-VM, not pool-wide.** The Kubernetes nodes have 10
-GiB roots and are the tightest: worker-02 at 66.9%, worker-01 at 63.3%,
-master-01 at 45.9%. Container image churn is what fills them, and a full
+**The pressure is per-VM, not pool-wide.** The Kubernetes nodes have 30
+GiB roots (raised from 10 after evictions) and are the tightest. Container
+image churn is what fills them, and a full
 node root does not fail politely — kubelet begins evicting pods and
-garbage-collecting images. Watch those three long before worrying about
+garbage-collecting images. Watch the two dev nodes long before worrying about
 the pool.
 
 Two allocations are simply wasteful and inflate the warning for nothing:
@@ -1124,7 +1124,7 @@ From the workstation, in `ansible/`:
 ```bash
 # New VMs, new SSH host keys. host_key_checking = False keeps Ansible
 # going, but every connection warns until the stale keys are removed.
-ssh-keygen -R <master-ip>; ssh-keygen -R <worker-01-ip>; ssh-keygen -R <worker-02-ip>
+ssh-keygen -R <master-ip>; ssh-keygen -R <worker-01-ip>
 
 ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
 # New cluster, new CA: the old kubeconfig no longer authenticates.

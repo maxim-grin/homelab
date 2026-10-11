@@ -192,7 +192,7 @@ When: you need a shell on a VM, LXC or the host. Addresses are
 `host_ips[...]` in `secret.yaml`; the user is `user_name` there.
 
 ```bash
-ssh -i ~/.ssh/homelab_dev <user_name>@<master-01-ip>      # also worker-01, worker-02, nfs-01, vault-02, claude-code-01
+ssh -i ~/.ssh/homelab_dev <user_name>@<master-01-ip>      # also worker-01, nfs-01, vault-02, claude-code-01
 ssh <admin-user>@<pve-ip>                            # Proxmox host (host_ips['pve']); admin user from pve-bootstrap.sh
 ```
 
