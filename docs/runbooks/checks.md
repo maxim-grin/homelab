@@ -1066,14 +1066,20 @@ back (step 7); expect it, and silence or ignore it.
    terraform apply -target=module.kubeadm-dev -var-file=dev.tfvars
    ```
 
-   The module creates its VMs stopped (`power_state` defaults to
-   `stopped`). Start the control plane first, then the worker, on the
-   Proxmox host:
+   The module call sets `power_state = "running"`, so the VMs start by
+   themselves. If either shows `stopped` in `qm list` (an older checkout
+   created them stopped), start the control plane first, then the worker,
+   on the Proxmox host:
 
    ```bash
    qm start 4101
-   qm agent 4101 ping
    qm start 4201
+   ```
+
+   Then, in both cases, wait for each guest:
+
+   ```bash
+   qm agent 4101 ping
    qm agent 4201 ping
    ```
 

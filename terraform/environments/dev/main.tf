@@ -66,6 +66,11 @@ module "kubeadm-dev" {
   # Come back after a host power loss. Without this the module defaulted to
   # false and the entire cluster stayed down on 2026-09-10 while nfs-01 and
   # claude-code-01, which set it, returned on their own.
+  # The module's default is "stopped", which left the replacement's VMs
+  # off until someone ran qm start. Create them running. The module ignores
+  # later power_state changes, so this only matters at creation.
+  power_state = "running"
+
   start_at_node_boot = true
 
   # Master ahead of the workers, with 60s for the API server to answer before
