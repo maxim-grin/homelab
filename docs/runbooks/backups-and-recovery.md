@@ -11,6 +11,7 @@ upgrade or a deleted secret, not a lost disk.
 Sections: [Vault snapshots](#vault-snapshots),
 [Restore Vault](#restore-vault), [What has no backup](#what-has-no-backup),
 [Clean up retained nfs-prod volumes](#clean-up-retained-nfs-prod-volumes),
+[Dump jobboard's database](#dump-jobboards-database),
 [Restore jobboard's database on dev](#restore-jobboards-database-on-dev),
 [Rebuild pointers](#rebuild-pointers).
 
@@ -146,6 +147,39 @@ only the one that matches with `sudo rm -r /srv/nfs/prod/<directory>`.
 If not: a PV that is `Bound` is in use; do not delete it. A PV listed as
 `Released` whose directory is missing needs no further action. Source:
 [rebuild.md](../rebuild.md) step 18, "Cleaning up retained volumes".
+
+## Dump jobboard's database
+
+When: before anything that can lose dev's volumes (a dev rebuild, the SSD
+rebuild). Dev data is otherwise purgeable, but the rows exist only in that
+Postgres. Run from the job-board repo (`~/job-board`):
+
+```bash
+KUBECONFIG="${DEV_KC:?}" tools/db-backup.sh dump jobboard.dump
+```
+
+The script runs `pg_dump` in the `postgres` StatefulSet's pod (default
+`kubectl -n jobboard exec -i statefulset/postgres --`, so name the cluster
+as shown), checksums the copy and validates it with `pg_restore -l`. Copy
+the file off the workstation, then on each machine holding a copy:
+
+```bash
+sha256sum jobboard.dump
+pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
+```
+
+Expect: the same digest everywhere and `pg_restore rc=0`. If not: the copy
+is bad; take another before you destroy anything.
+
+To prove a dump restores, load it into job-board's local compose database
+(docker on the workstation, after `docker compose up -d postgres`), never
+into the live pod:
+
+```bash
+JOBBOARD_PG_EXEC="docker compose exec -T postgres" tools/db-backup.sh restore jobboard.dump --yes
+```
+
+Do not set `KUBECONFIG` for that command: it would restore over dev.
 
 ## Restore jobboard's database on dev
 

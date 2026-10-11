@@ -67,6 +67,13 @@ Rejected:
 - The hub holds a credential for dev (`argocd-manager`, cluster-admin);
   losing the hub's Vault read loses the ability to deploy to dev.
 - Adoption is staged in several PRs, each verified before the next.
+- Dev was then replaced by a smaller cluster, `kubeadm-dev` (one control
+  plane, one worker, `cluster_id` 4, vmids 4101 and 4201), with the old
+  one destroyed first because host RAM is fully committed (a targeted
+  destroy, then the apply; one plain apply would start both sets at
+  once). A rebuilt dev is registered with the hub again (new CA and
+  token). The worker joins as `worker-01` (its inventory name)
+  while its VM is `kubeadm-dev-w1`; that mismatch is accepted.
 
 ## Related
 
