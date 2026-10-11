@@ -140,15 +140,19 @@ if [ -z "$pw" ]; then
   fail "no remote-write credential (RW_PASSWORD, or VAULT_TOKEN to read it)"
 else
   head -c "$BODY_BYTES" /dev/zero > "$TMP/body"
-  # The credential goes to curl on stdin as a config line, not argv.
-  code="$(printf 'user = "%s:%s"\n' "$RW_USER" "$pw" | curl -s -o /dev/null -w '%{http_code}' \
+  # The credential goes to curl on stdin as a config line, not argv. curl
+  # config strings treat \ and " specially, so escape both.
+  u="${RW_USER//\\/\\\\}"; u="${u//\"/\\\"}"
+  p="${pw//\\/\\\\}"; p="${p//\"/\\\"}"
+  code="$(printf 'user = "%s:%s"\n' "$u" "$p" | curl -s -o /dev/null -w '%{http_code}' \
     --max-time 30 -K - -X POST -H 'Content-Type: application/x-protobuf' \
     -H 'Content-Encoding: snappy' --data-binary "@$TMP/body" "$RECEIVER_URL" 2>/dev/null)" || true
+  unset p
   case "$code" in
     413) fail "receiver answers 413 for a $BODY_BYTES-byte body (proxy-body-size too small)" ;;
-    401) fail "receiver answers 401: the credential is wrong, the size is unproven" ;;
-    000 | '' | 5??) fail "receiver answers '${code:-none}'" ;;
-    *) pass "receiver answers $code for a $BODY_BYTES-byte body (not 413)" ;;
+    401) fail "receiver answers 401: the credential is rejected (nginx checks the size before auth, so the size passed, but the write is unproven)" ;;
+    400 | 2??) pass "receiver answers $code for a $BODY_BYTES-byte body (not 413)" ;;
+    *) fail "receiver answers '${code:-none}' (expected 400 for an undecodable body, or 2xx)" ;;
   esac
 fi
 unset pw

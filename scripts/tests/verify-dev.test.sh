@@ -32,6 +32,7 @@ STUB
   cat > "$d/argocd" <<'STUB'
 #!/usr/bin/env bash
 echo "argocd $*" >> "$S/calls.log"
+[ -n "${STUB_ARGOCD_FAIL:-}" ] && { echo "FATA[0000] rpc error"; exit 20; }
 printf 'SERVER NAME VERSION STATUS MESSAGE PROJECT\n'
 printf 'https://10.0.0.101:6443 dev 1.34 %s\n' "${STUB_DEV_STATUS:-Successful}"
 printf 'https://kubernetes.default.svc in-cluster 1.34 Successful\n'
@@ -39,6 +40,7 @@ STUB
   cat > "$d/kubectl" <<'STUB'
 #!/usr/bin/env bash
 echo "kubectl $*" >> "$S/calls.log"
+if [ -n "${STUB_KUBECTL_FAIL:-}" ]; then echo "Unable to connect to the server"; exit 1; fi
 case " $* " in
   *" get applications "*)
     for a in dev-cert-manager dev-cert-manager-issuers dev-ingress-nginx dev-jobboard dev-kube-prometheus-stack dev-monitoring-secrets dev-nfs-provisioner; do
@@ -194,6 +196,57 @@ test_write_401() {
   run 10.0.0.101
   assert_rc 1
   assert_out_contains "FAIL  receiver answers 401"
+  assert_out_contains "size passed"
+}
+
+test_write_000() {
+  export STUB_WRITE_CODE=000
+  run 10.0.0.101
+  assert_rc 1
+  assert_out_contains "FAIL  receiver answers '000'"
+}
+
+test_write_403_404_fail() {
+  local c
+  for c in 403 404 502; do
+    export STUB_WRITE_CODE=$c
+    run 10.0.0.101
+    assert_rc 1
+    assert_out_contains "FAIL  receiver answers '$c'"
+  done
+}
+
+test_write_2xx_passes() {
+  export STUB_WRITE_CODE=204
+  run 10.0.0.101
+  assert_rc 0
+  assert_out_contains "PASS  receiver answers 204"
+}
+
+test_password_with_quote_and_backslash() {
+  export RW_PASSWORD='pa"ss\w\\rd'
+  run 10.0.0.101
+  assert_rc 0
+  # curl config line: both characters escaped, nothing else changed
+  grep -Fq 'user = "dev-remote-write:pa\"ss\\w\\\\rd"' "$S/curl.stdin" || fail "password not escaped: $(cat "$S/curl.stdin" | sed 's/:.*/:<pw>/')"
+  assert_out_lacks 'pa"ss'
+}
+
+test_argocd_fails() {
+  export STUB_ARGOCD_FAIL=1
+  run 10.0.0.101
+  assert_rc 1
+  assert_out_contains "FAIL  argocd cluster list failed"
+  assert_out_contains "PASS  every dev-* Application is Synced and Healthy"
+}
+
+test_kubectl_fails() {
+  export STUB_KUBECTL_FAIL=1
+  run 10.0.0.101
+  assert_rc 1
+  assert_out_contains "FAIL  could not list Applications on the hub"
+  assert_out_contains "FAIL  prod Prometheus query failed"
+  assert_out_contains "PASS  cluster dev is Successful"
 }
 
 test_no_credential() {
