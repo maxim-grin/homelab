@@ -145,6 +145,12 @@ jobs:
             terraform -chdir=terraform/environments/$env init -backend=false -input=false
             terraform -chdir=terraform/environments/$env validate
           done
+      # Mock-provider tests: nothing reaches Proxmox or a Talos node.
+      - name: terraform test
+        run: |
+          for env in dev prod; do
+            terraform -chdir=terraform/environments/$env test
+          done
       - name: tflint
         run: |
           for env in dev shared prod; do
@@ -194,7 +200,7 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh scripts/check-appsets.sh scripts/tests/check-appsets.test.sh
+        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh scripts/check-appsets.sh scripts/tests/check-appsets.test.sh scripts/verify-dev.sh scripts/tests/verify-dev.test.sh
       - name: Talos pins match the prod root
         run: scripts/check-talos-pins.sh
       - name: Runbooks match the playbooks
@@ -203,6 +209,8 @@ jobs:
         run: scripts/tests/check-runbooks.test.sh
       - name: Bootstrap script tests
         run: scripts/tests/pve-bootstrap.test.sh
+      - name: Dev verification script tests
+        run: scripts/tests/verify-dev.test.sh
       - name: Install yq
         run: |
           bin="$HOME/.local/bin"

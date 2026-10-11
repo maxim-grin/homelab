@@ -50,14 +50,12 @@ Structure:
 host_ips:
   master-01:
   worker-01:
-  worker-02:
   claude-code-01:
   nfs-01:
 
 proxmox_vm_ids:
   master-01:
   worker-01:
-  worker-02:
   claude-code-01:
   nfs-01:
 

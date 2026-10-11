@@ -319,6 +319,7 @@ kustomize build --enable-helm argocd/apps/<app>/<env>   # helmCharts need --enab
 pre-commit run --all-files                     # what the CI pre-commit job runs
 scripts/check-manifests.sh                     # every kustomization and Helm chart, rendered and schema-checked
 scripts/tests/pve-bootstrap.test.sh            # bootstrap script against stubbed pveum/qm/pveam
+scripts/tests/verify-dev.test.sh               # dev smoke script against stubbed argocd/kubectl/curl/vault
 scripts/check-talos-pins.sh                    # script's Talos pins equal the prod root's defaults
 scripts/check-runbooks.sh                      # runbooks name every playbook; commands and links resolve
 scripts/check-appsets.sh                       # expands the ApplicationSet: names, paths, destinations (bash >= 4)

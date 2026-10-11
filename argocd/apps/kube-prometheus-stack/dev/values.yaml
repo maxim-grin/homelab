@@ -10,7 +10,7 @@
 #
 # Memory limits only, no CPU limits. Dev nodes have about 3G of RAM;
 # limits total about 476Mi (node-exporter counted once). The agent's
-# limit was 160Mi; that risked an OOM loop scraping three nodes, so the
+# limit was 160Mi; that risked an OOM loop scraping the dev nodes, so the
 # spec's 400Mi target is relaxed to this total.
 
 grafana:
@@ -25,7 +25,7 @@ defaultRules:
 kubelet:
   serviceMonitor:
     # The agent drops kubelet cAdvisor samples as out of order (about 67
-    # per second from the three nodes): cAdvisor stamps its own
+    # per second from the dev nodes): cAdvisor stamps its own
     # timestamps, refreshed on its housekeeping cycle, and a 10s scrape
     # can see a stamp that does not advance. Stamp samples with the
     # scrape time instead. The chart keeps honoring them while

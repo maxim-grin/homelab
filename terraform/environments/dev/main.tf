@@ -2,17 +2,38 @@
 # Dev K8s Cluster
 ################################################################################
 
-module "dev-cluster" {
+# Replaces the old three-node "dev-cluster" (cluster_id 2: vmids 2101, 2201,
+# 2202). That block was removed, not renamed, so there is deliberately no
+# `moved` block (ADR 0013 covers renames): the destroy is the intent.
+#
+# Host RAM is fully committed, so the old cluster goes first. The operator:
+#   1. terraform plan -target=module.dev-cluster -var-file=dev.tfvars
+#      (a target for an address in state but gone from config plans only
+#      its destroy). The summary must show exactly 3 to destroy, 0 to add,
+#      0 to change. Then the same command with `apply`.
+#   2. terraform apply -var-file=dev.tfvars
+#      The plan must show exactly 2 to add (the two VMs; provisioners are
+#      off), 0 to change and 0 to destroy.
+# Read each plan before applying; an unexpected destroy is a stop.
+#
+# cluster_id 4 gives vmids 4101 and 4201 (3 is prod); check `qm list` for
+# them first. The nodes reuse the old addresses, .101 and .201: the old
+# nodes are destroyed before these exist, and nothing else holds them.
+module "kubeadm-dev" {
   source = "../../modules/ubuntu-k8s"
 
   target_node = var.pm_target_node
 
-  cluster_id   = 2
-  cluster_name = "ubuntu-k8s"
+  cluster_id   = 4
+  cluster_name = "kubeadm-dev"
   pool         = "Ubuntu-K8s"
 
+  # kubeadm-dev-cp1 and kubeadm-dev-w1
+  master_name_format = "%s-cp%d"
+  worker_name_format = "%s-w%d"
+
   master_count = 1
-  worker_count = 2
+  worker_count = 1
 
   network_cidr = var.ub_k8s_cidr
   gateway      = var.gateway
@@ -25,22 +46,20 @@ module "dev-cluster" {
   ssh_public_key       = var.ssh_public_key
 
 
-  # 4G/3G since Harbor and Gitea left (2026-09-26): frees 6G of host RAM
-  # for the prod cluster, per
-  # docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md.
-  # A memory change reboots the VM (automatic_reboot defaults to true), and
-  # a plain apply reboots every node at once. Apply one node at a time,
-  # drained first: -target='module.ubunut-k8s-1.module.nodes["worker-01"]'.
-  master_memory = 4096
+  # 3 GiB each (the old cluster had 4G/3G/3G): host RAM is full. A memory
+  # change reboots the VM (automatic_reboot defaults to true), so a plain
+  # apply reboots every node at once; apply one node at a time, drained
+  # first, with -target='module.kubeadm-dev.module.nodes["worker-01"]'.
+  master_memory = 3072
   worker_memory = 3072
 
   # 30G, not the module's 10G default. On 10G disks /var/lib/containerd
   # alone reached 3.8G and kubelet crossed its ephemeral-storage threshold
   # whenever a new image was pulled: worker-02 flapped in and out of
   # DiskPressure six times in nine days, evicting argocd-repo-server and
-  # harbor-jobservice pods. Raising this only grows the virtual disk --
-  # growpart and resize2fs inside each guest do the rest -- and it can
-  # never be lowered again.
+  # harbor-jobservice pods on the old nodes. Raising this only grows the
+  # virtual disk -- growpart and resize2fs inside each guest do the rest --
+  # and it can never be lowered again.
   master_disk_size = "30G"
   worker_disk_size = "30G"
 

@@ -35,7 +35,6 @@ nfs_server_shares:
 nfs_server_dev_nodes:
   - master-01
   - worker-01
-  - worker-02
 nfs_server_dev_clients: "{{ nfs_server_dev_nodes | map('extract', host_ips) | list }}"
 
 # The two prod Talos workers only, never the control plane and never the

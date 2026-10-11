@@ -1,17 +1,17 @@
 # Ubuntu K8s Cluster Ouputs
 output "master_nodes" {
   description = "Details for all master nodes."
-  value       = module.dev-cluster.master_nodes
+  value       = module.kubeadm-dev.master_nodes
 }
 
 output "worker_nodes" {
   description = "Details for all worker nodes."
-  value       = module.dev-cluster.worker_nodes
+  value       = module.kubeadm-dev.worker_nodes
 }
 
 output "all_node_vmids" {
   description = "Map of logical node names to assigned VMIDs."
-  value       = module.dev-cluster.all_node_vmids
+  value       = module.kubeadm-dev.all_node_vmids
 }
 
 # Claude Code VM Output

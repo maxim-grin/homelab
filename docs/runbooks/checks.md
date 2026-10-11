@@ -940,6 +940,302 @@ below).
 - delete `dev-kube-prometheus-stack` by hand: the finalizer removes the
   agent and its operator, and dev sends nothing until it is back.
 
+### Replace the dev cluster
+
+When: once, to swap the three-node `dev-cluster` (vmids 2101, 2201, 2202)
+for the two-node `kubeadm-dev` (`kubeadm-dev-cp1` vmid 4101 on `.101`,
+`kubeadm-dev-w1` vmid 4201 on `.201`, 3072 MiB and 30G each). The old
+cluster is destroyed first because host RAM is fully committed. Run from
+the operator's workstation: Terraform in `terraform/environments/dev`,
+Ansible from `ansible/`, hub commands with `$PROD_KC` and the `argocd` CLI
+([Log in to the ArgoCD CLI](access.md#log-in-to-the-argocd-cli)). The
+nodes are named `kubeadm-dev-cp1` and `worker-01`: the control plane takes
+the VM hostname, the worker takes its inventory name
+(`--node-name {{ inventory_hostname }}` in `node_join`), so the worker's
+VM and hostname (`kubeadm-dev-w1`) differ from its node name. That
+mismatch is known and accepted: a node name is fixed for the cluster's
+life, and the next rebuild can choose differently. Every `$DEV_KC` guard
+below uses the node names.
+
+What it destroys: dev's three VMs, every dev workload (cert-manager,
+ingress-nginx, nfs-provisioner, jobboard, the monitoring agent), the
+jobboard dev database, and dev's Prometheus agent WAL. Nothing on the hub
+or on prod is touched. The PVC directories under `/srv/nfs/k8s` on `nfs-01`
+stay orphaned until the SSD rebuild (`nfs-dev` only deletes a volume's data
+when its PVC is deleted, and here the PVCs vanish with the cluster
+without that delete).
+Dev's jobboard comes back with an empty database: the validated dump is
+restored into prod Postgres in sub-project 5, not here.
+
+Gates, all before step 1:
+
+1. The validated 2026-10-09 jobboard dump still exists (the fallback if
+   step 0 cannot run). Step 0 takes a fresh one, which supersedes it.
+2. Vault unsealed: [Is Vault up and unsealed](#is-vault-up-and-unsealed).
+   The hub renders `dev-*` through AVP and the registration play writes to
+   Vault.
+3. On the Proxmox host, `qm list` shows vmids `2101`, `2201`, `2202` and no
+   `4101` or `4201`, and memory is checked per
+   [Memory, VMs and thin pool](#memory-vms-and-thin-pool): record `free -m`
+   now, and compare after step 2.
+4. The repo is on the merged `main`, or on the PR branch with
+   `terraform/environments/dev/main.tf` containing module `kubeadm-dev`
+   and no `dev-cluster`. `dev.tfvars` exists and `ansible/secret.yaml`'s
+   password is at hand. Record the hub's dev apps for comparison:
+
+   ```bash
+   kubectl --kubeconfig "${PROD_KC:?}" -n argocd get applications | grep -E '^NAME|^dev-' | tee hub-dev-apps-before.txt
+   argocd cluster list --grpc-web | tee hub-clusters-before.txt
+   ```
+
+   Expect: the seven `dev-*` Applications `Synced` and `Healthy`, and `dev`
+   `Successful`. If not: fix that first, or you cannot tell later what the
+   replacement broke.
+
+Order matters; each step ends with a check, and a failed check is a stop.
+Dev is destroyed before its replacement exists and there is no overlap, so
+the rollback for dev's data is the dump, not the old VMs. Gatus will alert
+Telegram for `jobs.mgryn.cc` and for dev checks from step 1 until dev is
+back (step 7); expect it, and silence or ignore it.
+
+0. Take a fresh jobboard dump from dev, immediately before step 1. Rows
+   written since the 2026-10-09 dump exist only in this one. From the
+   job-board repo (`~/job-board`), as in
+   [Adopt dev into the hub](#adopt-dev-into-the-hub), gate 1 (the dump
+   command and what it checks; `backups-and-recovery.md` covers only the
+   restore side, [Hold dev-jobboard still](backups-and-recovery.md#hold-dev-jobboard-still)):
+
+   ```bash
+   KUBECONFIG="${DEV_KC:?}" tools/db-backup.sh dump jobboard.dump
+   ```
+
+   Copy it off the workstation, then on each machine holding a copy
+   (`jobboard.dump` is the path there):
+
+   ```bash
+   sha256sum jobboard.dump
+   pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
+   ```
+
+   Expect: the same digest everywhere and `pg_restore rc=0`. If not: stop.
+   Skipping this step is a choice to lose the rows written since 2026-10-09
+   (dev data is otherwise purgeable); after step 1 there is no other copy.
+
+1. Read the destroy plan. The old module is gone from the configuration but
+   still in state, so a targeted plan holds only its destroy. `terraform
+   init` first: the new local module `kubeadm-dev` must be installed, or
+   even the targeted plan fails with "Module not installed":
+
+   ```bash
+   cd terraform/environments/dev
+   terraform init
+   terraform plan -target=module.dev-cluster -var-file=dev.tfvars
+   ```
+
+   Expect: `Terraform has been successfully initialized`, then
+   `Plan: 0 to add, 0 to change, 3 to destroy.` and the three
+   addresses are `module.dev-cluster.module.nodes["master-01"]`,
+   `["worker-01"]` and `["worker-02"]`. Anything else (a fourth resource, a
+   name you do not know, an add) is a stop. Then apply the same targeted
+   command:
+
+   ```bash
+   terraform apply -target=module.dev-cluster -var-file=dev.tfvars
+   ```
+
+   Check, on the Proxmox host: `qm list` no longer shows 2101, 2201, 2202.
+   The hub's `dev-*` Applications now go `Unknown` or `Degraded`, and
+   `dev` stops answering: expected until step 6. Leave them alone.
+
+2. Read the create plan, with no target:
+
+   ```bash
+   terraform plan -var-file=dev.tfvars
+   ```
+
+   Expect: `Plan: 2 to add, 0 to change, 0 to destroy.` (two
+   `proxmox_vm_qemu`; the provisioner `null_resource` is off in dev). A
+   `destroy`, or a `change` to `claude-code-01` or any other resource, is a
+   stop. Then:
+
+   ```bash
+   terraform apply -var-file=dev.tfvars
+   ```
+
+   Check, on the Proxmox host: `qm list` shows `4101` and `4201` running,
+   `qm agent 4101 ping` and `qm agent 4201 ping` return, and `free -m`
+   `available` stays above 1000 MiB
+   ([Memory, VMs and thin pool](#memory-vms-and-thin-pool)). If the VMs do
+   not start, see
+   [Repair state after a failed apply](playbooks-and-terraform.md#repair-state-after-a-failed-apply).
+
+3. Update the Ansible inventory data. The repo side (this PR) already
+   removed `worker-02` from `ansible/inventories/dev/hosts.yaml` and from
+   `nfs_server_dev_nodes`; `master-01` and `worker-01` keep their inventory
+   names and addresses (`.101`, `.201`), so only the vmids and the dead host
+   change in the encrypted file. On the operator's workstation:
+
+   ```bash
+   cd ../../../ansible
+   ansible-vault edit secret.yaml
+   ```
+
+   In the editor: under `proxmox_vm_ids` set `master-01: 4101` and
+   `worker-01: 4201`, and delete `worker-02` from both `proxmox_vm_ids` and
+   `host_ips` (the extract in `nfs_server_dev_clients` fails on a key the
+   list still names, which is why the repo drops the name first). Leave
+   `host_ips` for `master-01` and `worker-01` alone. Then re-export NFS so
+   `.202` is dropped from `nfs-dev`'s client list
+   ([Provision NFS](playbooks-and-terraform.md#provision-nfs), the
+   `nfs_server` play) and check `showmount -e` per
+   [Exports](#exports): the dev path lists exactly `10.0.0.101` and
+   `10.0.0.201`, the prod path is unchanged. `nfs_server_dev_nodes` names
+   the nodes, not a spare: a third address in the list would be exported to
+   a host that does not exist, so it is not kept.
+
+4. Build the cluster, in the order of [rebuild.md](../rebuild.md) steps 5
+   and 6, with the runbook entries for the commands. First drop the old
+   host keys for the reused addresses, or SSH refuses the new nodes:
+
+   ```bash
+   ssh-keygen -R 10.0.0.101
+   ssh-keygen -R 10.0.0.201
+   ```
+
+   1. NFS client prep on the new nodes:
+      [Provision NFS](playbooks-and-terraform.md#provision-nfs), the
+      `nfs_setup` play. Check: `failed=0` on both hosts.
+   2. [Build the kubeadm cluster](playbooks-and-terraform.md#build-the-kubeadm-cluster).
+      Check: `failed=0` on both hosts.
+   3. Fetch the new kubeconfig
+      ([Fetch the dev kubeconfig](access.md#fetch-the-dev-kubeconfig)), then:
+
+      ```bash
+      kubectl --kubeconfig "${DEV_KC:?}" get nodes -o wide
+      ```
+
+      Expect: exactly two nodes, `kubeadm-dev-cp1` and `worker-01`, both
+      `Ready`, at `10.0.0.101` and `10.0.0.201`. A different node name means
+      the guards in this entry are wrong: stop and fix them before you go on.
+      Pods in `kube-system` `Running`:
+      `kubectl --kubeconfig "$DEV_KC" -n kube-system get pods`.
+      If the join failed or the worker is missing:
+      [Re-run control-plane init and the worker join](playbooks-and-terraform.md#re-run-control-plane-init-and-the-worker-join).
+
+5. Pin names in CoreDNS:
+   [Pin names in CoreDNS](playbooks-and-terraform.md#pin-names-in-coredns)
+   (a fresh CoreDNS has no `hosts` block). Check: its two `nslookup`s
+   answer `10.0.0.133` for `vault.mgryn.cc` and the two prod workers,
+   `10.0.0.111` and `10.0.0.112`, for `prometheus.mgryn.cc`. An empty answer
+   means every dev series will silently fail to arrive.
+
+6. Register dev with the hub:
+   [Register dev with the prod hub](playbooks-and-terraform.md#register-dev-with-the-prod-hub),
+   including its hard refresh of `clusters-dev`. The new cluster has a new
+   CA and token, so the old ones in Vault are stale and every dev app is
+   reading them until the refresh. Check:
+
+   ```bash
+   argocd app get clusters-dev --hard-refresh --grpc-web
+   argocd cluster list --grpc-web
+   ```
+
+   Expect: `clusters-dev` `Synced` and `Healthy`; `dev` listed. It may
+   read `Unknown` ("Cluster has no applications...") until the first app
+   syncs, or `Failed` with a TLS or auth error until the refresh has landed:
+   repeat the hard refresh once, then stop if it persists.
+
+7. Wait for the `dev-*` Applications to sync onto the new cluster. They
+   retry (10 tries, backoff to 5 minutes, about 37 minutes in all):
+
+   ```bash
+   kubectl --kubeconfig "${PROD_KC:?}" -n argocd get applications | grep -E '^NAME|^dev-'
+   ```
+
+   Repeat until all seven are `Synced` and `Healthy`, or refresh and sync
+   by hand once a retry budget is spent
+   ([Refresh an Application](#refresh-an-application),
+   [Sync an Application by hand](#sync-an-application-by-hand)). What the
+   first adoption (A3) and the monitoring move (A4) taught:
+
+   - `dev-cert-manager` waits on its `startupapicheck` hook Job. If it sits
+     `OutOfSync` with `waiting for completion of hook batch/Job/...`,
+     `argocd app terminate-op dev-cert-manager --grpc-web` then
+     `argocd app sync dev-cert-manager --grpc-web`
+     ([Adopt dev into the hub](#adopt-dev-into-the-hub), step 3).
+     `dev-ingress-nginx` has hook Jobs of the same kind.
+   - `dev-monitoring-secrets` owns the `monitoring` namespace. Until it is
+     `Synced`, `dev-kube-prometheus-stack` fails or sits `OutOfSync` for a
+     missing namespace and Secret; sync `dev-monitoring-secrets` first, then
+     `dev-kube-prometheus-stack`
+     ([Move dev to agent-mode monitoring](#move-dev-to-agent-mode-monitoring),
+     step 3).
+   - A `dev-*` app `Unknown` with a `ComparisonError` is Vault:
+     [the sealed-Vault tell](#spot-comparisonerror-the-sealed-vault-tell).
+   - `dev-nfs-provisioner` must be `Healthy` before `dev-jobboard`'s PVCs
+     can bind ([PVCs and the NFS provisioner](#pvcs-and-the-nfs-provisioner)).
+
+   Check: the listing above, plus
+   `kubectl --kubeconfig "${DEV_KC:?}" get pods -A` with nothing stuck
+   `Pending` or in `CrashLoopBackOff`, and `dev` `Successful` in
+   `argocd cluster list --grpc-web`. `dev-jobboard` comes up with an empty
+   database; a failing migration is a jobboard problem, not a replacement
+   problem.
+
+8. Run the smoke script. It needs the hub kubeconfig, a logged-in `argocd`,
+   a dev node address, and the remote-write password (read from Vault with
+   your token, never printed; `RW_PASSWORD` in the environment works too):
+
+   ```bash
+   export VAULT_ADDR=https://10.0.0.133:8200
+   export VAULT_CACERT=~/.homelab-ca/ca.crt
+   printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
+   PROD_KC="${PROD_KC:?}" scripts/verify-dev.sh 10.0.0.101
+   unset VAULT_TOKEN
+   ```
+
+   Expect: `vault status` first, then `PASS` for every check and
+   `all checks passed`. The `cluster=dev` series needs a minute or two after
+   the agent starts. Paste the output. If not: the failing line names the
+   check; `401` on the write is the credential
+   ([Seed the remote-write credential](playbooks-and-terraform.md#seed-the-remote-write-credential)),
+   `413` is the receiver's body limit.
+
+9. Clean up: compare `hub-dev-apps-before.txt` with the final listing, note
+   prod `cp1` memory against its baseline, and `rm` the old kubeconfig files
+   and the `hub-*-before.txt` notes. The orphaned PVC directories under
+   `/srv/nfs/k8s` on `nfs-01` are left for the SSD rebuild.
+
+#### What must not be done
+
+- run a plain `terraform apply` (or `plan`) before step 1's targeted
+  destroy. With `dev-cluster` removed from the configuration, the plan is
+  `2 to add, 3 to destroy` in one apply: Terraform clones and starts the two
+  new 3 GiB VMs while the old 4G/3G/3G ones still run, on a host whose RAM
+  is fully committed, and both sets claim `.101` and `.201`. Starts fail, or
+  the host's OOM killer picks a victim, and that need not be a dev VM.
+  The two-step order is the whole point;
+- `terraform destroy` without `-target`: it destroys `claude-code-01` too,
+  and any unrelated VM in this root;
+- delete a `dev-*` Application, the `apps` ApplicationSet or `clusters-dev`
+  by hand to "reset" the hub while the old cluster is gone. Each carries
+  `resources-finalizer.argocd.argoproj.io`; with the cluster unreachable the
+  deletion hangs, and once dev is back it deletes the workloads. They
+  recover on their own after registration
+  ([Retire an app from the set](#retire-an-app-from-the-set) is the only
+  deliberate delete);
+- scale the hub's application controller to 0 to stop the retry noise: do
+  not leave it scaled down; the hub stops reconciling every cluster;
+- run the registration play (step 6) before the new control plane answers:
+  it writes a token for a cluster that is not there yet and the hub shows
+  `dev` failed until the next run;
+- restore the old dump into the new cluster here. Sub-project 5 restores it
+  into prod Postgres.
+
+If a step fails and you cannot tell where the cluster stands: `qm list` on
+the host for the VMs, `terraform state list` in `environments/dev` for what
+Terraform believes, and stop.
+
 ### Prove AVP end to end
 
 When: after a Vault, ArgoCD or auth-mount change, or a rebuild. Runs the

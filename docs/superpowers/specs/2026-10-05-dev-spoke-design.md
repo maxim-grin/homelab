@@ -135,10 +135,14 @@ its resources alone.
 
 - `terraform/environments/dev` creates `kubeadm-dev-cp1` and
   `kubeadm-dev-w1`, 3G each, with new vmids. The old VMs are destroyed in
-  a separate step once the new ones are verified. Creating fresh avoids an
-  in-place rename, which would need `moved` blocks (ADR 0013) and would
-  leave the Proxmox name, the hostname and the kubeadm node name
-  disagreeing.
+  first, because host RAM is fully committed: there is no overlap, and the
+  rollback for dev's data is a fresh jobboard dump, not the old VMs. The
+  new VMs reuse `.101` and `.201`. Creating fresh avoids an in-place
+  rename, which would need `moved` blocks (ADR 0013). One mismatch is
+  accepted: the worker VM and hostname are `kubeadm-dev-w1`, but its node
+  name is `worker-01` (the inventory name, passed to `kubeadm join`); the
+  control plane node is `kubeadm-dev-cp1`. Node names are fixed for the
+  cluster's life; the next rebuild can choose.
 - The existing kubeadm roles bootstrap the cluster, including the CoreDNS
   hosts play for `vault.mgryn.cc`. Vault's `kubernetes-dev` auth is not
   recreated: AVP runs on the hub and reads `kv-dev` through prod's auth, so
