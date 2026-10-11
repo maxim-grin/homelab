@@ -56,6 +56,34 @@ If not: `MISSING` means the path or field was never seeded. Seed from
 `secret.yaml`'s `kv-dev`/`kv-prod` blocks ([rebuild.md](../rebuild.md)).
 Never paste the value into a command line.
 
+### Check the prod jobboard seed
+
+When: before merging the PR that adds `prod-jobboard`, and whenever it
+shows `ComparisonError` naming `kv-prod/jobboard`. The loop prints a word
+per field and never a value.
+
+```bash
+export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
+printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
+for f in POSTGRES_PASSWORD DATABASE_URL JOBBOARD_SECRET; do
+  printf '%s: ' "$f"
+  vault kv get -field="$f" kv-prod/jobboard/db >/dev/null 2>&1 \
+    && echo present || echo MISSING
+done
+printf 'dockerconfigjson: '
+vault kv get -field=dockerconfigjson kv-prod/jobboard/ghcr >/dev/null 2>&1 \
+  && echo present || echo MISSING
+unset VAULT_TOKEN
+```
+
+Expect: four lines, each `present`. If not: `MISSING` means the field was
+never written. `JOBBOARD_SECRET` is a fresh value for prod (it only signs
+the login cookie); the ghcr field is copied from `kv-dev/jobboard/ghcr`.
+Write with `vault kv put` reading from a prompt or a file, never a value on
+the command line. A sealed Vault prints `MISSING` for all four: run
+[Is Vault up and unsealed](#is-vault-up-and-unsealed) first.
+
 ### Snapshot age
 
 When: before an upgrade, or weekly. Snapshots are daily, 14 kept, on the
@@ -439,6 +467,34 @@ line names the check; `401` on the write is the credential
 ([Seed the remote-write credential](playbooks-and-terraform.md#seed-the-remote-write-credential)),
 `413` is the receiver's body limit, and `vault: command not found` means
 the CLI is missing, not that Vault is down.
+
+### Promote a jobboard tag to prod
+
+When: a new jobboard version has run on dev and you want it in prod. Dev is
+staging: it proves the tag, prod pins its own
+(`argocd/apps/jobboard/prod/kustomization.yaml`) and never follows dev.
+Never pin below the schema of the data in prod's database.
+
+1. Set the new tag in `argocd/apps/jobboard/dev/kustomization.yaml`, merge,
+   and use the app on dev until satisfied.
+2. On a branch, change `newTag` in `argocd/apps/jobboard/prod/kustomization.yaml`
+   to the same value and open a pull request. The merge is the deploy.
+
+After the merge, on the operator's workstation:
+
+```bash
+argocd app get prod-jobboard --grpc-web | grep -E 'Sync Status|Health Status'
+kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get deploy jobboard \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+kubectl --kubeconfig "$PROD_KC" -n jobboard rollout status deploy/jobboard
+```
+
+Expect: `Synced` and `Healthy`, the new image tag, and
+`successfully rolled out` within about 3 minutes of the merge. If not:
+`ImagePullBackOff` means the tag was never published (the app repo
+publishes only from a `v<version>` git tag); a crash loop after a migration
+needs the previous tag, which is the same edit reverted. See
+[Sync an Application by hand](#sync-an-application-by-hand) to skip the poll.
 
 ### Prove AVP end to end
 

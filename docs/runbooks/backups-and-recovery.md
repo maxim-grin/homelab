@@ -13,6 +13,8 @@ Sections: [Vault snapshots](#vault-snapshots),
 [Clean up retained nfs-prod volumes](#clean-up-retained-nfs-prod-volumes),
 [Dump jobboard's database](#dump-jobboards-database),
 [Restore jobboard's database on dev](#restore-jobboards-database-on-dev),
+[Restore jobboard's database into prod](#restore-jobboards-database-into-prod),
+[Flip jobs.mgryn.cc to prod](#flip-jobsmgryncc-to-prod),
 [Rebuild pointers](#rebuild-pointers).
 
 ## Vault snapshots
@@ -223,6 +225,111 @@ generated Application is ever updated again.
 
 If not: `0/1` after a minute, describe the Deployment's pods; the sync
 policy still `none` means the controller is not running.
+
+## Restore jobboard's database into prod
+
+### Restore the dump into prod-jobboard
+
+When: first start of `prod-jobboard` (its Postgres is empty), or a prod
+rebuild. The data is the 2026-10-11 dump: 76,425,607 bytes, sha256
+`21179356ec9e2da483b0590b8b9a1b42c5ca337fdf7b7ea10e5b2db2420ac3d2`. Keep
+every copy of it until the SSD drill. `restore` runs `pg_restore --clean
+--if-exists --no-owner --single-transaction`, so it is safe over a database
+the app has already migrated, and a failure rolls back whole.
+
+Gate: `prod-nfs-provisioner` Healthy, Vault unsealed, the
+[seed check](checks.md#check-the-prod-jobboard-seed) all `present`, and
+`prod-jobboard` generated with its Postgres PVC `Bound`. Read the memory of
+both prod workers and `cp1` before and after the first sync
+([Memory, VMs and thin pool](checks.md#memory-vms-and-thin-pool)); `cp1`
+sits at 80% of 4 GiB.
+
+Hold `prod-jobboard` the way
+[Hold dev-jobboard still](#hold-dev-jobboard-still) does (stop the
+ApplicationSet controller, not the application controller), with
+`prod-jobboard` for `dev-jobboard`, and scale only the app to zero; Postgres
+must stay up:
+
+```bash
+kubectl --kubeconfig "${PROD_KC:?}" -n argocd scale deploy/argocd-applicationset-controller --replicas=0
+argocd app set prod-jobboard --sync-policy none --grpc-web
+kubectl --kubeconfig "$PROD_KC" -n jobboard scale deploy/jobboard --replicas=0
+kubectl --kubeconfig "$PROD_KC" -n jobboard rollout status sts/postgres
+```
+
+Then, from the job-board repo (`~/job-board`) on the machine holding the
+dump:
+
+```bash
+sha256sum jobboard.dump
+pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
+KUBECONFIG="${PROD_KC:?}" tools/db-backup.sh restore jobboard.dump --yes
+```
+
+Expect: the digest above, `pg_restore rc=0`, and `restored jobboard.dump
+into jobboard`. Compare row counts with the dump's source (the counts
+taken when the dump was made):
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n jobboard exec statefulset/postgres -- \
+  psql -U jobboard -d jobboard -c 'select (select count(*) from users) users, (select count(*) from jobs) jobs, (select count(*) from companies) companies'
+```
+
+Release: scale the app back, then the set, as the last lines of
+[Hold dev-jobboard still](#hold-dev-jobboard-still) say:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n jobboard scale deploy/jobboard --replicas=1
+kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=1
+```
+
+Expect: `argocd app get prod-jobboard --grpc-web` shows the automated policy
+back within a minute, and the app pod `Ready`. If not: a digest mismatch
+means the copy is bad, stop; a `pg_restore` error rolled back, so fix the
+cause and run it again; the policy still `none` means the controller is
+still at 0.
+
+## Flip jobs.mgryn.cc to prod
+
+### Move the DNS record
+
+When: the restore above has finished and the app is running in prod. Do
+this last, so the rollback is flipping the record back.
+
+Prove prod before DNS, from the workstation, against each worker:
+
+```bash
+for ip in 10.0.0.111 10.0.0.112; do
+  curl -sk -o /dev/null -w "$ip %{http_code}\n" --resolve jobs.mgryn.cc:443:$ip https://jobs.mgryn.cc/
+done
+kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get certificate jobboard-tls
+```
+
+Expect: `303` from both (the login page) and the certificate `READY`
+`True`. Without `-k`, the chain should verify too once the certificate is
+issued. Then log in with a restored account in a browser pointed at prod
+(a hosts entry for `jobs.mgryn.cc` on the workstation, removed afterwards)
+and confirm the restored rows are there.
+
+In Cloudflare, with every record DNS-only (grey cloud), change the A record
+for `jobs.mgryn.cc` from the dev node `10.0.0.101` to two records, `10.0.0.111`
+and `10.0.0.112`. Add `dev-jobs.mgryn.cc` -> `10.0.0.101` only after the
+follow-up PR that serves dev's jobboard under that name has merged. Verify by
+name:
+
+```bash
+dig +short jobs.mgryn.cc @1.1.1.1
+curl -sI https://jobs.mgryn.cc/ | head -n 1
+```
+
+Expect: both worker IPs and an `HTTP/2 303`, with a verified certificate.
+Mind the record's TTL and the workstation's resolver cache.
+
+Rollback: point the record back to `10.0.0.101`. Dev's jobboard still has
+its own (empty after the dev replacement) database and certificate, so
+nothing else changes. If not working: `kubectl -n jobboard describe
+certificate jobboard-tls` and `get order,challenge` on prod; debug with
+`letsencrypt-staging` as in [Certificates](checks.md#certificates).
 
 ## Rebuild pointers
 
