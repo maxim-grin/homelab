@@ -1,13 +1,13 @@
 ---
 # vault-02, in inventories/shared. Install and TLS need only that inventory:
 #   ansible-playbook -i inventories/shared playbooks/vault.yaml -e @secret.yaml --ask-vault-pass
-# Configure for dev reaches its control plane over SSH, and that host lives
-# in inventories/dev, so a dev run needs both:
-#   ansible-playbook -i inventories/shared -i inventories/dev playbooks/vault.yaml \
+# Dev has no Kubernetes auth in Vault (it has no ArgoCD), so a dev run
+# creates the KV mounts and seeds them without touching any cluster:
+#   ansible-playbook -i inventories/shared playbooks/vault.yaml \
 #     -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_seed=true -e vault_token=<root> \
-#     -e '{"vault_k8s_cluster_names":["dev"]}'
-# Prod has no SSH; it is read through a kubeconfig on the workstation, so a
-# prod-only run needs only inventories/shared:
+#     -e vault_configure_k8s_auth=false
+# Prod has no SSH; it is read through a kubeconfig on the workstation, so
+# a prod run needs only inventories/shared:
 #   ansible-playbook -i inventories/shared playbooks/vault.yaml \
 #     -e @secret.yaml --ask-vault-pass -e vault_configure=true -e vault_token=<root> \
 #     -e '{"vault_k8s_cluster_names":["prod"]}' -e vault_prod_kubeconfig=<path>

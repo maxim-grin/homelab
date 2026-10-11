@@ -65,23 +65,16 @@ vault_kv_mounts:
   - kv-dev
   - kv-prod
 
-# One entry per cluster that reads this Vault, each reached by exactly one
-# of two keys. control_plane_host is a kubeadm node the role reads over SSH;
-# it lives in inventories/dev, so a run with vault_configure=true needs
-# -i inventories/shared -i inventories/dev. kubeconfig is a file on the
-# operator's workstation, read there with kubernetes.core: Talos has no
-# SSH. Prod's comes from -e vault_prod_kubeconfig=<path to the output of
-# terraform output -raw kubeconfig in environments/prod>; ~ is expanded.
+# One entry per cluster whose ArgoCD authenticates to this Vault with
+# Kubernetes auth, each reached by exactly one of two keys. Only prod has
+# one: dev is a spoke of the hub and has no ArgoCD, so its apps read kv-dev
+# through prod's entry (extra_kv_mounts). control_plane_host is a kubeadm
+# node the role reads over SSH (in that node's inventory); kubeconfig is a
+# file on the operator's workstation, read there with kubernetes.core:
+# Talos has no SSH. Prod's comes from -e vault_prod_kubeconfig=<path to
+# the output of terraform output -raw kubeconfig in environments/prod>;
+# ~ is expanded.
 vault_k8s_clusters:
-  - name: dev
-    kv_mount: kv-dev
-    auth_path: kubernetes
-    api_host: "{{ host_ips['master-01'] }}"
-    control_plane_host: master-01
-    policy_name: argocd-read
-    role_name: argocd
-    service_account_names: ["argocd-repo-server"]
-    service_account_namespaces: ["argocd"]
   - name: prod
     kv_mount: kv-prod
     # The hub's AVP also renders dev apps, whose manifests carry
@@ -96,8 +89,8 @@ vault_k8s_clusters:
     service_account_namespaces: ["argocd"]
 
 # Which of vault_k8s_clusters a configure run writes Kubernetes auth for;
-# all of them unless narrowed. A run for dev alone, which needs no prod
-# kubeconfig, passes -e '{"vault_k8s_cluster_names":["dev"]}'.
+# all of them unless narrowed. A run that must not touch any cluster (KV
+# mounts and seed only) passes -e vault_configure_k8s_auth=false.
 vault_k8s_cluster_names: "{{ vault_k8s_clusters | map(attribute='name') | list }}"
 
 vault_snapshot_src: "{{ host_ips['nfs-01'] }}:/srv/nfs/backups"

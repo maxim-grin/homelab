@@ -483,16 +483,9 @@ from `secret.yaml`.
    from the prod hub's `apps` ApplicationSet, not from an ArgoCD of its
    own. Nothing to install here; the hub is built in step 17 and dev is
    registered with it in step 11.
-9. **Out-of-band Secrets** — creates the `grafana-admin` Secret from
-   `secret.yaml`:
-
-   ```bash
-   ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
-   ```
-
-   Dev runs no Grafana any more: its monitoring is a Prometheus agent that
-   remote-writes to the hub (step 11), and the hub's Grafana shows it. The
-   playbook still creates this Secret, which nothing on dev reads.
+9. **Removed.** The `cluster_secrets` playbook created a `grafana-admin`
+   Secret that nothing on dev reads: dev runs no Grafana, and its
+   monitoring namespace belongs to the hub's apps. Nothing to run here.
 10. **No AppProject on dev.** The `homelab` AppProject lives on the prod
     hub, where `kubectl apply -f argocd/base/projects.yaml` is step 17's
     bootstrap (the same command is also the only recovery if it is ever
@@ -1135,7 +1128,6 @@ ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
 ssh <master-ip> sudo cat /etc/kubernetes/admin.conf > ~/.kube/homelab-dev.conf
 export KUBECONFIG=~/.kube/homelab-dev.conf
 
-ansible-playbook playbooks/cluster_secrets.yaml -e @secret.yaml --ask-vault-pass
 ansible-playbook playbooks/coredns_hosts.yaml -e @secret.yaml --ask-vault-pass
 ```
 
