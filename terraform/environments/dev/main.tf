@@ -7,9 +7,10 @@
 # `moved` block (ADR 0013 covers renames): the destroy is the intent.
 #
 # Host RAM is fully committed, so the old cluster goes first. The operator:
-#   1. terraform apply -target=module.dev-cluster -var-file=dev.tfvars
+#   1. terraform plan -target=module.dev-cluster -var-file=dev.tfvars
 #      (a target for an address in state but gone from config plans only
-#      its destroy). The plan summary must show exactly 3 to destroy.
+#      its destroy). The summary must show exactly 3 to destroy, 0 to add,
+#      0 to change. Then the same command with `apply`.
 #   2. terraform apply -var-file=dev.tfvars
 #      The plan must show exactly 2 VMs to create, plus their dependent
 #      resources, and nothing to destroy.
