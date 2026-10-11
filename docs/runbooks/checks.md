@@ -1056,14 +1056,29 @@ back (step 7); expect it, and silence or ignore it.
    Expect: `Plan: 2 to add, 0 to change, 0 to destroy.` (two
    `proxmox_vm_qemu`; the provisioner `null_resource` is off in dev). A
    `destroy`, or a `change` to `claude-code-01` or any other resource, is a
-   stop. Then:
+   stop. One known exception: `claude-code` can show an in-place
+   `+ pool = "VM"` (state drift older than this change). Do not let it ride
+   along: target the new cluster only.
 
    ```bash
    terraform apply -var-file=dev.tfvars
+   # or, when claude-code shows that drift:
+   terraform apply -target=module.kubeadm-dev -var-file=dev.tfvars
    ```
 
-   Check, on the Proxmox host: `qm list` shows `4101` and `4201` running,
-   `qm agent 4101 ping` and `qm agent 4201 ping` return, and `free -m`
+   The module creates its VMs stopped (`power_state` defaults to
+   `stopped`). Start the control plane first, then the worker, on the
+   Proxmox host:
+
+   ```bash
+   qm start 4101
+   qm agent 4101 ping
+   qm start 4201
+   qm agent 4201 ping
+   ```
+
+   Each ping fails until cloud-init finishes; repeat until it returns.
+   Check: `qm list` shows `4101` and `4201` running and `free -m`
    `available` stays above 1000 MiB
    ([Memory, VMs and thin pool](#memory-vms-and-thin-pool)). If the VMs do
    not start, see
