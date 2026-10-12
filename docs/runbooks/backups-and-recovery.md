@@ -13,6 +13,8 @@ Sections: [Vault snapshots](#vault-snapshots),
 [Clean up retained nfs-prod volumes](#clean-up-retained-nfs-prod-volumes),
 [Dump jobboard's database](#dump-jobboards-database),
 [Restore jobboard's database on dev](#restore-jobboards-database-on-dev),
+[Restore jobboard's database into prod](#restore-jobboards-database-into-prod),
+[Flip jobs.mgryn.cc to prod](#flip-jobsmgryncc-to-prod),
 [Rebuild pointers](#rebuild-pointers).
 
 ## Vault snapshots
@@ -150,13 +152,16 @@ If not: a PV that is `Bound` is in use; do not delete it. A PV listed as
 
 ## Dump jobboard's database
 
-When: before anything that can lose dev's volumes (a dev rebuild, the SSD
-rebuild). Dev data is otherwise purgeable, but the rows exist only in that
-Postgres. Run from the job-board repo (`~/job-board`):
+When: before anything that can lose prod's volumes (a prod rebuild, the SSD
+rebuild), and routinely after the flip, since prod takes writes. The rows
+exist only in prod's Postgres. Run from the job-board repo (`~/job-board`):
 
 ```bash
-KUBECONFIG="${DEV_KC:?}" tools/db-backup.sh dump jobboard.dump
+KUBECONFIG="${PROD_KC:?}" tools/db-backup.sh dump jobboard-prod-$(date +%F).dump
 ```
+
+Dev is staging; dump it with `KUBECONFIG="${DEV_KC:?}"` only if its rows
+matter.
 
 The script runs `pg_dump` in the `postgres` StatefulSet's pod (default
 `kubectl -n jobboard exec -i statefulset/postgres --`, so name the cluster
@@ -179,7 +184,8 @@ into the live pod:
 JOBBOARD_PG_EXEC="docker compose exec -T postgres" tools/db-backup.sh restore jobboard.dump --yes
 ```
 
-Do not set `KUBECONFIG` for that command: it would restore over dev.
+Do not set `KUBECONFIG` for that command: it would restore over a live
+cluster.
 
 ## Restore jobboard's database on dev
 
@@ -223,6 +229,124 @@ generated Application is ever updated again.
 
 If not: `0/1` after a minute, describe the Deployment's pods; the sync
 policy still `none` means the controller is not running.
+
+## Restore jobboard's database into prod
+
+### Restore the dump into prod-jobboard
+
+When: first start of `prod-jobboard` (its Postgres is empty), or a prod
+rebuild. For the first cutover the data is the 2026-10-11 dump: 76,425,607
+bytes, sha256
+`21179356ec9e2da483b0590b8b9a1b42c5ca337fdf7b7ea10e5b2db2420ac3d2`; keep
+every copy of it until the SSD drill. For a rebuild use the newest prod dump
+([Dump jobboard's database](#dump-jobboards-database)) and its own digest,
+since the 2026-10-11 dump loses every row written since the flip. `restore` runs `pg_restore --clean
+--if-exists --no-owner --single-transaction`, so it is safe over a database
+the app has already migrated, and a failure rolls back whole.
+
+Gate: `prod-nfs-provisioner` Healthy, Vault unsealed, the
+[seed check](checks.md#check-the-prod-jobboard-seed) all `present`, and
+`prod-jobboard` generated with its Postgres PVC `Bound`
+(`kubectl --kubeconfig "$PROD_KC" -n jobboard get pvc`). Read the memory of
+both prod workers and `cp1` before and after the first sync
+([Memory, VMs and thin pool](checks.md#memory-vms-and-thin-pool)); `cp1`
+sits at 80% of 4 GiB.
+
+Hold `prod-jobboard` the way
+[Hold dev-jobboard still](#hold-dev-jobboard-still) does (stop the
+ApplicationSet controller, not the application controller), with
+`prod-jobboard` for `dev-jobboard`, and scale only the app to zero; Postgres
+must stay up:
+
+```bash
+kubectl --kubeconfig "${PROD_KC:?}" -n argocd scale deploy/argocd-applicationset-controller --replicas=0
+argocd app set prod-jobboard --sync-policy none --grpc-web
+kubectl --kubeconfig "$PROD_KC" -n jobboard scale deploy/jobboard --replicas=0
+kubectl --kubeconfig "$PROD_KC" -n jobboard rollout status sts/postgres
+kubectl --kubeconfig "$PROD_KC" -n argocd get application prod-jobboard -o jsonpath='{.spec.syncPolicy.automated}'
+```
+
+Expect the last command to print nothing (no automated policy).
+
+Then, from the job-board repo (`~/job-board`) on the machine holding the
+dump:
+
+```bash
+sha256sum jobboard.dump
+pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
+KUBECONFIG="${PROD_KC:?}" tools/db-backup.sh restore jobboard.dump --yes
+```
+
+Expect: the digest above, `pg_restore rc=0`, and `restored jobboard.dump
+into jobboard`. Compare row counts with the dump's own: load the dump into
+job-board's local compose database (the command in
+[Dump jobboard's database](#dump-jobboards-database)), count there with
+`docker compose exec -T postgres psql -U jobboard -d jobboard -c '<the query below>'`,
+then count in prod and compare:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n jobboard exec statefulset/postgres -- \
+  psql -U jobboard -d jobboard -c 'select (select count(*) from users) users, (select count(*) from jobs) jobs, (select count(*) from companies) companies'
+```
+
+Release: scale the app back, then the set, as the last lines of
+[Hold dev-jobboard still](#hold-dev-jobboard-still) say:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n jobboard scale deploy/jobboard --replicas=1
+kubectl --kubeconfig "$PROD_KC" -n argocd scale deploy/argocd-applicationset-controller --replicas=1
+kubectl --kubeconfig "$PROD_KC" -n argocd get deploy argocd-applicationset-controller
+```
+
+Expect: `1/1` ready, `argocd app get prod-jobboard --grpc-web` shows the automated policy
+back within a minute, and the app pod `Ready`. If not: a digest mismatch
+means the copy is bad, stop; a `pg_restore` error rolled back, so fix the
+cause and run it again; the policy still `none` means the controller is
+still at 0.
+
+## Flip jobs.mgryn.cc to prod
+
+### Move the DNS record
+
+When: the restore above has finished and the app is running in prod. Do
+this last, so the rollback is flipping the record back.
+
+Prove prod before DNS, from the workstation, against each worker:
+
+```bash
+for ip in 10.0.0.111 10.0.0.112; do
+  curl -sk -o /dev/null -w "$ip %{http_code}\n" --resolve jobs.mgryn.cc:443:$ip https://jobs.mgryn.cc/
+done
+kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get certificate jobboard-tls
+```
+
+Expect: `303` from both (the login page) and the certificate `READY`
+`True`. Without `-k`, the chain should verify too once the certificate is
+issued. Then log in with a restored account in a browser pointed at prod
+(add `10.0.0.111 jobs.mgryn.cc` to `/etc/hosts` for the proof, then remove
+it with `sudo sed -i.bak '/jobs\.mgryn\.cc/d' /etc/hosts`) and confirm the restored rows are there.
+
+In Cloudflare, with every record DNS-only (grey cloud), change the A record
+for `jobs.mgryn.cc` from the dev node `10.0.0.101` to two records, `10.0.0.111`
+and `10.0.0.112`. Add `dev-jobs.mgryn.cc` -> `10.0.0.101` only after the
+follow-up PR that serves dev's jobboard under that name has merged. Verify by
+name:
+
+```bash
+dig +short jobs.mgryn.cc @1.1.1.1
+curl -s -o /dev/null -w '%{http_code}\n' https://jobs.mgryn.cc/
+```
+
+Expect: both worker IPs and `303`, with a verified certificate.
+Mind the record's TTL and the workstation's resolver cache.
+
+Rollback before the flip: scale `prod-jobboard` to 0 (hold it as in the
+restore entry) and stop; DNS never moved. Rollback after the flip: point the
+record back to `10.0.0.101`. Dev's jobboard still has its own certificate
+and an empty database, so rows written to prod after the flip are not
+carried back to dev. If not working: `kubectl --kubeconfig "$PROD_KC" -n
+jobboard describe certificate jobboard-tls` and `get order,challenge` on prod; debug with
+`letsencrypt-staging` as in [Certificates](checks.md#certificates).
 
 ## Rebuild pointers
 

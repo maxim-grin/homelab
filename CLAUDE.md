@@ -205,8 +205,9 @@ entry from its operator checklist instead of restating the command. (ADR
   is bare metal with no LoadBalancer and no MetalLB. Dev has no
   names that need `/etc/hosts`; `argocd.mgryn.cc`, `grafana.mgryn.cc` and
   `prometheus.mgryn.cc` (the write-only receiver) are the prod hub's.
-  `jobs.mgryn.cc` is the one dev name that needs no entry: a DNS-only (grey cloud) Cloudflare
-  record pointing at a node IP, so it resolves on any device on the LAN.
+  `jobs.mgryn.cc` (jobboard, `prod-jobboard`; dev is its staging, ADR
+  0028) needs no entry either: DNS-only (grey cloud) Cloudflare A records
+  for the two prod workers, so it resolves on any device on the LAN.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
   Traefik on `10.0.0.141`, which terminates TLS for the LAN services and
   the Proxmox UI. (ADR [0002](docs/decisions/0002-ingress-nginx-daemonset.md))
@@ -218,11 +219,13 @@ entry from its operator checklist instead of restating the command. (ADR
   through `1.1.1.1` and the router, as every LAN service container does,
   never Pi-hole. Restart it, or set the device's DNS back to automatic.
   (ADR [0020](docs/decisions/0020-pihole-opt-in-per-device.md))
-- **`jobs.mgryn.cc`'s certificate comes from cert-manager, not Cloudflare.**
+- **`jobs.mgryn.cc`'s certificate comes from cert-manager (prod), not Cloudflare.**
   Cloudflare's own certificate for `mgryn.cc` terminates at its edge, which
   traffic to a private address never reaches. cert-manager solves ACME
   DNS-01 with a Cloudflare API token from Vault
-  (`kv-dev/cert-manager/cloudflare`) and renews on its own. Debug a failed
+  (`kv-prod/cert-manager/cloudflare` for prod's cert-manager;
+  `kv-dev/cert-manager/cloudflare` is still used by dev's, which renews
+  dev's own cert until the dev host is renamed) and renews on its own. Debug a failed
   issuance by pointing the Ingress annotation at `letsencrypt-staging` --
   production limits 5 failed validations per hostname per hour. (ADR
   [0008](docs/decisions/0008-acme-dns01-not-http01.md))

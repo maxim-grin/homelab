@@ -546,9 +546,9 @@ from `secret.yaml`.
     ([Add the dev names to /etc/hosts](runbooks/access.md#add-the-dev-names-to-etchosts)).
 
     `jobs.mgryn.cc` needs no entry: it is a DNS-only Cloudflare record
-    holding a node IP. If the node IPs changed in this rebuild, update that
-    record in Cloudflare instead. Its certificate re-issues on its own,
-    provided the Vault seed in step 12 included `cert-manager/cloudflare`.
+    holding the prod workers' IPs. If they changed in this rebuild, update
+    that record in Cloudflare instead. Its certificate is prod's: it re-issues on its own once step 17 has
+    seeded `kv-prod/cert-manager/cloudflare`.
 
     `vault.mgryn.cc`, like `jobs.mgryn.cc`, needs no `/etc/hosts` entry
     either: it is a DNS-only Cloudflare record pointing at `vault-02`
@@ -885,7 +885,7 @@ from `secret.yaml`.
        the set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
        `prod-cert-manager`, `prod-cert-manager-issuers`,
        `prod-ingress-nginx`, `prod-monitoring-secrets`,
-       `prod-kube-prometheus-stack`), all `Synced` and `Healthy` after
+       `prod-kube-prometheus-stack`, `prod-jobboard`), all `Synced` and `Healthy` after
        about 3 minutes plus chart pulls. One ApplicationSet generates
        them ([ADR 0026](decisions/0026-uniform-apps.md)); the set's
        Applications carry no sync waves, since the set, not a parent
@@ -990,6 +990,11 @@ from `secret.yaml`.
     `Released` and its data directory under `/srv/nfs/prod` on `nfs-01`.
     Nothing deletes them: `kubectl delete pv <name>`, then remove the
     directory on `nfs-01` once the data is not wanted.
+
+    **jobboard.** `prod-jobboard` starts with an empty database. Once
+    its Application is `Healthy`, restore the newest prod dump with
+    [Restore the dump into prod-jobboard](runbooks/backups-and-recovery.md#restore-the-dump-into-prod-jobboard);
+    its `kv-prod/jobboard/*` seed comes from `secret.yaml` in step 17.
 
 19. **Alerting rollout** — the Proxmox exporter, scrapes and alert rules,
     delivered by `root-prod` once PR 4 (hub-alerting) is on `main`
@@ -1145,9 +1150,11 @@ Applications that carry `<path:...>` placeholders show `Unknown` until
 the Vault step runs, and clear on Argo's next poll. jobboard restarting
 a few times at first is its database host not resolving yet; it settles.
 
-**Verify from the workstation, not a node.** `curl https://jobs.mgryn.cc`
-run on a node returns `000`: a node cannot reach its own host port through
-its LAN address. From the workstation it returns `303` to the login page.
+**Verify from the workstation, not a node.** A `curl` run on a node
+returns `000`: a node cannot reach its own host port through its LAN
+address. `jobs.mgryn.cc` now points at prod, so reach dev's jobboard with
+`curl -k --resolve jobs.mgryn.cc:443:<dev node IP> https://jobs.mgryn.cc`
+from the workstation; it returns `303` to the login page.
 There is no metrics-server, so `kubectl top` does not work; use `free -m`
 on the nodes.
 
@@ -1186,6 +1193,10 @@ ends: scale the ApplicationSet controller back to 1 and check it shows
 `1/1`; the set restores the sync policy itself. The password matches
 because both databases were initialised from the same Vault secret. Delete the old directory and
 `pgdata.empty` once the app is confirmed working.
+
+jobboard's data lives in prod now ([ADR 0028](decisions/0028-jobboard-in-prod.md)):
+dev's database is staging data, and a prod rebuild restores the dump with
+[Restore the dump into prod-jobboard](runbooks/backups-and-recovery.md#restore-the-dump-into-prod-jobboard).
 
 ## Gaps worth closing before the disk is replaced
 

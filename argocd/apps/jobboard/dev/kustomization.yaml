@@ -17,3 +17,14 @@ resources:
 images:
   - name: ghcr.io/maxim-grin/jobboard
     newTag: "0.2.7"
+
+# The base names no environment's storage; dev's claim template gets
+# nfs-dev here. A JSON6902 add keeps the rest of the list intact.
+patches:
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: nfs-dev

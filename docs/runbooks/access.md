@@ -104,7 +104,7 @@ host ports 80/443, so any dev node answers.
 
 | Name                | Resolves to                                              | Behind                          |
 | ------------------- | -------------------------------------------------------- | ------------------------------- |
-| `jobs.mgryn.cc`     | a dev node IP (DNS-only A record)                        | ingress-nginx, cert-manager TLS |
+| `jobs.mgryn.cc`     | `10.0.0.111` and `10.0.0.112` (two grey-cloud A records) | prod ingress-nginx, cert-manager TLS |
 | `argocd.mgryn.cc`   | `10.0.0.111` and `10.0.0.112` (two grey-cloud A records) | prod ingress-nginx              |
 | `grafana.mgryn.cc`  | `10.0.0.111` and `10.0.0.112`                            | prod ingress-nginx              |
 | `vault.mgryn.cc`    | `10.0.0.133` (`vault-02`)                                | Vault itself, port 8200, no ingress |

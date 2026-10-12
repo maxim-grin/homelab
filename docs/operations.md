@@ -33,7 +33,7 @@ is a stop — see
 
 | Name                                                                                             | What                                                                                                | TLS          |
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------ |
-| `https://jobs.mgryn.cc`                                                                          | jobboard; HTTP 308s to HTTPS                                                                        | cert-manager |
+| `https://jobs.mgryn.cc`                                                                          | jobboard (prod); HTTP 308s to HTTPS                                                                       | cert-manager |
 | `http://10.0.0.111:32080`                                                                        | ArgoCD UI (prod), NodePort break-glass on a prod worker; `.112` and HTTPS `32443` work too            | none         |
 | `https://argocd.mgryn.cc`                                                                        | ArgoCD UI (prod hub); HTTP 308s to HTTPS                                                              | cert-manager |
 | `https://grafana.mgryn.cc`                                                                       | Grafana (prod hub); HTTP 308s to HTTPS                                                                | cert-manager |
@@ -44,8 +44,8 @@ is a stop — see
 The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every
 node — except `jobs.mgryn.cc`, `vault.mgryn.cc`, `argocd.mgryn.cc` and
-`grafana.mgryn.cc`, which have DNS-only Cloudflare records (the last two
-are grey-cloud A records, two each, to the prod workers). `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
+`grafana.mgryn.cc`, which have DNS-only Cloudflare records (all but
+`vault` are grey-cloud A records, two each, to the prod workers). `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
 
 ## Prod hub ArgoCD
 
@@ -186,8 +186,11 @@ jobboard is the owner's own web application, deployed here with its
 Postgres. Its source lives in a private repository; this one only
 deploys the image, `ghcr.io/maxim-grin/jobboard`.
 
-`argocd/apps/jobboard/dev/kustomization.yaml` names the published version to
-run; `argocd/apps/jobboard/base/app-deployment.yaml` carries no tag.
+jobboard runs in prod as `prod-jobboard`; dev is its staging. Each
+overlay (`argocd/apps/jobboard/dev` and `.../prod`)
+names the published version to run in its `kustomization.yaml`, and prod's
+moves only by a pull request
+([Promote a jobboard tag to prod](runbooks/checks.md#promote-a-jobboard-tag-to-prod)); `argocd/apps/jobboard/base/app-deployment.yaml` carries no tag.
 Deploying a new build is one line:
 
 ```yaml
@@ -226,7 +229,7 @@ the tools, and the Ansible run stops at the download for the roles.
 Squash-merge a Renovate PR with a short Conventional subject
 (`chore: bump gitleaks to 8.31.0`); other PRs keep merge commits. A
 merge is still a deploy for the Helm chart pins in the Application CRs
-and for the jobboard image in `argocd/apps/jobboard/dev/kustomization.yaml`.
+and for the jobboard image in `argocd/apps/jobboard/{dev,prod}/kustomization.yaml`.
 
 | Pin                                                  | Where the hash lives                                                                                                                                 | Command                                                                                                               |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |

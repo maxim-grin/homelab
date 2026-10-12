@@ -40,3 +40,4 @@ Context or Decision.
 | [0025](0025-runbooks-own-operator-commands.md) | Runbooks own the operator commands; rebuild.md owns the order | Accepted | 2026-10-05 |
 | [0026](0026-uniform-apps.md) | Apps are uniform kustomize directories under one ApplicationSet | Accepted | 2026-10-05 |
 | [0027](0027-dev-is-a-spoke.md) | Dev is a spoke of the prod hub, adopted in place | Accepted | 2026-10-09 |
+| [0028](0028-jobboard-in-prod.md) | jobboard runs on the prod hub; dev is its staging | Accepted | 2026-10-11 |
