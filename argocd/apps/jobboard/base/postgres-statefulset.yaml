@@ -66,9 +66,12 @@ spec:
     # without these two lines postgres sits OutOfSync forever while every
     # selfHeal sync "succeeds" as a no-op. The values match what is already
     # stored, so this is not a (forbidden) change to the claim templates.
+    # creationTimestamp: null is stored the same way and drops out of the
+    # predicted state the same way, so it is spelled out for the same reason.
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
+        creationTimestamp: null
         name: data
       spec:
         accessModes: [ReadWriteOnce]
