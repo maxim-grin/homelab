@@ -45,8 +45,10 @@ anywhere else. More in [checks.md](checks.md).
 
 ### Restore a raft snapshot
 
-When: a bad Vault upgrade, a deleted or overwritten secret, or a fresh
-`vault-02` after a rebuild.
+When: a bad Vault upgrade, a deleted or overwritten secret, or a
+`vault-02` rebuilt on its own while `nfs-01` and its snapshots survive. Not
+after a lost SSD, which takes the snapshots with it: rebuild Vault fresh
+and re-seed it ([Seed](playbooks-and-terraform.md#seed)).
 
 Warning: this overwrites all of Vault's current data with the snapshot's.
 Anything written after the snapshot is gone. Check first which file you are

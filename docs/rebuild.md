@@ -1098,8 +1098,9 @@ GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
 ### Restoring Vault from a snapshot
 
-For a bad upgrade or a deleted secret on a Vault that is otherwise intact.
-A lost disk does not use this: it rebuilds Vault fresh (step 7) and
+For a bad upgrade, a deleted secret, or a `vault-02` rebuilt on its own
+while `nfs-01` and its snapshots survive. A lost SSD takes the snapshots
+with it and does not use this: it rebuilds Vault fresh (step 7) and
 re-seeds it from `secret.yaml` (step 12), so no old key or snapshot is
 needed.
 
