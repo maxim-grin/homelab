@@ -351,6 +351,58 @@ carried back to dev. If not working: `kubectl --kubeconfig "$PROD_KC" -n
 jobboard describe certificate jobboard-tls` and `get order,challenge` on prod; debug with
 `letsencrypt-staging` as in [Certificates](checks.md#certificates).
 
+## Before an SSD swap
+
+### Check the off-box set
+
+When: before swapping the SSD or any rebuild that loses prod's volumes. Prod
+holds one thing that cannot be regenerated, jobboard's database; Vault
+rebuilds from `ansible/secret.yaml`'s seed and the apps from git, so a lost
+disk needs no Vault snapshot. Prints digests and words, never a secret.
+
+1. Take a fresh prod dump ([Dump jobboard's database](#dump-jobboards-database))
+   with the apps quiet, then record its digest and keep a second copy on
+   another device:
+
+   ```bash
+   shasum -a 256 "$DUMP"
+   ```
+
+   Run the same command on the second copy; the digests must match.
+
+2. The workstation-only files exist ([rebuild.md](../rebuild.md#4-files-that-live-only-on-the-workstation)).
+   From the repo root:
+
+   ```bash
+   for f in terraform/environments/dev/dev.tfvars \
+            terraform/environments/shared/shared.tfvars \
+            terraform/environments/prod/prod.tfvars \
+            terraform/environments/prod/backend.tf \
+            terraform/environments/prod/terraform.tfstate \
+            ~/.ssh/homelab_dev ~/.homelab-ca/ca.crt; do
+     [ -e "$f" ] && echo "present  $f" || echo "MISSING  $f"
+   done
+   ```
+
+3. The ansible-vault password opens the file (it asks for it):
+
+   ```bash
+   ansible-vault view ansible/secret.yaml >/dev/null; echo "rc=$?"
+   ```
+
+4. Every prod and dev app is Synced and Healthy
+   ([List Applications with sync and health](checks.md#list-applications-with-sync-and-health)),
+   so the swap starts from a known-good state.
+
+5. By hand: the Vault unseal key and root token are in the password
+   manager. After the swap the old pair is useless, since a rebuilt Vault is
+   initialised fresh; record the new pair straight after
+   `vault operator init`.
+
+Expect: matching digests, no `MISSING`, `rc=0`, and all apps healthy. If not:
+fix it before the swap; a missing tfvars is recreated from its `.example`,
+a lost ansible-vault password is not recoverable.
+
 ## Rebuild pointers
 
 - Whole rebuild, in order: [rebuild.md](../rebuild.md#rebuild-order).
