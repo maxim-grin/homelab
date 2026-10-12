@@ -37,7 +37,7 @@ DNS-only records (manual).
   Storage `5Gi` on `nfs-prod`. Ingress class `nginx`, issuer
   `letsencrypt-prod`, host `jobs.mgryn.cc`, TLS secret `jobboard-tls`.
 - Dump: 76,425,607 bytes, sha256
-  `21179356ec9e2da483b0590b8b9a1b42c5ca337fdf7b7ea10e5b2db2420ac3d2`;
+  `d4922fc872ebe7c808f861eb53802215234b36f034a036eb5b5749f610f6903b`;
   verify before use on the machine that runs the restore.
 - Prod workers have about 3.3 GiB allocatable; one reads 99% of memory
   limits already; prod cp1 sits at 80% of 4 GiB. Read Proxmox memory per

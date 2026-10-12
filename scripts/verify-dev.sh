@@ -104,10 +104,10 @@ if [ -z "$DEV_NODE_IP" ]; then
   fail "no dev node address (argument or DEV_NODE_IP)"
 else
   code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 \
-    -H 'Host: jobs.mgryn.cc' "https://$DEV_NODE_IP/" 2>/dev/null)" || true
+    -H 'Host: dev-jobs.mgryn.cc' "https://$DEV_NODE_IP/" 2>/dev/null)" || true
   case "$code" in
-    2?? | 3??) pass "jobs.mgryn.cc via $DEV_NODE_IP answers $code" ;;
-    *) fail "jobs.mgryn.cc via $DEV_NODE_IP answers '${code:-none}'" ;;
+    2?? | 3??) pass "dev-jobs.mgryn.cc via $DEV_NODE_IP answers $code" ;;
+    *) fail "dev-jobs.mgryn.cc via $DEV_NODE_IP answers '${code:-none}'" ;;
   esac
 fi
 

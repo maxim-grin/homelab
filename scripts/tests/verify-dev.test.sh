@@ -111,14 +111,14 @@ test_all_pass() {
   assert_out_contains "PASS  cluster dev is Successful"
   assert_out_contains "PASS  every dev-* Application is Synced and Healthy"
   assert_out_contains "PASS  all expected dev-* Applications exist"
-  assert_out_contains "PASS  jobs.mgryn.cc via 10.0.0.101 answers 200"
+  assert_out_contains "PASS  dev-jobs.mgryn.cc via 10.0.0.101 answers 200"
   assert_out_contains "PASS  up{cluster=\"dev\"} has a series"
   assert_out_contains "not 413"
   assert_out_lacks "FAIL"
   assert_out_lacks "prod-alerts"
   # vault status is the first thing run
   [ "$(head -n1 "$S/calls.log")" = "vault status" ] || fail "vault status not first"
-  grep -q -- 'Host: jobs.mgryn.cc' "$S/calls.log" || fail "no Host header"
+  grep -q -- 'Host: dev-jobs.mgryn.cc' "$S/calls.log" || fail "no Host header"
 }
 
 test_secret_never_printed_or_in_argv() {
@@ -168,7 +168,7 @@ test_jobs_down() {
   export STUB_JOBS_CODE=502
   run 10.0.0.101
   assert_rc 1
-  assert_out_contains "FAIL  jobs.mgryn.cc via 10.0.0.101 answers '502'"
+  assert_out_contains "FAIL  dev-jobs.mgryn.cc via 10.0.0.101 answers '502'"
 }
 
 test_no_node_ip() {

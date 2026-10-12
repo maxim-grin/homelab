@@ -43,9 +43,10 @@ is a stop — see
 
 The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
 workstation, pointing at any node IP since ingress-nginx answers on every
-node — except `jobs.mgryn.cc`, `vault.mgryn.cc`, `argocd.mgryn.cc` and
+node — except `jobs.mgryn.cc`, `dev-jobs.mgryn.cc`, `vault.mgryn.cc`, `argocd.mgryn.cc` and
 `grafana.mgryn.cc`, which have DNS-only Cloudflare records (all but
-`vault` are grey-cloud A records, two each, to the prod workers). `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
+`vault` and `dev-jobs` are grey-cloud A records, two each, to the prod
+workers; `dev-jobs` is one, to `10.0.0.101`). `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
 
 ## Prod hub ArgoCD
 

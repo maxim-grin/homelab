@@ -22,7 +22,7 @@ staging on its own name. The SSD rebuild drill follows this.
 - **The existing dump is the data.** The replaced dev cluster's jobboard
   database is empty, so there is no live dev data to freeze or re-dump.
   The dump (76,425,607 bytes, sha256
-  `21179356ec9e2da483b0590b8b9a1b42c5ca337fdf7b7ea10e5b2db2420ac3d2`) has
+  `d4922fc872ebe7c808f861eb53802215234b36f034a036eb5b5749f610f6903b`) has
   two verified copies on the owner's machines. Rows written to the new,
   empty dev jobboard since 2026-10-11 are not carried over.
 - **Prod gets a fresh `JOBBOARD_SECRET`.** It only signs the login cookie
