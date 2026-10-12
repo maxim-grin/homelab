@@ -6,7 +6,7 @@
 
 **Architecture:** Tasks 1-2 are the prep PR on branch `ssd-rebuild-drill` (draft #138, which already holds the spec). Task 3 is the operator gate and the drill itself, run by the owner with this session walking them through it one step at a time. Task 4 is the post-drill docs PR.
 
-**Tech Stack:** kustomize (`configMapGenerator`), the kube-prometheus-stack Grafana sidecar, the runbooks, `docs/rebuild.md`.
+**Tech Stack:** the runbooks, `docs/rebuild.md`.
 
 **Spec:** `docs/superpowers/specs/2026-10-12-ssd-rebuild-drill-design.md`
 
