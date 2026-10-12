@@ -495,9 +495,33 @@ kubectl --kubeconfig "$PROD_KC" -n jobboard rollout status deploy/jobboard
 Expect: `Synced` and `Healthy`, the new image tag, and
 `successfully rolled out` within about 3 minutes of the merge. If not:
 `ImagePullBackOff` means the tag was never published (the app repo
-publishes only from a `v<version>` git tag); a crash loop after a migration
-needs the previous tag, which is the same edit reverted. See
+publishes only from a `v<version>` git tag); `Init:Error` means the migration failed
+([Read a failed jobboard migration](#read-a-failed-jobboard-migration)). See
 [Sync an Application by hand](#sync-an-application-by-hand) to skip the poll.
+
+### Read a failed jobboard migration
+
+When: a `prod-jobboard` or `dev-jobboard` pod sits in `Init:Error` or
+`Init:CrashLoopBackOff` after a tag bump. The Deployment runs
+`jobboard migrate` in an init container ([ADR 0029](../decisions/0029-jobboard-migrates-in-an-init-container.md)),
+so the app never starts against a schema it does not match.
+
+On the operator's workstation:
+
+```bash
+kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get pods
+kubectl --kubeconfig "$PROD_KC" -n jobboard logs deploy/jobboard -c migrate --previous
+```
+
+Expect on success: the pod `Running`, and the init log ending
+`database at <revision>`. Otherwise the log names the refusal:
+`another migration holds the lock` (retry resolves it),
+`partial schema without alembic_version` or `legacy schema differs from
+the baseline` (a hand-edited database; do not stamp it blind), or
+`database is ahead of this build` (the tag is older than the data; pin the
+newer tag, never roll the schema back). Dump the database first
+([Dump jobboard's database](backups-and-recovery.md#dump-jobboards-database))
+before any hand repair. The dev spoke uses `--kubeconfig "$DEV_KC"`.
 
 ### Prove AVP end to end
 

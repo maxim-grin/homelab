@@ -41,3 +41,4 @@ Context or Decision.
 | [0026](0026-uniform-apps.md) | Apps are uniform kustomize directories under one ApplicationSet | Accepted | 2026-10-05 |
 | [0027](0027-dev-is-a-spoke.md) | Dev is a spoke of the prod hub, adopted in place | Accepted | 2026-10-09 |
 | [0028](0028-jobboard-in-prod.md) | jobboard runs on the prod hub; dev is its staging | Accepted | 2026-10-11 |
+| [0029](0029-jobboard-migrates-in-an-init-container.md) | jobboard migrates its database in an init container | Accepted | 2026-10-12 |
