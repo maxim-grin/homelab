@@ -101,7 +101,7 @@ Losing one is not recoverable from git or from the cluster.
 | The ansible-vault password | Unlocks `ansible/secret.yaml`, the only record of every host address and vmid. Without it the file is unrecoverable. Keep it in a password manager. |
 | `~/.homelab-ca/` (private CA key) | Signs Vault's TLS certificate. Regenerable: re-run the vault role and refresh the `vault-ca` ConfigMap. No data is lost. |
 | `terraform/environments/prod/terraform.tfstate` | Holds the Talos PKI and the kubeconfig. Lost state means rebuilding the prod cluster. |
-| The Vault unseal key and root token | Without them Vault stays sealed and no snapshot can be restored. |
+| The Vault unseal key and root token | Without them an existing Vault stays sealed and no snapshot can be restored. A lost disk needs neither: a rebuild initialises Vault fresh and re-seeds it from `secret.yaml`. |
 
 Only Vault has snapshots; everything else on the NFS export is lost with
 the SSD. Details and the full table:

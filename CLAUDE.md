@@ -261,7 +261,8 @@ entry from its operator checklist instead of restating the command. (ADR
   into `kv-dev/` and `kv-prod/`, each spoke's policy reading only its
   own tree and the hub's also `kv-dev/` (ADR 0026). Raft snapshots go
   daily to `/srv/nfs/backups` on `nfs-01`, 14 kept — the same SSD, so
-  they cover a bad upgrade or a deleted secret, not a lost disk. **If
+  they cover a bad upgrade or a deleted secret, not a lost disk, which is
+  a fresh `vault operator init` plus the seed from `secret.yaml`. **If
   Vault cannot write `/var/log/vault/audit.log` it refuses every
   request**: a full root disk looks like a healthy Vault answering
   nothing. A restart seals it; a certificate renewal only reloads it.
