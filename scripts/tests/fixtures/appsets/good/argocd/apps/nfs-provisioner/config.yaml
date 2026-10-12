@@ -4,3 +4,4 @@
   serverSideApply: false
   namespaceLabels:
     pod-security.kubernetes.io/enforce: privileged
+  serverSideDiff: true

@@ -97,7 +97,16 @@ spec:
   # Argo reads it. Merged into the template above; an entry that sets
   # none renders the no-op patch `{}`.
   templatePatch: |
-    {{- if or .createNamespace .serverSideApply (hasKey . "namespaceLabels") }}
+    {{- $ssd := false }}
+    {{- if hasKey . "serverSideDiff" }}{{- $ssd = .serverSideDiff }}{{- end }}
+    {{- $spec := or .createNamespace .serverSideApply (hasKey . "namespaceLabels") }}
+    {{- if or $spec $ssd }}
+    {{- if $ssd }}
+    metadata:
+      annotations:
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+    {{- end }}
+    {{- if $spec }}
     spec:
       syncPolicy:
         {{- if or .createNamespace .serverSideApply }}
@@ -114,6 +123,7 @@ spec:
           labels:
             {{- toYaml .namespaceLabels | nindent 8 }}
         {{- end }}
+    {{- end }}
     {{- else }}
     {}
     {{- end }}

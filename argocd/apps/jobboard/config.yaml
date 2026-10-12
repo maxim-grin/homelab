@@ -9,6 +9,11 @@
   # Same reason as dev: keeps the rendered Secrets out of the
   # last-applied-configuration annotation.
   serverSideApply: true
+  # Compare the way it syncs. With the default diff the postgres
+  # StatefulSet read OutOfSync forever on a claim template field the API
+  # server fills in, though a server-side dry run changed nothing
+  # (ADR 0030).
+  serverSideDiff: true
 - env: dev
   namespace: jobboard
   createNamespace: true
