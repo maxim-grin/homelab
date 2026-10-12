@@ -209,6 +209,21 @@ when a `v<version>` git tag is pushed there. Naming a version here that has
 not been published yet gives `ImagePullBackOff` until it is — loud and
 self-correcting.
 
+## jobboard daily crawl
+
+Prod crawls new jobs once a day: the `jobboard-crawl` CronJob
+(`argocd/apps/jobboard/prod/crawl-cronjob.yaml`) runs `jobboard crawl` from
+the same image as the app. Dev has none. Schedule and on/off are two fields
+at the top of that file, changed by pull request:
+
+```yaml
+schedule: "0 4 * * *"   # cron, in timeZone
+timeZone: UTC
+suspend: false          # true stops new runs
+```
+
+Operator commands: [Run, pause or check the jobboard crawl](runbooks/checks.md#run-pause-or-check-the-jobboard-crawl).
+
 ## Updating a pinned version
 
 Renovate opens a pull request weekly (Mondays before 07:00 UTC, three

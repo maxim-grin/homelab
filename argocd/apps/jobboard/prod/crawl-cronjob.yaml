@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jobboard-crawl
+spec:
+  # The two knobs. Change either with a pull request; the merge is the deploy.
+  # `suspend: true` stops new runs and leaves a running one alone.
+  schedule: "0 4 * * *"
+  timeZone: UTC
+  suspend: false
+  # A slow run is never overlapped: the crawler is not designed for
+  # concurrent runs (see the Deployment's replicas comment).
+  concurrencyPolicy: Forbid
+  # A missed trigger (controller down, node drain) still runs within an hour.
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # No retry: the crawler isolates failures per company, and a rerun of
+      # the whole board would only double the load on the ATS providers.
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 604800
+      template:
+        metadata:
+          labels:
+            app: jobboard-crawl
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr
+          containers:
+            - name: crawl
+              # No tag: the overlay's `images:` transformer sets the version,
+              # so the CronJob always runs the same build as the app.
+              image: ghcr.io/maxim-grin/jobboard
+              imagePullPolicy: IfNotPresent
+              args: ["jobboard", "crawl"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: jobboard-secrets
+                      key: DATABASE_URL
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi

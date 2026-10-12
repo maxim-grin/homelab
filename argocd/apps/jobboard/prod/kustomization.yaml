@@ -8,6 +8,7 @@ resources:
   - secret.yaml
   - ghcr-secret.yaml
   - ingress.yaml
+  - crawl-cronjob.yaml
 
 # Quoted deliberately: `newTag: 1.0` parses as a float.
 images:

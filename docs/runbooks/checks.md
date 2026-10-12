@@ -523,6 +523,35 @@ newer tag, never roll the schema back). Dump the database first
 ([Dump jobboard's database](backups-and-recovery.md#dump-jobboards-database))
 before any hand repair. The dev spoke uses `--kubeconfig "$DEV_KC"`.
 
+### Run, pause or check the jobboard crawl
+
+When: you want a crawl now, want the daily one stopped, or want to know
+whether last night's ran. The CronJob exists in prod only
+([jobboard daily crawl](../operations.md#jobboard-daily-crawl)).
+
+On the operator's workstation:
+
+```bash
+kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get cronjob jobboard-crawl
+kubectl --kubeconfig "$PROD_KC" -n jobboard get jobs -l app=jobboard-crawl
+kubectl --kubeconfig "$PROD_KC" -n jobboard logs job/<job-name>
+```
+
+Expect: `SUSPEND False`, a recent `LAST SCHEDULE`, and a log ending
+`run <id>: <n> ok, <n> failed, ...`. Run one by hand, even while suspended:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n jobboard create job \
+  --from=cronjob/jobboard-crawl "crawl-manual-$(date +%s)"
+```
+
+To change the schedule or turn it off durably, edit `schedule` or
+`suspend` in `argocd/apps/jobboard/prod/crawl-cronjob.yaml` and merge. A
+`kubectl patch` of `suspend` takes effect at once but ArgoCD's selfHeal
+reverts it on the next sync, so follow any emergency patch with the pull
+request. Avoid a manual run while the admin Crawl button is in use: the
+crawler is not designed for concurrent runs.
+
 ### Prove AVP end to end
 
 When: after a Vault, ArgoCD or auth-mount change, or a rebuild. Runs the
