@@ -205,9 +205,10 @@ entry from its operator checklist instead of restating the command. (ADR
   is bare metal with no LoadBalancer and no MetalLB. Dev has no
   names that need `/etc/hosts`; `argocd.mgryn.cc`, `grafana.mgryn.cc` and
   `prometheus.mgryn.cc` (the write-only receiver) are the prod hub's.
-  `jobs.mgryn.cc` (jobboard, `prod-jobboard`; dev is its staging, ADR
-  0028) needs no entry either: DNS-only (grey cloud) Cloudflare A records
-  for the two prod workers, so it resolves on any device on the LAN.
+  `jobs.mgryn.cc` (jobboard, `prod-jobboard`) needs no entry either:
+  DNS-only (grey cloud) Cloudflare A records for the two prod workers, so
+  it resolves on any device on the LAN. `dev-jobs.mgryn.cc` is dev's
+  staging copy (ADR 0028), one A record to `10.0.0.101`.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
   Traefik on `10.0.0.141`, which terminates TLS for the LAN services and
   the Proxmox UI. (ADR [0002](docs/decisions/0002-ingress-nginx-daemonset.md))

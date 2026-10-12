@@ -157,7 +157,8 @@ rebuild), and routinely after the flip, since prod takes writes. The rows
 exist only in prod's Postgres. Run from the job-board repo (`~/job-board`):
 
 ```bash
-KUBECONFIG="${PROD_KC:?}" tools/db-backup.sh dump jobboard-prod-$(date +%F).dump
+DUMP=jobboard-prod-$(date +%F).dump
+KUBECONFIG="${PROD_KC:?}" tools/db-backup.sh dump "$DUMP"
 ```
 
 Dev is staging; dump it with `KUBECONFIG="${DEV_KC:?}"` only if its rows
@@ -169,8 +170,8 @@ as shown), checksums the copy and validates it with `pg_restore -l`. Copy
 the file off the workstation, then on each machine holding a copy:
 
 ```bash
-sha256sum jobboard.dump
-pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
+sha256sum "$DUMP"
+pg_restore --list "$DUMP" >/dev/null; echo "pg_restore rc=$?"
 ```
 
 Expect: the same digest everywhere and `pg_restore rc=0`. If not: the copy
@@ -181,7 +182,7 @@ To prove a dump restores, load it into job-board's local compose database
 into the live pod:
 
 ```bash
-JOBBOARD_PG_EXEC="docker compose exec -T postgres" tools/db-backup.sh restore jobboard.dump --yes
+JOBBOARD_PG_EXEC="docker compose exec -T postgres" tools/db-backup.sh restore "$DUMP" --yes
 ```
 
 Do not set `KUBECONFIG` for that command: it would restore over a live
@@ -235,9 +236,9 @@ policy still `none` means the controller is not running.
 ### Restore the dump into prod-jobboard
 
 When: first start of `prod-jobboard` (its Postgres is empty), or a prod
-rebuild. For the first cutover the data is the 2026-10-11 dump: 76,425,607
-bytes, sha256
-`21179356ec9e2da483b0590b8b9a1b42c5ca337fdf7b7ea10e5b2db2420ac3d2`; keep
+rebuild. For the first cutover the data is the dump of 2026-10-09
+(`jobboard-dev-2026-10-09.dump`): 76,425,607 bytes, sha256
+`d4922fc872ebe7c808f861eb53802215234b36f034a036eb5b5749f610f6903b`; keep
 every copy of it until the SSD drill. For a rebuild use the newest prod dump
 ([Dump jobboard's database](#dump-jobboards-database)) and its own digest,
 since the 2026-10-11 dump loses every row written since the flip. `restore` runs `pg_restore --clean
@@ -272,12 +273,14 @@ Then, from the job-board repo (`~/job-board`) on the machine holding the
 dump:
 
 ```bash
-sha256sum jobboard.dump
-pg_restore --list jobboard.dump >/dev/null; echo "pg_restore rc=$?"
-KUBECONFIG="${PROD_KC:?}" tools/db-backup.sh restore jobboard.dump --yes
+DUMP=~/jobboard-dev-2026-10-09.dump   # or the newest prod dump
+sha256sum "$DUMP"
+pg_restore --list "$DUMP" >/dev/null; echo "pg_restore rc=$?"
+KUBECONFIG="${PROD_KC:?}" tools/db-backup.sh restore "$DUMP" --yes
 ```
 
-Expect: the digest above, `pg_restore rc=0`, and `restored jobboard.dump
+Expect: the digest above, `pg_restore rc=0` (a local `pg_restore` older than the dump's Postgres 17
+fails with `unsupported version (1.16)`; that is the tool, not the dump), and `restored <the file>
 into jobboard`. Compare row counts with the dump's own: load the dump into
 job-board's local compose database (the command in
 [Dump jobboard's database](#dump-jobboards-database)), count there with

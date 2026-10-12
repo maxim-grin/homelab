@@ -1152,8 +1152,9 @@ a few times at first is its database host not resolving yet; it settles.
 
 **Verify from the workstation, not a node.** A `curl` run on a node
 returns `000`: a node cannot reach its own host port through its LAN
-address. `jobs.mgryn.cc` now points at prod, so reach dev's jobboard with
-`curl -k --resolve jobs.mgryn.cc:443:<dev node IP> https://jobs.mgryn.cc`
+address. Dev's jobboard is `dev-jobs.mgryn.cc` (`jobs.mgryn.cc` is prod's),
+so reach it with
+`curl -k --resolve dev-jobs.mgryn.cc:443:<dev node IP> https://dev-jobs.mgryn.cc`
 from the workstation; it returns `303` to the login page.
 There is no metrics-server, so `kubectl top` does not work; use `free -m`
 on the nodes.

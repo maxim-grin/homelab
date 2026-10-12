@@ -67,7 +67,7 @@ flowchart TB
     vault -- "raft snapshots" --> nfs
     certmgr -- "DNS-01" --> cloudflare
     lan -- "jobs.mgryn.cc" --> prodjob
-    ingress --> jobboard
+    ingress -- "dev-jobs.mgryn.cc" --> jobboard
 
     lan -. "DNS, devices that opt in" .-> pihole
     lan -- "*.hl.mgryn.cc" --> traefik
