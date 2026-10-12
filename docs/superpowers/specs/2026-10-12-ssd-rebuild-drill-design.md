@@ -25,10 +25,12 @@ drill: until now every rebuild step ran against a live host.
   which go to the password manager before anything depends on them; the
   old pair is useless afterwards. The raft-snapshot restore stays
   documented as the bad-upgrade path, no longer the disk-failure path.
-- **Grafana state lives in git.** The chart's Grafana sidecar loads
-  ConfigMaps labelled `grafana_dashboard: "1"`. A `dashboards` app
-  (`argocd/apps/dashboards/prod`, one entry in its `config.yaml`) holds
-  the hand-built dashboards; the owner exports their JSON.
+- **Grafana state is not preserved.** The repo is the source of truth:
+  a dashboard that exists only in the UI is gone with the SSD, as the old
+  dev cluster's were. The chart's built-in dashboards come back from git.
+  Anything worth keeping later goes in git as a ConfigMap labelled
+  `grafana_dashboard: "1"` (the chart's sidecar loads it); nothing is
+  built for that now.
 - **The only data that must leave the box is prod's jobboard database.**
   Prometheus metrics are not worth keeping, and everything else is
   reproducible from git, `secret.yaml` and Vault's seed.
@@ -43,7 +45,6 @@ All true, or the drill does not start:
 - The workstation files from `rebuild.md` section 4 exist: tfvars,
   `prod` Terraform state and `backend.tf`, SSH key, ansible-vault
   password, `~/.homelab-ca/`.
-- Dashboards are merged and `prod-dashboards` is Synced and Healthy.
 - The old SSD is labelled and set aside; the new one is the right size.
 
 ## During
@@ -58,7 +59,7 @@ run continues; no commands the doc lacks are improvised.
    (install the `vault` CLI first).
 2. Every prod and dev app is Synced and Healthy.
 3. `jobs.mgryn.cc` serves the restored data; row counts match the dump's.
-4. Grafana shows the provisioned dashboards.
+4. Grafana answers with the chart's built-in dashboards.
 5. Pi-hole, Traefik and Gatus answer.
 6. The fresh Vault keys are recorded.
 
@@ -76,8 +77,7 @@ run continues; no commands the doc lacks are improvised.
 
 ## Deliverables
 
-1. **Prep PR** (before the swap): the `dashboards` app, an off-box
-   checklist runbook entry, the fresh-init-first Vault wording in
+1. **Prep PR** (before the swap): an off-box checklist runbook entry, the fresh-init-first Vault wording in
    `rebuild.md`, this spec and its plan.
 2. **The drill:** operator only, no PR.
 3. **Post-drill PR:** every gap found folded into `rebuild.md` and the
