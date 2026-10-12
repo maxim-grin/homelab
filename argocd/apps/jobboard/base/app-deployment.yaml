@@ -24,6 +24,23 @@ spec:
       # ImagePullBackOff with "denied", which reads like a missing tag.
       imagePullSecrets:
         - name: ghcr
+      # 0.3.x refuses to start until the schema is at its head revision, and
+      # nothing else runs `jobboard migrate`. Same image as the app, so the
+      # overlay's tag moves both. Idempotent: at head it prints the revision
+      # and exits 0. Under Recreate no other app pod runs while it does, and
+      # the app holds an advisory lock besides. A failure leaves the pod in
+      # Init:Error with the reason in `logs -c migrate`.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/maxim-grin/jobboard
+          imagePullPolicy: IfNotPresent
+          args: ["jobboard", "migrate"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: jobboard-secrets
+                  key: DATABASE_URL
       containers:
         - name: jobboard
           # No tag here on purpose. The base says WHICH image; the overlay's
