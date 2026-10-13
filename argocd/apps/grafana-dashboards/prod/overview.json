@@ -1,0 +1,371 @@
+{
+   "editable": false,
+   "links": [
+      {
+         "title": "Proxmox",
+         "type": "link",
+         "url": "/d/proxmox"
+      },
+      {
+         "title": "Kubernetes / Compute Resources / Cluster",
+         "type": "link",
+         "url": "/d/efa86fd1d0c121a26444b636a3f509a8"
+      },
+      {
+         "title": "Node Exporter / Nodes",
+         "type": "link",
+         "url": "/d/7d57716318ee0dddbac5a7f451fb7753"
+      }
+   ],
+   "panels": [
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "red",
+                        "value": null
+                     },
+                     {
+                        "color": "green",
+                        "value": 3
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 0
+         },
+         "id": 1,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "sum(up{job=\"node-exporter\"} == 1)"
+            }
+         ],
+         "title": "Nodes up",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 1
+                     },
+                     {
+                        "color": "red",
+                        "value": 5
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 0
+         },
+         "id": 2,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "sum(kube_pod_status_ready{condition=\"false\"})"
+            }
+         ],
+         "title": "Pods not ready",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "red",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 0
+         },
+         "id": 3,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count(ALERTS{alertstate=\"firing\", alertname!=\"Watchdog\"}) or vector(0)"
+            }
+         ],
+         "title": "Firing alerts",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "red",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 6
+         },
+         "id": 4,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count((certmanager_certificate_expiration_timestamp_seconds > 0) - time() < 14 * 86400) or vector(0)"
+            }
+         ],
+         "title": "Certificates expiring within 14 days",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 0.69999999999999996
+                     },
+                     {
+                        "color": "red",
+                        "value": 0.80000000000000004
+                     }
+                  ]
+               },
+               "unit": "percentunit"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 6
+         },
+         "id": 5,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "max(pve_disk_usage_bytes{id=~\"storage/.+/local-lvm\"} / pve_disk_size_bytes{id=~\"storage/.+/local-lvm\"})"
+            }
+         ],
+         "title": "Proxmox thin pool use",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     }
+                  ]
+               },
+               "unit": "reqps"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 6
+         },
+         "id": 6,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\"}[5m]))"
+            }
+         ],
+         "title": "jobs.mgryn.cc requests per second",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 0.01
+                     },
+                     {
+                        "color": "red",
+                        "value": 0.050000000000000003
+                     }
+                  ]
+               },
+               "unit": "percentunit"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 12
+         },
+         "id": 7,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\", status=~\"5..\"}[5m])) / sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\"}[5m])) or vector(0)"
+            }
+         ],
+         "title": "jobs.mgryn.cc 5xx ratio",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 12
+         },
+         "id": 8,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "ALERTS{alertstate=\"firing\", alertname!=\"Watchdog\"}",
+               "format": "table",
+               "instant": true
+            }
+         ],
+         "title": "Firing alerts",
+         "type": "table"
+      }
+   ],
+   "refresh": "1m",
+   "schemaVersion": 39,
+   "tags": [
+      "homelab",
+      "overview"
+   ],
+   "time": {
+      "from": "now-6h",
+      "to": "now"
+   },
+   "timezone": "utc",
+   "title": "Homelab overview",
+   "uid": "homelab-overview"
+}

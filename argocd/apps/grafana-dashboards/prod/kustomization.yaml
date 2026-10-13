@@ -9,5 +9,15 @@ kind: Kustomization
 #   annotation     grafana_folder: Homelab, the Grafana folder
 #   disableNameSuffixHash  a hash would rename the ConfigMap on every edit
 #                  and leave the old one in Grafana until pruned
-# Nothing here is secret. Empty until the first dashboard is added.
-resources: []
+# Nothing here is secret.
+configMapGenerator:
+  - name: dashboard-overview
+    namespace: monitoring
+    files:
+      - overview.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Homelab
