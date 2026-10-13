@@ -165,7 +165,8 @@ grafana:
       memory: 128Mi
     limits:
       memory: 512Mi
-  # Applies to both sidecars, the dashboard and the datasource watchers.
+  # resources applies to both sidecars, the dashboard and the datasource
+  # watchers.
   sidecar:
     resources:
       requests:
@@ -173,6 +174,14 @@ grafana:
         memory: 48Mi
       limits:
         memory: 128Mi
+    dashboards:
+      # The grafana-dashboards app annotates its ConfigMaps grafana_folder:
+      # Homelab. The sidecar ignores that unless told to read it, and the
+      # provider must mirror the folders it makes, or every dashboard
+      # lands in General.
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
 
 kube-state-metrics:
   resources:
