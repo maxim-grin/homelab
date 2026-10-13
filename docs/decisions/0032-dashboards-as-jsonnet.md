@@ -36,9 +36,13 @@ time.
   dashboards need; alert rules stay in `argocd/apps/alerts`.
 - **Grafonnet `gen/grafonnet-v11.4.0`,** pinned by `jb` in
   `dashboards/jsonnetfile.lock.json` to a commit. The generated v11.4
-  library matches the Grafana 11 schema the chart ships and is typed, so a
+  library emits `schemaVersion` 39 dashboards, which the chart's
+  Grafana 13 (`kube-prometheus-stack` 92.3.0, grafana subchart 13.5.0,
+  appVersion 13.2.3) migrates forward on load. The library is typed, so a
   misspelled field fails the render instead of producing a panel that
-  silently ignores it. `dashboards/vendor/` is gitignored and fetched by
+  silently ignores it. No Grafonnet 13 library was used; moving to
+  `gen/grafonnet-v13.0.0` is a deliberate later upgrade.
+  `dashboards/vendor/` is gitignored and fetched by
   `jb install`.
 - **No swap panel on the Proxmox dashboard:** `pve-exporter` exposes no
   swap metric, and a panel on a metric that does not exist reads as zero.
@@ -56,7 +60,7 @@ time.
   ([ADR 0031](0031-path-gated-ci.md)) on `dashboards/**`,
   `argocd/apps/grafana-dashboards/**` and `scripts/check-dashboards.sh`.
 - `jsonnetfmt` is a `language: system` pre-commit hook, skipped in CI's
-  `pre-commit` job (`SKIP=...,jsonnetfmt`) and run by the `dashboards`
+  `pre-commit` job (`SKIP: ansible-lint,terraform-fmt,jsonnetfmt`) and run by the `dashboards`
   job instead.
 - A new dashboard must be listed in the app's `kustomization.yaml`; the
   check fails on a JSON that is not.
