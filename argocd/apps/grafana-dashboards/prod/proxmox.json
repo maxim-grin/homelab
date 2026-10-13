@@ -45,7 +45,7 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "1 - absent(pve_up)"
+               "expr": "clamp_max(count(pve_up), 1) or vector(0)"
             }
          ],
          "title": "Exporter scraping",
@@ -422,7 +422,7 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "max(pve_disk_usage_bytes{id=\"storage/pve/local-lvm\"} / pve_disk_size_bytes{id=\"storage/pve/local-lvm\"})"
+               "expr": "max(pve_disk_usage_bytes{id=~\"storage/.+/local-lvm\"} / pve_disk_size_bytes{id=~\"storage/.+/local-lvm\"})"
             }
          ],
          "title": "Thin pool use (local-lvm)",
@@ -497,15 +497,19 @@
          "title": "Storage use",
          "transformations": [
             {
+               "id": "filterFieldsByName",
+               "options": {
+                  "include": {
+                     "names": [
+                        "storage",
+                        "Value"
+                     ]
+                  }
+               }
+            },
+            {
                "id": "organize",
                "options": {
-                  "excludeByName": {
-                     "Time": true,
-                     "content": true,
-                     "id": true,
-                     "node": true,
-                     "plugintype": true
-                  },
                   "renameByName": {
                      "Value": "Use"
                   }
@@ -795,15 +799,20 @@
          "title": "Guest status",
          "transformations": [
             {
+               "id": "filterFieldsByName",
+               "options": {
+                  "include": {
+                     "names": [
+                        "name",
+                        "type",
+                        "Value"
+                     ]
+                  }
+               }
+            },
+            {
                "id": "organize",
                "options": {
-                  "excludeByName": {
-                     "Time": true,
-                     "id": true,
-                     "node": true,
-                     "tags": true,
-                     "template": true
-                  },
                   "renameByName": {
                      "Value": "Up"
                   }
@@ -822,6 +831,10 @@
    "templating": {
       "list": [
          {
+            "current": {
+               "text": "All",
+               "value": "$__all"
+            },
             "datasource": {
                "type": "prometheus",
                "uid": "prometheus"

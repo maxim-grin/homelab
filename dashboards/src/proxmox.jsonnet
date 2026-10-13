@@ -33,6 +33,7 @@ local count(type, state) =
 local guestVar =
   g.dashboard.variable.query.new('guest', 'label_values(pve_guest_info{template="0"}, name)')
   + g.dashboard.variable.query.withDatasource(h.ds.type, h.ds.uid)
+  + { current: { text: 'All', value: '$__all' } }
   + g.dashboard.variable.query.selectionOptions.withMulti()
   + g.dashboard.variable.query.selectionOptions.withIncludeAll()
   + g.dashboard.variable.query.refresh.onTime()
@@ -42,7 +43,7 @@ local links = [
   g.dashboard.link.link.new('Homelab overview', '/d/homelab-overview'),
 ];
 
-local thin = 'pve_disk_usage_bytes{id="storage/pve/local-lvm"} / pve_disk_size_bytes{id="storage/pve/local-lvm"}';
+local thin = 'pve_disk_usage_bytes{id=~"storage/.+/local-lvm"} / pve_disk_size_bytes{id=~"storage/.+/local-lvm"}';
 
 local storageUse = 'pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"} * on(id) group_left(storage) pve_storage_info';
 
@@ -53,13 +54,8 @@ local steps = [[0, h.colors.green], [0.7, h.colors.amber], [0.8, h.colors.red]];
 local storageTable =
   h.table('Storage use', storageUse)
   + g.panel.table.queryOptions.withTransformations([
-    {
-      id: 'organize',
-      options: {
-        excludeByName: { Time: true, id: true, node: true, content: true, plugintype: true },
-        renameByName: { Value: 'Use' },
-      },
-    },
+    { id: 'filterFieldsByName', options: { include: { names: ['storage', 'Value'] } } },
+    { id: 'organize', options: { renameByName: { Value: 'Use' } } },
   ])
   + g.panel.table.standardOptions.withOverrides([
     {
@@ -86,13 +82,8 @@ local storageTable =
 local guestTable =
   h.table('Guest status', perGuest('pve_up') + ' * on(id) group_left(type) ' + guests)
   + g.panel.table.queryOptions.withTransformations([
-    {
-      id: 'organize',
-      options: {
-        excludeByName: { Time: true, id: true, node: true, tags: true, template: true },
-        renameByName: { Value: 'Up' },
-      },
-    },
+    { id: 'filterFieldsByName', options: { include: { names: ['name', 'type', 'Value'] } } },
+    { id: 'organize', options: { renameByName: { Value: 'Up' } } },
   ])
   + g.panel.table.standardOptions.withOverrides([
     {
@@ -119,7 +110,7 @@ h.dashboard('Proxmox', 'proxmox', ['proxmox'])
 + g.dashboard.withVariables([guestVar])
 + h.withPanels([
   // Health.
-  h.stat('Exporter scraping', '1 - absent(pve_up)', 'short', [[0, h.colors.red], [1, h.colors.green]]),
+  h.stat('Exporter scraping', 'clamp_max(count(pve_up), 1) or vector(0)', 'short', [[0, h.colors.red], [1, h.colors.green]]),
   h.stat('Host up', 'pve_up{' + node + '}', 'short', [[0, h.colors.red], [1, h.colors.green]]),
   h.stat('Host uptime', 'pve_uptime_seconds{' + node + '}', 's'),
   h.stat('VMs running', count('qemu', 1), 'short', [[0, h.colors.red], [1, h.colors.green]]),
