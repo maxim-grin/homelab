@@ -82,7 +82,7 @@ Pins (verbatim):
 
 - [ ] ADR in the repo's format (copy structure from 0030): context with the 6m vs 1m52s numbers, decision (the spec's Decisions list, condensed), consequences (a missed filter dependency skips a check on a PR; push to `main` is the backstop; `ansible-lint` becomes a required check only when the owner adds it).
 - [ ] Index line in `docs/decisions/README.md`.
-- [ ] `docs/operations.md`: update wherever it lists CI jobs or says the hooks run in one job; add `ansible-lint` job. Leave the SHA-256 table alone.
+- [ ] `README.md` "CI" section (not operations.md, which has no job list): six jobs, gating note.
 - [ ] Verify: `pre-commit run --all-files`, `scripts/check-runbooks.sh` pass.
 - [ ] Commit: `docs: add ADR 0031 for path-gated CI`
 
