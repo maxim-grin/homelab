@@ -36,6 +36,10 @@ env:
   YQ_VERSION: "4.53.6"
   # renovate: datasource=github-releases depName=gitleaks/gitleaks extractVersion=^v(?<version>.+)$
   GITLEAKS_VERSION: "8.30.0"
+  # renovate: datasource=github-releases depName=google/go-jsonnet extractVersion=^v(?<version>.+)$
+  JSONNET_VERSION: "0.22.0"
+  # renovate: datasource=github-releases depName=jsonnet-bundler/jsonnet-bundler extractVersion=^v(?<version>.+)$
+  JB_VERSION: "0.6.0"
   # SHA-256 of each release asset downloaded below, from GitHub's per-asset
   # digest (ADR 0017). For a new version:
   #   gh api repos/<owner>/<repo>/releases/tags/<tag> \
@@ -44,6 +48,9 @@ env:
   KUSTOMIZE_SHA256: "029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d"
   KUBECONFORM_SHA256: "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883"
   YQ_SHA256: "c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385"
+  JSONNET_SHA256: "e87a93ea44e34da92c15636205c7f2240bf3ac92d00ccb855dbb4e7e03ea6941"
+  # jsonnet-bundler publishes no digest: computed from the downloaded asset.
+  JB_SHA256: "78e54afbbc3ff3e0942b1576b4992277df4f6beb64cddd58528a76f0cd70db54"
 
 jobs:
   # Which areas a pull request touches. The jobs below skip themselves when
@@ -61,6 +68,7 @@ jobs:
       ansible: ${{ steps.filter.outputs.ansible }}
       terraform: ${{ steps.filter.outputs.terraform }}
       manifests: ${{ steps.filter.outputs.manifests }}
+      dashboards: ${{ steps.filter.outputs.dashboards }}
       scripts: ${{ steps.filter.outputs.scripts }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -83,6 +91,11 @@ jobs:
               - *ci
               - argocd/**
               - scripts/check-manifests.sh
+            dashboards:
+              - *ci
+              - dashboards/**
+              - argocd/apps/grafana-dashboards/**
+              - scripts/check-dashboards.sh
             scripts:
               - *ci
               - scripts/**
@@ -271,6 +284,43 @@ jobs:
       - name: Render and schema-check manifests
         run: scripts/check-manifests.sh
 
+  # Grafana dashboards are jsonnet; the committed JSON must be exactly what
+  # the source renders (scripts/check-dashboards.sh).
+  dashboards:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.dashboards == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install jsonnet, jb, kustomize and yq
+        run: |
+          bin="$HOME/.local/bin"
+          mkdir -p "$bin"
+          gh="https://github.com"
+          tmp="$(mktemp -d)"
+          curl -fsSL -o "$tmp/jsonnet.tgz" "${gh}/google/go-jsonnet/releases/download/v${JSONNET_VERSION}/go-jsonnet_${JSONNET_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$tmp/jb" "${gh}/jsonnet-bundler/jsonnet-bundler/releases/download/v${JB_VERSION}/jb-linux-amd64"
+          curl -fsSL -o "$tmp/kustomize.tgz" "${gh}/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$tmp/yq" "${gh}/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+          {
+            echo "${JSONNET_SHA256}  $tmp/jsonnet.tgz"
+            echo "${JB_SHA256}  $tmp/jb"
+            echo "${KUSTOMIZE_SHA256}  $tmp/kustomize.tgz"
+            echo "${YQ_SHA256}  $tmp/yq"
+          } | sha256sum --strict -c -
+          tar -xz -f "$tmp/jsonnet.tgz" -C "$bin" jsonnet jsonnetfmt
+          tar -xz -f "$tmp/kustomize.tgz" -C "$bin" kustomize
+          install -m 0755 "$tmp/jb" "$bin/jb"
+          install -m 0755 "$tmp/yq" "$bin/yq"
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Dashboards match their sources
+        run: scripts/check-dashboards.sh
+      - name: Dashboard check tests
+        run: scripts/tests/check-dashboards.test.sh
+
   # The Proxmox bootstrap script: lint it, check its Talos pins against the
   # prod root, run its stub-based tests. The runbook guard and the
   # ApplicationSet check's fixture tests run here too. shellcheck is
@@ -285,7 +335,7 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh scripts/check-appsets.sh scripts/tests/check-appsets.test.sh scripts/verify-dev.sh scripts/tests/verify-dev.test.sh
+        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh scripts/check-appsets.sh scripts/tests/check-appsets.test.sh scripts/verify-dev.sh scripts/tests/verify-dev.test.sh scripts/check-dashboards.sh scripts/tests/check-dashboards.test.sh
       - name: Talos pins match the prod root
         run: scripts/check-talos-pins.sh
       - name: Runbooks match the playbooks
