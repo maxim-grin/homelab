@@ -89,6 +89,14 @@ repos:
         files: ^ansible/.*\.(yaml|yml)$
         pass_filenames: false
 
+      # jsonnetfmt needs the binary (go-jsonnet), so this is a system hook
+      # too. vendor/ is Grafonnet fetched by jb, not ours to format.
+      - id: jsonnetfmt
+        name: jsonnetfmt
+        language: system
+        entry: jsonnetfmt --test
+        files: ^dashboards/(src|lib)/.*\.(jsonnet|libsonnet)$
+
       # terraform fmt needs the terraform binary, so this is a system hook
       # too. -recursive because the modules live outside the environment
       # directories and are edited just as often.

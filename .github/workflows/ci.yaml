@@ -105,9 +105,10 @@ jobs:
               - terraform/environments/prod/variables.tf
 
   # The repo's own hooks: file hygiene, check-yaml, private-key and gitleaks
-  # scans. ansible-lint and terraform-fmt are `language: system` hooks that
-  # need the Ansible toolchain and the terraform binary, so CI skips them
-  # here and runs them in the `ansible-lint` and `terraform` jobs instead.
+  # scans. ansible-lint, terraform-fmt and jsonnetfmt are `language: system`
+  # hooks that need the Ansible toolchain, the terraform binary and
+  # jsonnet, so CI skips them here and runs them in the `ansible-lint`,
+  # `terraform` and `dashboards` jobs instead.
   pre-commit:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
@@ -127,7 +128,7 @@ jobs:
           key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Run hooks
         env:
-          SKIP: ansible-lint,terraform-fmt
+          SKIP: ansible-lint,terraform-fmt,jsonnetfmt
         run: pre-commit run --all-files --show-diff-on-failure
       # The gitleaks hook above scans only staged changes, and nothing is
       # staged in CI, so it passes having scanned nothing. This is the real
