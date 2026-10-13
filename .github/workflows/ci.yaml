@@ -52,7 +52,7 @@ jobs:
   # (a skipped workflow leaves its checks pending and blocks the merge).
   # A push to main skips this step and every gated job runs (ADR 0031).
   changes:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -96,7 +96,7 @@ jobs:
   # need the Ansible toolchain and the terraform binary, so CI skips them
   # here and runs them in the `ansible-lint` and `terraform` jobs instead.
   pre-commit:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -139,7 +139,7 @@ jobs:
     # branch, not the message the owner types when squash-merging. The
     # human rules still apply to every other pull request.
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'renovate[bot]'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -176,7 +176,7 @@ jobs:
   ansible-lint:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.ansible == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -202,7 +202,7 @@ jobs:
   terraform:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.terraform == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -241,7 +241,7 @@ jobs:
   manifests:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.manifests == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -278,7 +278,7 @@ jobs:
   scripts:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.scripts == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
