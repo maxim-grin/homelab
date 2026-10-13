@@ -17,6 +17,8 @@ concurrency:
 env:
   # renovate: datasource=pypi depName=pre-commit
   PRE_COMMIT_VERSION: "4.6.2"
+  # renovate: datasource=github-releases depName=astral-sh/uv
+  UV_VERSION: "0.13.0"
   # renovate: datasource=pypi depName=ansible-lint
   ANSIBLE_LINT_VERSION: "26.9.0"
   # renovate: datasource=github-releases depName=hashicorp/terraform extractVersion=^v(?<version>.+)$
@@ -43,11 +45,10 @@ env:
   YQ_SHA256: "c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385"
 
 jobs:
-  # The repo's own hooks, unchanged: file hygiene, check-yaml, private-key
-  # and gitleaks scans, ansible-lint, terraform fmt. ansible-lint and
-  # terraform-fmt are `language: system` hooks, so the runner needs the
-  # binaries and the collections in ansible/requirements.yml. No --syntax-check with
-  # secret.yaml: it needs the vault password, which CI does not have.
+  # The repo's own hooks: file hygiene, check-yaml, private-key and gitleaks
+  # scans. ansible-lint and terraform-fmt are `language: system` hooks that
+  # need the Ansible toolchain and the terraform binary, so CI skips them
+  # here and runs them in the `ansible-lint` and `terraform` jobs instead.
   pre-commit:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -56,18 +57,18 @@ jobs:
         with:
           fetch-depth: 0 # gitleaks
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          python-version: "3.12"
-      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+          version: ${{ env.UV_VERSION }}
+      - name: Install pre-commit
+        run: uv tool install "pre-commit==${PRE_COMMIT_VERSION}"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-      - name: Install pre-commit, ansible-lint and the collection
-        run: |
-          pip install "pre-commit==${PRE_COMMIT_VERSION}" "ansible-lint==${ANSIBLE_LINT_VERSION}"
-          ansible-galaxy collection install -r ansible/requirements.yml
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Run hooks
+        env:
+          SKIP: ansible-lint,terraform-fmt
         run: pre-commit run --all-files --show-diff-on-failure
       # The gitleaks hook above scans only staged changes, and nothing is
       # staged in CI, so it passes having scanned nothing. This is the real
@@ -99,11 +100,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          python-version: "3.12"
+          version: ${{ env.UV_VERSION }}
       - name: Install pre-commit
-        run: pip install "pre-commit==${PRE_COMMIT_VERSION}"
+        run: uv tool install "pre-commit==${PRE_COMMIT_VERSION}"
       - name: Check commit messages
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -123,6 +124,33 @@ jobs:
           done
           exit "$status"
 
+  # The whole ansible/ project, as the local hook lints it: handed a single
+  # playbook ansible-lint cannot resolve its roles. No --syntax-check with
+  # secret.yaml: it needs the vault password, which CI does not have.
+  ansible-lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      # ansible-core's executables (ansible-galaxy, ansible-playbook) are not
+      # on PATH from a bare tool install; the collections step and ansible-lint
+      # itself need them.
+      - name: Install ansible-lint
+        run: uv tool install "ansible-lint==${ANSIBLE_LINT_VERSION}" --with-executables-from ansible-core
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.ansible/collections
+          key: ansible-collections-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}
+      - name: Install collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+      - name: ansible-lint
+        run: cd ansible && ansible-lint .
+
   terraform:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -137,6 +165,9 @@ jobs:
       - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
+      # Skipped in the pre-commit job, which has no terraform binary.
+      - name: terraform fmt
+        run: terraform fmt -recursive -check -diff terraform
       # backend.tf is gitignored, so -backend=false is the only init that
       # can work here; validate needs no variables and no credentials.
       - name: terraform init and validate
