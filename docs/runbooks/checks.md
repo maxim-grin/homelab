@@ -595,6 +595,36 @@ error an Application reports as `ComparisonError`. Check
 [Vault status](#is-vault-up-and-unsealed) first, then that the path is
 seeded.
 
+### Edit a Grafana dashboard
+
+When: changing a panel or adding a dashboard. Dashboards are jsonnet; the
+rendered JSON is committed and is what Argo delivers
+([ADR 0032](../decisions/0032-dashboards-as-jsonnet.md)). A change made in
+Grafana's UI is lost at the next sync. Needs `jsonnet`, `jsonnetfmt`, `jb`,
+`kustomize` and `yq` on the operator's workstation; run from the repo root.
+
+```bash
+# edit dashboards/src/<name>.jsonnet (helpers are in dashboards/lib/), then
+scripts/check-dashboards.sh --write   # renders argocd/apps/grafana-dashboards/prod/<name>.json
+scripts/check-dashboards.sh           # compare; the check CI runs
+git add dashboards argocd/apps/grafana-dashboards
+```
+
+Commit the source and the rendered JSON together. A new dashboard also
+needs a `configMapGenerator` entry in
+`argocd/apps/grafana-dashboards/prod/kustomization.yaml`.
+
+Expect: the second command exits 0. After the pull request merges and Argo
+syncs (about 3 minutes), the dashboard appears in the Homelab folder at
+`grafana.mgryn.cc`; the sidecar reloads without a restart.
+
+If not: drift means the JSON was not re-rendered, so run `--write` and
+commit it. A dashboard missing from Grafana: check its ConfigMap carries
+the label `grafana_dashboard: "1"`
+(`kubectl --kubeconfig "$PROD_KC" -n monitoring get cm -l grafana_dashboard=1`),
+and that the Application is synced
+([List Applications with sync and health](#list-applications-with-sync-and-health)).
+
 ## Cluster
 
 ### Nodes

@@ -181,6 +181,18 @@ work, not the file's syntax, so it is no proof of a good config.
    `monitoring-secrets` `Unknown` on sync status; unseal, then sync by
    hand as in `docs/rebuild.md` step 18.2.
 
+## Grafana dashboards
+
+Dashboards are jsonnet in `dashboards/src/`, rendered to JSON under
+`argocd/apps/grafana-dashboards/prod/` and committed. Argo turns each JSON
+into a ConfigMap in `monitoring`; Grafana's sidecar loads it into the
+Homelab folder ([ADR 0032](decisions/0032-dashboards-as-jsonnet.md)).
+To change one: edit the source, render with
+`scripts/check-dashboards.sh --write`, commit both, merge, and wait for the
+sync. Commands in
+[Edit a Grafana dashboard](runbooks/checks.md#edit-a-grafana-dashboard).
+CI fails a pull request whose JSON differs from what the source renders.
+
 ## jobboard image version
 
 jobboard is the owner's own web application, deployed here with its
