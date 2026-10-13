@@ -1,0 +1,846 @@
+{
+   "editable": false,
+   "links": [
+      {
+         "title": "Homelab overview",
+         "type": "link",
+         "url": "/d/homelab-overview"
+      }
+   ],
+   "panels": [
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "red",
+                        "value": null
+                     },
+                     {
+                        "color": "green",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 0
+         },
+         "id": 1,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "1 - absent(pve_up)"
+            }
+         ],
+         "title": "Exporter scraping",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "red",
+                        "value": null
+                     },
+                     {
+                        "color": "green",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 0
+         },
+         "id": 2,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_up{id=\"node/pve\"}"
+            }
+         ],
+         "title": "Host up",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     }
+                  ]
+               },
+               "unit": "s"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 0
+         },
+         "id": 3,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_uptime_seconds{id=\"node/pve\"}"
+            }
+         ],
+         "title": "Host uptime",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "red",
+                        "value": null
+                     },
+                     {
+                        "color": "green",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 6
+         },
+         "id": 4,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count((pve_up == 1) * on(id) group_left() pve_guest_info{template=\"0\", type=\"qemu\"}) or vector(0)"
+            }
+         ],
+         "title": "VMs running",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 6
+         },
+         "id": 5,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count((pve_up == 0) * on(id) group_left() pve_guest_info{template=\"0\", type=\"qemu\"}) or vector(0)"
+            }
+         ],
+         "title": "VMs stopped",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "red",
+                        "value": null
+                     },
+                     {
+                        "color": "green",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 6
+         },
+         "id": 6,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count((pve_up == 1) * on(id) group_left() pve_guest_info{template=\"0\", type=\"lxc\"}) or vector(0)"
+            }
+         ],
+         "title": "LXCs running",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 12
+         },
+         "id": 7,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count((pve_up == 0) * on(id) group_left() pve_guest_info{template=\"0\", type=\"lxc\"}) or vector(0)"
+            }
+         ],
+         "title": "LXCs stopped",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "percentunit"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 12
+         },
+         "id": 8,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_cpu_usage_ratio{id=\"node/pve\"}",
+               "legendFormat": "cpu"
+            }
+         ],
+         "title": "Host CPU",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "bytes"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 12
+         },
+         "id": 9,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_memory_size_bytes{id=\"node/pve\"}",
+               "legendFormat": "size"
+            },
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_memory_usage_bytes{id=\"node/pve\"}",
+               "legendFormat": "used"
+            }
+         ],
+         "title": "Host memory",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 0.69999999999999996
+                     },
+                     {
+                        "color": "red",
+                        "value": 0.80000000000000004
+                     }
+                  ]
+               },
+               "unit": "percentunit"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 18
+         },
+         "id": 10,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "max(pve_disk_usage_bytes{id=\"storage/pve/local-lvm\"} / pve_disk_size_bytes{id=\"storage/pve/local-lvm\"})"
+            }
+         ],
+         "title": "Thin pool use (local-lvm)",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "overrides": [
+               {
+                  "matcher": {
+                     "id": "byName",
+                     "options": "Use"
+                  },
+                  "properties": [
+                     {
+                        "id": "unit",
+                        "value": "percentunit"
+                     },
+                     {
+                        "id": "custom.cellOptions",
+                        "value": {
+                           "type": "color-background"
+                        }
+                     },
+                     {
+                        "id": "thresholds",
+                        "value": {
+                           "mode": "absolute",
+                           "steps": [
+                              {
+                                 "color": "green",
+                                 "value": null
+                              },
+                              {
+                                 "color": "orange",
+                                 "value": 0.69999999999999996
+                              },
+                              {
+                                 "color": "red",
+                                 "value": 0.80000000000000004
+                              }
+                           ]
+                        }
+                     }
+                  ]
+               }
+            ]
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 18
+         },
+         "id": 11,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_disk_usage_bytes{id=~\"storage/.+\"} / pve_disk_size_bytes{id=~\"storage/.+\"} * on(id) group_left(storage) pve_storage_info",
+               "format": "table",
+               "instant": true
+            }
+         ],
+         "title": "Storage use",
+         "transformations": [
+            {
+               "id": "organize",
+               "options": {
+                  "excludeByName": {
+                     "Time": true,
+                     "content": true,
+                     "id": true,
+                     "node": true,
+                     "plugintype": true
+                  },
+                  "renameByName": {
+                     "Value": "Use"
+                  }
+               }
+            }
+         ],
+         "type": "table"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "percentunit"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 18
+         },
+         "id": 12,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_cpu_usage_ratio{id=~\"qemu/.+|lxc/.+\"} * on(id) group_left(name) pve_guest_info{template=\"0\", name=~\"$guest\"}",
+               "legendFormat": "{{name}}"
+            }
+         ],
+         "title": "Guest CPU",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "bytes"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 24
+         },
+         "id": 13,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_memory_usage_bytes{id=~\"qemu/.+|lxc/.+\"} * on(id) group_left(name) pve_guest_info{template=\"0\", name=~\"$guest\"}",
+               "legendFormat": "{{name}}"
+            }
+         ],
+         "title": "Guest memory",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "Bps"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 24
+         },
+         "id": 14,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "rate(pve_disk_read_bytes_total{id=~\"qemu/.+|lxc/.+\"}[5m]) * on(id) group_left(name) pve_guest_info{template=\"0\", name=~\"$guest\"}",
+               "legendFormat": "{{name}}"
+            }
+         ],
+         "title": "Guest disk read",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "Bps"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 24
+         },
+         "id": 15,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "rate(pve_disk_written_bytes_total{id=~\"qemu/.+|lxc/.+\"}[5m]) * on(id) group_left(name) pve_guest_info{template=\"0\", name=~\"$guest\"}",
+               "legendFormat": "{{name}}"
+            }
+         ],
+         "title": "Guest disk write",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "Bps"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 30
+         },
+         "id": 16,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "rate(pve_network_receive_bytes_total{id=~\"qemu/.+|lxc/.+\"}[5m]) * on(id) group_left(name) pve_guest_info{template=\"0\", name=~\"$guest\"}",
+               "legendFormat": "{{name}}"
+            }
+         ],
+         "title": "Guest network in",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "Bps"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 30
+         },
+         "id": 17,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "rate(pve_network_transmit_bytes_total{id=~\"qemu/.+|lxc/.+\"}[5m]) * on(id) group_left(name) pve_guest_info{template=\"0\", name=~\"$guest\"}",
+               "legendFormat": "{{name}}"
+            }
+         ],
+         "title": "Guest network out",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "overrides": [
+               {
+                  "matcher": {
+                     "id": "byName",
+                     "options": "Up"
+                  },
+                  "properties": [
+                     {
+                        "id": "custom.cellOptions",
+                        "value": {
+                           "type": "color-background"
+                        }
+                     },
+                     {
+                        "id": "mappings",
+                        "value": [
+                           {
+                              "options": {
+                                 "0": {
+                                    "text": "down"
+                                 },
+                                 "1": {
+                                    "text": "up"
+                                 }
+                              },
+                              "type": "value"
+                           }
+                        ]
+                     },
+                     {
+                        "id": "thresholds",
+                        "value": {
+                           "mode": "absolute",
+                           "steps": [
+                              {
+                                 "color": "red",
+                                 "value": null
+                              },
+                              {
+                                 "color": "green",
+                                 "value": 1
+                              }
+                           ]
+                        }
+                     }
+                  ]
+               }
+            ]
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 30
+         },
+         "id": 18,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "pve_up{id=~\"qemu/.+|lxc/.+\"} * on(id) group_left(name) pve_guest_info{template=\"0\", name=~\"$guest\"} * on(id) group_left(type) pve_guest_info{template=\"0\", name=~\"$guest\"}",
+               "format": "table",
+               "instant": true
+            }
+         ],
+         "title": "Guest status",
+         "transformations": [
+            {
+               "id": "organize",
+               "options": {
+                  "excludeByName": {
+                     "Time": true,
+                     "id": true,
+                     "node": true,
+                     "tags": true,
+                     "template": true
+                  },
+                  "renameByName": {
+                     "Value": "Up"
+                  }
+               }
+            }
+         ],
+         "type": "table"
+      }
+   ],
+   "refresh": "1m",
+   "schemaVersion": 39,
+   "tags": [
+      "homelab",
+      "proxmox"
+   ],
+   "templating": {
+      "list": [
+         {
+            "datasource": {
+               "type": "prometheus",
+               "uid": "prometheus"
+            },
+            "includeAll": true,
+            "multi": true,
+            "name": "guest",
+            "query": "label_values(pve_guest_info{template=\"0\"}, name)",
+            "refresh": 2,
+            "sort": 1,
+            "type": "query"
+         }
+      ]
+   },
+   "time": {
+      "from": "now-6h",
+      "to": "now"
+   },
+   "timezone": "utc",
+   "title": "Proxmox",
+   "uid": "proxmox"
+}
