@@ -13,7 +13,7 @@ resources:
 # Quoted deliberately: `newTag: 1.0` parses as a float.
 images:
   - name: ghcr.io/maxim-grin/jobboard
-    newTag: "0.3.5"
+    newTag: "0.3.6"
 
 patches:
   # Prod's workers are smaller than dev's: halve both memory limits.
