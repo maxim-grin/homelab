@@ -38,6 +38,12 @@ blocks the merge.
 
 ## Consequences
 
+Measured on the PR (#149) and two throwaway probe PRs: with warm caches
+the whole run takes about 40s, `pre-commit` 12s and `ansible-lint` 22s
+(cold: 52s and 43s). A docs-only PR ran `pre-commit` and `commits` and
+skipped the other four; an `ansible/playbooks`-only PR ran `ansible-lint`
+and `scripts`. Before: 1m52s to 6m.
+
 - A PR that touches only `argocd/apps/<app>/` runs `pre-commit`, `commits`
   and `manifests`; one that touches only docs runs `pre-commit` and
   `commits`.
