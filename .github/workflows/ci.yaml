@@ -1,7 +1,8 @@
 name: ci
 
-# No path filters: with required checks, a workflow skipped by a path filter
-# leaves its check pending forever and blocks merge.
+# No `paths:` filter on the workflow: with required checks, a workflow skipped
+# by one leaves its checks pending forever and blocks merge. Jobs gate
+# themselves on the `changes` job instead (ADR 0031).
 on:
   pull_request:
   push:
@@ -45,6 +46,51 @@ env:
   YQ_SHA256: "c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385"
 
 jobs:
+  # Which areas a pull request touches. The jobs below skip themselves when
+  # their area is untouched; a skipped job counts as passing for the
+  # required checks, which is why the gating is here and not in `on:` paths
+  # (a skipped workflow leaves its checks pending and blocks the merge).
+  # A push to main skips this step and every gated job runs (ADR 0031).
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ansible: ${{ steps.filter.outputs.ansible }}
+      terraform: ${{ steps.filter.outputs.terraform }}
+      manifests: ${{ steps.filter.outputs.manifests }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            ci: &ci
+              - .github/workflows/ci.yaml
+              - .pre-commit-config.yaml
+              - ansible/requirements.yml
+              - .tflint.hcl
+            ansible:
+              - *ci
+              - ansible/**
+            terraform:
+              - *ci
+              - terraform/**
+            manifests:
+              - *ci
+              - argocd/**
+              - scripts/check-manifests.sh
+            scripts:
+              - *ci
+              - scripts/**
+              - docs/runbooks/**
+              - ansible/playbooks/**
+              - ansible/inventories/**
+              - terraform/environments/prod/variables.tf
+
   # The repo's own hooks: file hygiene, check-yaml, private-key and gitleaks
   # scans. ansible-lint and terraform-fmt are `language: system` hooks that
   # need the Ansible toolchain and the terraform binary, so CI skips them
@@ -128,6 +174,8 @@ jobs:
   # playbook ansible-lint cannot resolve its roles. No --syntax-check with
   # secret.yaml: it needs the vault password, which CI does not have.
   ansible-lint:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.ansible == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -152,6 +200,8 @@ jobs:
         run: cd ansible && ansible-lint .
 
   terraform:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.terraform == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -189,6 +239,8 @@ jobs:
           done
 
   manifests:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.manifests == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -224,6 +276,8 @@ jobs:
   # ApplicationSet check's fixture tests run here too. shellcheck is
   # preinstalled on the runner image.
   scripts:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.scripts == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

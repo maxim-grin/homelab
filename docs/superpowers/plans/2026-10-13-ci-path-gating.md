@@ -62,7 +62,7 @@ Pins (verbatim):
 - [ ] New `ansible-lint` job: checkout, `setup-uv`, `uv tool install "ansible-lint==${ANSIBLE_LINT_VERSION}" --with-executables-from ansible-core` (exposes `ansible-galaxy`), `actions/cache` for `~/.ansible/collections` keyed on `hashFiles('ansible/requirements.yml')`, `ansible-galaxy collection install -r ansible/requirements.yml`, then `cd ansible && ansible-lint .` (the same command as the hook).
 - [ ] `terraform` job: add a step `terraform fmt -recursive -check -diff` run from `terraform/` before `init`.
 - [ ] Verify locally: `pre-commit run --all-files` and `python3 -c 'import yaml;yaml.safe_load(open(".github/workflows/ci.yaml"))'`; expect pass. If `actionlint` exists locally, run it.
-- [ ] Commit: `ci: split ansible-lint, use uv and caches`
+- [ ] Commit: `ops: split ansible-lint, use uv and caches`
 
 ### Task 2: `changes` job and job-level gating
 
@@ -74,7 +74,7 @@ Pins (verbatim):
 - [ ] Gate `ansible-lint`, `terraform`, `manifests`, `scripts` with `needs: changes` and `if: github.event_name != 'pull_request' || needs.changes.outputs.<area> == 'true'`. `pre-commit` and `commits` are not gated and do not need `changes`.
 - [ ] Replace the "No path filters…" header comment with the new rule: workflow unfiltered, jobs gated, skipped counts as pass, push to `main` runs all.
 - [ ] Verify: `check-yaml` hook passes; `scripts/check-runbooks.sh` passes.
-- [ ] Commit: `ci: gate jobs on changed paths`
+- [ ] Commit: `ops: gate jobs on changed paths`
 
 ### Task 3: ADR and docs
 
