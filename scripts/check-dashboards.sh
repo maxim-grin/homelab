@@ -6,7 +6,8 @@
 # app's kustomization. Runs in CI (the `dashboards` job) and locally.
 #
 #   scripts/check-dashboards.sh           compare; exit 1 on any drift
-#   scripts/check-dashboards.sh --write   render in place instead
+#   scripts/check-dashboards.sh --write   render in place instead; skips the
+#                                         orphan, uid and kustomization checks
 #
 # Exit codes: 0 clean, 1 drift or a broken source, 2 missing tool.
 # DASHBOARDS_ROOT overrides the repository root (the tests use it).
@@ -91,12 +92,14 @@ for j in "$out"/*.json; do
   n=$(basename "$j" .json)
   [ -f "$src/$n.jsonnet" ] || fail "$j has no $src/$n.jsonnet"
 done
-dups=$(for j in "$out"/*.json; do [ -e "$j" ] && yq -r '.uid' "$j"; done | sort | uniq -d)
+dups=$(for j in "$out"/*.json; do
+  if [ -e "$j" ]; then yq -r '.uid' "$j"; fi
+done | sort | uniq -d)
 [ -z "$dups" ] || fail "duplicate dashboard uid: $(echo "$dups" | tr '\n' ' ')"
 
 echo "== kustomization"
 if [ -f "$out/kustomization.yaml" ]; then
-  listed=$(yq -r '.configMapGenerator[].files[]' "$out/kustomization.yaml" | sed 's/^.*=//')
+  listed=$(yq -r '.configMapGenerator[]?.files[]?' "$out/kustomization.yaml" | sed 's/^.*=//')
   for s in "${sources[@]}"; do
     n=$(basename "$s" .jsonnet)
     grep -qxF "$n.json" <<<"$listed" || fail "$n.json is not listed in $out/kustomization.yaml"

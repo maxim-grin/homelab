@@ -89,6 +89,21 @@ expect write 0 'dashboards ok'
 mkdir -p "$work/empty/dashboards/src"
 expect empty 0 'skipped'
 
+# App directory holds only a kustomization, no sources, no JSON.
+mkdir -p "$work/kustomization-only/dashboards/src" "$work/kustomization-only/$PROD"
+printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nconfigMapGenerator:\n  - name: x\n    literals:\n      - k=v\n' > "$work/kustomization-only/$PROD/kustomization.yaml"
+expect kustomization-only 0 'dashboards ok'
+
+# Sources exist but no JSON at all: a reported failure, not a silent abort.
+fixture all-json-missing
+rm "$work/all-json-missing/$PROD"/*.json
+expect all-json-missing 1 'has no argocd/apps/grafana-dashboards/prod/a.json'
+
+# A generator using literals, no files key: reported, not a silent abort.
+fixture literals-generator
+printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nconfigMapGenerator:\n  - name: x\n    literals:\n      - k=v\n' > "$work/literals-generator/$PROD/kustomization.yaml"
+expect literals-generator 1 'a.json is not listed'
+
 # A PATH with none of the tools.
 rc=0
 out="$(PATH="$work/empty" DASHBOARDS_ROOT="$work/good" /bin/bash "$CHECK" 2>&1)" || rc=$?
