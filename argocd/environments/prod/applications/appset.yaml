@@ -95,12 +95,25 @@ spec:
             factor: 2
             maxDuration: 5m
   # The per-entry options: CreateNamespace and ServerSideApply from the
-  # config's booleans, and the namespace labels (ingress-nginx's Pod
+  # config's booleans, the namespace labels (ingress-nginx's Pod
   # Security level) as managedNamespaceMetadata, under syncPolicy where
-  # Argo reads it. Merged into the template above; an entry that sets
-  # none renders the no-op patch `{}`.
+  # Argo reads it, and serverSideDiff as the compare-options annotation on
+  # the Application itself. ServerSideApply changes how Argo syncs, not how
+  # it compares: an app that syncs server-side but diffs client-side can
+  # read OutOfSync on fields the API server fills in (ADR 0030). Merged
+  # into the template above; an entry that sets none renders the no-op
+  # patch `{}`.
   templatePatch: |
-    {{- if or .createNamespace .serverSideApply (hasKey . "namespaceLabels") }}
+    {{- $ssd := false }}
+    {{- if hasKey . "serverSideDiff" }}{{- $ssd = .serverSideDiff }}{{- end }}
+    {{- $spec := or .createNamespace .serverSideApply (hasKey . "namespaceLabels") }}
+    {{- if or $spec $ssd }}
+    {{- if $ssd }}
+    metadata:
+      annotations:
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+    {{- end }}
+    {{- if $spec }}
     spec:
       syncPolicy:
         {{- if or .createNamespace .serverSideApply }}
@@ -117,6 +130,7 @@ spec:
           labels:
             {{- toYaml .namespaceLabels | nindent 8 }}
         {{- end }}
+    {{- end }}
     {{- else }}
     {}
     {{- end }}

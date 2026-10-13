@@ -34,8 +34,8 @@
 #   - every entry has env, namespace, createNamespace and serverSideApply
 #     (the set renders with missingkey=error), and no config.yaml sits
 #     below argocd/apps/<dir>/.
-#   - when any entry sets createNamespace, serverSideApply or
-#     namespaceLabels, spec.templatePatch exists and reads that key. The
+#   - when any entry sets createNamespace, serverSideApply, serverSideDiff
+#     or namespaceLabels, spec.templatePatch exists and reads that key. The
 #     patch is checked by text, not rendered: its output is verified with
 #     `argocd appset generate` on the operator's workstation.
 # Strict schema validation of the set (a key at the wrong level) is
@@ -168,8 +168,9 @@ declare -A uses=() # config key -> "<needle in patch> <rendered marker>"
 uses[createNamespace]='.createNamespace CreateNamespace=true'
 uses[serverSideApply]='.serverSideApply ServerSideApply=true'
 uses[namespaceLabels]='.namespaceLabels managedNamespaceMetadata'
+uses[serverSideDiff]='.serverSideDiff ServerSideDiff=true'
 set_keys=()
-for k in createNamespace serverSideApply namespaceLabels; do
+for k in createNamespace serverSideApply namespaceLabels serverSideDiff; do
   for cfg in "${configs[@]}"; do
     [ "$(yq 'tag' "$cfg")" = '!!seq' ] || continue
     if [ "$(yq "[.[] | select(.$k != null and .$k != false and .$k != {})] | length" "$cfg")" -gt 0 ]; then

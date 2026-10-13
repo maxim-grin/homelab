@@ -1,0 +1,7 @@
+- env: prod
+  namespace: nfs-provisioner
+  createNamespace: true
+  serverSideApply: false
+  namespaceLabels:
+    pod-security.kubernetes.io/enforce: privileged
+  serverSideDiff: true
