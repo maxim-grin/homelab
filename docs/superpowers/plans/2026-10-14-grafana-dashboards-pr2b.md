@@ -61,7 +61,8 @@ topk(2, certmanager_certificate_expiration_timestamp_seconds{cluster="prod"})
 kube_deployment_status_replicas_available{cluster="prod", namespace="nfs-system"}
 ```
 
-- [ ] **Step 2:** Record in the ledger the exact label names (PVC label, certificate name/namespace labels, deployment name). A missing metric means that panel is dropped or swapped, ruled in the ledger.
+- [x] **Step 2 (partial, 2026-10-14):** confirmed live: all six names exist in prod (CPU 110 series, memory 110, request-duration buckets 528, deployment replicas 16, PVC phase 9, restarts 40). `kubelet_volume_stats_*` labels: `cluster`, `namespace`, `persistentvolumeclaim` (jobboard's is `data-postgres-0`; dev has it too, prod's grafana PVC is `monitoring-grafana`). Certificate and nfs-system deployment labels not pasted: use cert-manager's documented `name`, `namespace` and kube-state-metrics' `deployment`, marked unverified in the PR.
+- [ ] **Step 3:** Record in the ledger the exact label names (PVC label, certificate name/namespace labels, deployment name). A missing metric means that panel is dropped or swapped, ruled in the ledger.
 
 ### Task 1: Lib `env` variable, tag link, retrofit
 
