@@ -186,7 +186,8 @@ work, not the file's syntax, so it is no proof of a good config.
 Dashboards are jsonnet in `dashboards/src/`, rendered to JSON under
 `argocd/apps/grafana-dashboards/prod/` and committed. Argo turns each JSON
 into a ConfigMap in `monitoring`; Grafana's sidecar loads it into the
-Homelab folder ([ADR 0032](decisions/0032-dashboards-as-jsonnet.md)).
+Homelab folder: Homelab overview (Grafana's home page), Proxmox, jobboard
+and platform, linked to one another by a tag ([ADR 0032](decisions/0032-dashboards-as-jsonnet.md)).
 To change one: edit the source, render with
 `scripts/check-dashboards.sh --write`, commit both, merge, and wait for the
 sync. Commands in
