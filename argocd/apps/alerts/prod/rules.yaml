@@ -217,6 +217,32 @@ spec:
             runbook: >-
               Check the PodMonitor's selector and the http-metrics port
               against the cert-manager controller pod.
+        # One absent() per component, ORed: the alert carries the missing
+        # component's name (app_kubernetes_io_name), which a count that
+        # compares against a replica total would not, and survives a
+        # change in replicas.
+        - alert: ArgoCDMetricsAbsent
+          expr: |
+            absent(up{job="monitoring/argocd", app_kubernetes_io_name="argocd-application-controller"} == 1)
+            or absent(up{job="monitoring/argocd", app_kubernetes_io_name="argocd-server"} == 1)
+            or absent(up{job="monitoring/argocd", app_kubernetes_io_name="argocd-repo-server"} == 1)
+            or absent(up{job="monitoring/argocd", app_kubernetes_io_name="argocd-applicationset-controller"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              ArgoCD {{ $labels.app_kubernetes_io_name }} is not being
+              scraped
+            description: >-
+              No target of the monitoring/argocd PodMonitor for
+              {{ $labels.app_kubernetes_io_name }} has been up for 15
+              minutes. The ArgoCD dashboard panels are blind for it.
+            runbook: >-
+              Check the PodMonitor's selector against the component's
+              pod labels and that its pod still declares a port named
+              metrics (kubectl -n argocd get pods -o
+              custom-columns=N:.metadata.name,P:.spec.containers[*].ports[*].name).
 ---
 # Ingress availability SLO: 99% of requests answered without a 5xx over
 # 30 days, so the error budget is 1%. Multi-window, multi-burn-rate alerts

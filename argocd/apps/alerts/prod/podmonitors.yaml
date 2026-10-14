@@ -65,3 +65,37 @@ spec:
     - port: http-metrics
       path: /metrics
       honorLabels: true
+---
+# ArgoCD's four long-running components, for the sync and health panels
+# and ArgoCDMetricsAbsent. One monitor: each component declares a
+# container port named `metrics` (the chart does so whether or not
+# `*.metrics.enabled` is set, and a PodMonitor needs no Service), so no
+# Ansible run is needed. `podTargetLabels` copies the component name onto
+# every series as `app_kubernetes_io_name`, which the absent rule keys
+# on. Dex, Redis and the notifications controller are left out: nothing
+# reads them.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: argocd
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: argocd
+spec:
+  namespaceSelector:
+    matchNames: [argocd]
+  selector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - argocd-application-controller
+          - argocd-server
+          - argocd-repo-server
+          - argocd-applicationset-controller
+  podTargetLabels:
+    - app.kubernetes.io/name
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      honorLabels: true

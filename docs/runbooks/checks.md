@@ -774,8 +774,8 @@ change"). Otherwise rerun the LAN services playbook
 
 When: an alert says a metric is absent, or after the alerting rollout.
 Prod's Prometheus has no UI Ingress (`prometheus.mgryn.cc` is only the
-write-only receiver); port-forward in its own terminal. Dev's agent
-writes into it as `cluster=dev`.
+write-only receiver); port-forward in its own terminal. Prod's own
+series carry `cluster=prod`; dev's agent writes into it as `cluster=dev`.
 
 ```bash
 kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
@@ -784,13 +784,15 @@ kubectl --kubeconfig "$PROD_KC" -n monitoring port-forward \
 
 Then open `http://localhost:9090/targets` and `/alerts`.
 
-Expect: `pve-exporter`, `monitoring/ingress-nginx-controller` and
-`monitoring/cert-manager-controller` targets `UP`.
+Expect: `pve-exporter`, `monitoring/ingress-nginx-controller`,
+`monitoring/cert-manager-controller` and four `monitoring/argocd`
+targets (application controller, server, repo server, applicationset
+controller) `UP`.
 
 If not: a `DOWN` pve-exporter target is explained by
 `kubectl --kubeconfig "$PROD_KC" -n monitoring logs deploy/pve-exporter`.
 Other absent-metric alerts: `IngressNginxMetricsAbsent`,
-`CertManagerMetricsAbsent`, `ProxmoxPoolMetricsAbsent`
+`CertManagerMetricsAbsent`, `ArgoCDMetricsAbsent`, `ProxmoxPoolMetricsAbsent`
 ([operations.md](../operations.md), "Alerts").
 
 ### Alertmanager and the Watchdog heartbeat (prod)
