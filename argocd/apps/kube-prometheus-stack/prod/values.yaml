@@ -81,6 +81,21 @@ prometheus:
     # Dev's Prometheus agent remote-writes here.
     enableRemoteWriteReceiver: true
 
+    # Label every series prod scrapes with cluster="prod", as dev's
+    # externalLabels do for what it remote-writes, so dashboards can
+    # filter by cluster without special-casing the missing label.
+    # externalLabels would not do it: Prometheus attaches those to
+    # alerts and remote-write output, not to local series. A default
+    # scrape class applies to every ServiceMonitor, PodMonitor, Probe and
+    # ScrapeConfig that names no class of its own.
+    scrapeClasses:
+      - name: cluster-label
+        default: true
+        relabelings:
+          - action: replace
+            targetLabel: cluster
+            replacement: prod
+
     # Size-based retention below the 20Gi claim, so the TSDB can never
     # fill the nfs-prod share; the chart's time-based 10d still applies,
     # whichever comes first.
