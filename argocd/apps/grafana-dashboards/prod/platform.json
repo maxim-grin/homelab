@@ -1,0 +1,639 @@
+{
+   "description": "Prod ingress, certificates, NFS and ArgoCD. Ingress is prod-only; ArgoCD is hub-wide and ignores the env variable. The nfs-provisioner panel reads kube_deployment_status_replicas_available in namespace nfs-system; the deployment label name is unverified, so the stat shows No data if the namespace differs.",
+   "editable": false,
+   "links": [
+      {
+         "asDropdown": true,
+         "includeVars": true,
+         "tags": [
+            "homelab"
+         ],
+         "title": "Homelab dashboards",
+         "type": "dashboards"
+      }
+   ],
+   "panels": [
+      {
+         "collapsed": false,
+         "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+         },
+         "id": 1,
+         "title": "Ingress (prod)",
+         "type": "row"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "reqps"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 1
+         },
+         "id": 2,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "sum by (host) (rate(nginx_ingress_controller_requests{cluster=\"prod\", host!=\"\"}[5m]))",
+               "legendFormat": "{{host}}"
+            }
+         ],
+         "title": "Requests per second by host (prod)",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "percentunit"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 1
+         },
+         "id": 3,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "sum by (host) (rate(nginx_ingress_controller_requests{cluster=\"prod\", host!=\"\", status=~\"5..\"}[5m])) / clamp_min(sum by (host) (rate(nginx_ingress_controller_requests{cluster=\"prod\", host!=\"\"}[5m])), 1e-9)",
+               "legendFormat": "{{host}}"
+            }
+         ],
+         "title": "5xx ratio by host (prod)",
+         "type": "timeseries"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "s"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 1
+         },
+         "id": 4,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "histogram_quantile(0.95, sum by (host, le) (rate(nginx_ingress_controller_request_duration_seconds_bucket{cluster=\"prod\", host!=\"\"}[5m])))",
+               "legendFormat": "{{host}}"
+            }
+         ],
+         "title": "p95 latency by host (prod)",
+         "type": "timeseries"
+      },
+      {
+         "collapsed": false,
+         "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 7
+         },
+         "id": 5,
+         "title": "Certificates",
+         "type": "row"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "overrides": [
+               {
+                  "matcher": {
+                     "id": "byName",
+                     "options": "Days left"
+                  },
+                  "properties": [
+                     {
+                        "id": "unit",
+                        "value": "d"
+                     },
+                     {
+                        "id": "decimals",
+                        "value": 1
+                     },
+                     {
+                        "id": "custom.cellOptions",
+                        "value": {
+                           "type": "color-background"
+                        }
+                     },
+                     {
+                        "id": "thresholds",
+                        "value": {
+                           "mode": "absolute",
+                           "steps": [
+                              {
+                                 "color": "red",
+                                 "value": null
+                              },
+                              {
+                                 "color": "orange",
+                                 "value": 14
+                              },
+                              {
+                                 "color": "green",
+                                 "value": 21
+                              }
+                           ]
+                        }
+                     }
+                  ]
+               }
+            ]
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 8
+         },
+         "id": 6,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "((certmanager_certificate_expiration_timestamp_seconds{cluster=\"$env\"} > 0) - time()) / 86400",
+               "format": "table",
+               "instant": true
+            }
+         ],
+         "title": "Certificate expiry",
+         "transformations": [
+            {
+               "id": "filterFieldsByName",
+               "options": {
+                  "include": {
+                     "names": [
+                        "name",
+                        "namespace",
+                        "Value"
+                     ]
+                  }
+               }
+            },
+            {
+               "id": "organize",
+               "options": {
+                  "renameByName": {
+                     "Value": "Days left"
+                  }
+               }
+            },
+            {
+               "id": "sortBy",
+               "options": {
+                  "sort": [
+                     {
+                        "desc": false,
+                        "field": "Days left"
+                     }
+                  ]
+               }
+            }
+         ],
+         "type": "table"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "red",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 8
+         },
+         "id": 7,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count(certmanager_certificate_ready_status{cluster=\"$env\", condition=~\"False|Unknown\"} == 1) or vector(0)"
+            }
+         ],
+         "title": "Certificates not ready",
+         "type": "stat"
+      },
+      {
+         "collapsed": false,
+         "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 14
+         },
+         "id": 8,
+         "title": "NFS",
+         "type": "row"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "red",
+                        "value": null
+                     },
+                     {
+                        "color": "green",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 15
+         },
+         "id": 9,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "sum(kube_deployment_status_replicas_available{cluster=\"$env\", namespace=\"nfs-system\"}) or vector(0)"
+            }
+         ],
+         "title": "NFS provisioner available replicas",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "custom": {
+                  "fillOpacity": 10
+               },
+               "unit": "percentunit"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 15
+         },
+         "id": 10,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "kubelet_volume_stats_used_bytes{cluster=\"$env\"} / kubelet_volume_stats_capacity_bytes{cluster=\"$env\"}",
+               "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}"
+            }
+         ],
+         "title": "PVC use by claim",
+         "type": "timeseries"
+      },
+      {
+         "collapsed": false,
+         "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 21
+         },
+         "id": 11,
+         "title": "ArgoCD (hub-wide, all apps, ignores env)",
+         "type": "row"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 22
+         },
+         "id": 12,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count(max by (name) (argocd_app_info{})) or vector(0)"
+            }
+         ],
+         "title": "Apps total",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 22
+         },
+         "id": 13,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count(max by (name) (argocd_app_info{sync_status!=\"Synced\"})) or vector(0)"
+            }
+         ],
+         "title": "Apps not Synced",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "red",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 22
+         },
+         "id": 14,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count(max by (name) (argocd_app_info{health_status!=\"Healthy\"})) or vector(0)"
+            }
+         ],
+         "title": "Apps not Healthy",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "fieldConfig": {
+            "defaults": {
+               "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                     {
+                        "color": "green",
+                        "value": null
+                     },
+                     {
+                        "color": "orange",
+                        "value": 1
+                     }
+                  ]
+               },
+               "unit": "short"
+            }
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 28
+         },
+         "id": 15,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "count(max by (name) (argocd_app_info{autosync_enabled!=\"true\"})) or vector(0)"
+            }
+         ],
+         "title": "Apps without autosync",
+         "type": "stat"
+      },
+      {
+         "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+         },
+         "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 28
+         },
+         "id": 16,
+         "pluginVersion": "v11.4.0",
+         "targets": [
+            {
+               "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+               },
+               "expr": "max by (name, project, dest_namespace, dest_server, sync_status, health_status) (argocd_app_info{sync_status!=\"Synced\"}) or max by (name, project, dest_namespace, dest_server, sync_status, health_status) (argocd_app_info{health_status!=\"Healthy\"})",
+               "format": "table",
+               "instant": true
+            }
+         ],
+         "title": "Apps not Synced or not Healthy",
+         "transformations": [
+            {
+               "id": "filterFieldsByName",
+               "options": {
+                  "include": {
+                     "names": [
+                        "name",
+                        "project",
+                        "dest_namespace",
+                        "dest_server",
+                        "sync_status",
+                        "health_status"
+                     ]
+                  }
+               }
+            }
+         ],
+         "type": "table"
+      }
+   ],
+   "refresh": "1m",
+   "schemaVersion": 39,
+   "tags": [
+      "homelab",
+      "platform"
+   ],
+   "templating": {
+      "list": [
+         {
+            "current": {
+               "text": "prod",
+               "value": "prod"
+            },
+            "datasource": {
+               "type": "prometheus",
+               "uid": "prometheus"
+            },
+            "includeAll": false,
+            "multi": false,
+            "name": "env",
+            "query": "label_values(up, cluster)",
+            "refresh": 1,
+            "sort": 1,
+            "type": "query"
+         }
+      ]
+   },
+   "time": {
+      "from": "now-6h",
+      "to": "now"
+   },
+   "timezone": "utc",
+   "title": "Platform",
+   "uid": "platform"
+}
