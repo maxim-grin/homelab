@@ -46,7 +46,7 @@ kustomize, `scripts/check-dashboards.sh`, kube-prometheus-stack 92.3.0.
 
 Not delegated: the supervisor asks the operator and records the answer in the ledger.
 
-- [ ] **Step 1: Ask the operator to run in Explore (prod Prometheus) and paste:**
+- [x] **Step 1: Ask the operator to run in Explore (prod Prometheus) and paste:**
 
 ```promql
 count by (__name__) ({__name__=~"kube_pod_container_status_restarts_total|container_cpu_usage_seconds_total|container_memory_working_set_bytes|nginx_ingress_controller_request_duration_seconds_bucket|kube_deployment_status_replicas_available|kube_persistentvolumeclaim_status_phase", cluster="prod"})
@@ -62,7 +62,7 @@ kube_deployment_status_replicas_available{cluster="prod", namespace="nfs-system"
 ```
 
 - [x] **Step 2 (partial, 2026-10-14):** confirmed live: all six names exist in prod (CPU 110 series, memory 110, request-duration buckets 528, deployment replicas 16, PVC phase 9, restarts 40). `kubelet_volume_stats_*` labels: `cluster`, `namespace`, `persistentvolumeclaim` (jobboard's is `data-postgres-0`; dev has it too, prod's grafana PVC is `monitoring-grafana`). Certificate labels confirmed: `cluster`, `name`, `namespace`, `issuer_name` (e.g. `jobboard-tls`, `prometheus-tls`). nfs-system deployment label not pasted: use kube-state-metrics' `deployment`, marked unverified in the PR.
-- [ ] **Step 3:** Record in the ledger the exact label names (PVC label, certificate name/namespace labels, deployment name). A missing metric means that panel is dropped or swapped, ruled in the ledger.
+- [x] **Step 3:** Record in the ledger the exact label names (PVC label, certificate name/namespace labels, deployment name). A missing metric means that panel is dropped or swapped, ruled in the ledger.
 
 ### Task 1: Lib `env` variable, tag link, retrofit
 
@@ -75,14 +75,14 @@ kube_deployment_status_replicas_available{cluster="prod", namespace="nfs-system"
 - Produces: `h.envVar()` returns a Grafonnet query variable named `env`: `label_values(up, cluster)`, datasource `h.ds`, single-select, default `prod`, refresh on dashboard load, sorted. `h.cluster` is the string `cluster="$env"`. `h.dashboard(...)` now includes a dashboard-type link (tag `homelab`, shown as dropdown, title `Homelab dashboards`) added with `withLinksMixin`, so every dashboard has it.
 - Consumes: existing `h.dashboard`, `h.withPanels`.
 
-- [ ] **Step 1:** Add `envVar`, `cluster` and the tag link to the lib. The per-dashboard `links` arrays in overview and proxmox must switch from `withLinks` to `withLinksMixin`, and drop the `Proxmox` and `Homelab overview` link entries the tag link now covers; keep the two chart-dashboard links.
-- [ ] **Step 2:** Overview: add `h.envVar()` via `g.dashboard.withVariables`; replace each `cluster!="dev"` with `h.cluster` interpolated; retitle the firing-alerts stat and table `Firing alerts (prod)`. Proxmox gets the tag link only, no `env`.
-- [ ] **Step 3:** Update `dashboards/lib/README.md` table with `h.envVar()`, `h.cluster`, the tag link, and the stat default steps (PR 1 leftover).
-- [ ] **Step 4: Render and check**
+- [x] **Step 1:** Add `envVar`, `cluster` and the tag link to the lib. The per-dashboard `links` arrays in overview and proxmox must switch from `withLinks` to `withLinksMixin`, and drop the `Proxmox` and `Homelab overview` link entries the tag link now covers; keep the two chart-dashboard links.
+- [x] **Step 2:** Overview: add `h.envVar()` via `g.dashboard.withVariables`; replace each `cluster!="dev"` with `h.cluster` interpolated; retitle the firing-alerts stat and table `Firing alerts (prod)`. Proxmox gets the tag link only, no `env`.
+- [x] **Step 3:** Update `dashboards/lib/README.md` table with `h.envVar()`, `h.cluster`, the tag link, and the stat default steps (PR 1 leftover).
+- [x] **Step 4: Render and check**
 
 Run: `scripts/check-dashboards.sh --write && scripts/check-dashboards.sh && grep -c 'cluster!=' argocd/apps/grafana-dashboards/prod/overview.json`
 Expected: both script runs exit 0; grep prints `0`. `jq '.templating.list[].name' argocd/apps/grafana-dashboards/prod/overview.json` prints `"env"`.
-- [ ] **Step 5: Commit** `feat: env variable and tag link in lib`
+- [x] **Step 5: Commit** `feat: env variable and tag link in lib`
 
 ### Task 2: jobboard dashboard
 
@@ -103,12 +103,12 @@ Panels (namespace `jobboard`, all with `h.cluster` unless stated; names confirme
 - Ingress, titles end `(prod)`, `cluster="prod"`, `host="$host"`: requests per second, 5xx ratio (guard divide with `clamp_min`), p95 latency from `nginx_ingress_controller_request_duration_seconds_bucket` if Task 0 confirms it, else dropped.
 - Timeseries container CPU (`rate(container_cpu_usage_seconds_total{container!=""}[5m])`) and memory (`container_memory_working_set_bytes{container!=""}`) by container, if Task 0 confirms names.
 
-- [ ] **Step 1:** Write the source and the kustomization entry. Before rendering, run `scripts/check-dashboards.sh` and confirm it FAILS (JSON missing / not listed).
-- [ ] **Step 2: Render and check**
+- [x] **Step 1:** Write the source and the kustomization entry. Before rendering, run `scripts/check-dashboards.sh` and confirm it FAILS (JSON missing / not listed).
+- [x] **Step 2: Render and check**
 
 Run: `scripts/check-dashboards.sh --write && scripts/check-dashboards.sh && kustomize build argocd/apps/grafana-dashboards/prod | grep -c 'grafana_dashboard: "1"'`
 Expected: exit 0; the count is `3`.
-- [ ] **Step 3: Commit** `feat: jobboard grafana dashboard`
+- [x] **Step 3: Commit** `feat: jobboard grafana dashboard`
 
 ### Task 3: Platform dashboard
 
@@ -125,12 +125,12 @@ Rows, in this order:
 - NFS (`h.cluster`): stat nfs provisioner available replicas (`kube_deployment_status_replicas_available{namespace="nfs-system"}`, red at 0); timeseries PVC use fraction for all PVCs (`kubelet_volume_stats_*`).
 - ArgoCD (hub-wide, no env filter; row title says so): stats for apps total, not Synced (`sync_status!="Synced"`), not Healthy (`health_status!="Healthy"`), without autosync (`autosync_enabled!="true"`), all `or vector(0)` and over `max by (name) (argocd_app_info{...})` so a second replica does not double count; table of apps not Synced or not Healthy with columns name, project, dest_namespace, dest_server, sync_status, health_status.
 
-- [ ] **Step 1:** Source and kustomization entry; run the check and confirm it fails first.
-- [ ] **Step 2: Render and check**
+- [x] **Step 1:** Source and kustomization entry; run the check and confirm it fails first.
+- [x] **Step 2: Render and check**
 
 Run: `scripts/check-dashboards.sh --write && scripts/check-dashboards.sh && kustomize build argocd/apps/grafana-dashboards/prod | grep -c 'grafana_dashboard: "1"'`
 Expected: exit 0; the count is `4`.
-- [ ] **Step 3: Commit** `feat: platform grafana dashboard`
+- [x] **Step 3: Commit** `feat: platform grafana dashboard`
 
 ### Task 4: Home dashboard, ADR, docs
 
@@ -139,12 +139,12 @@ Expected: exit 0; the count is `4`.
 - Modify: `docs/decisions/0032-dashboards-as-jsonnet.md` (new section: `env` variable, hub-wide ArgoCD choice and why, ingress prod-only until dev is scraped, home dashboard, tag link; update "Two dashboards exist" to four)
 - Modify: `README.md` Dashboards row (four dashboards), `docs/runbooks/checks.md` section "Edit a Grafana dashboard" (note `env` and `host` dropdowns, and the post-merge home-dashboard check), `docs/operations.md` only if it lists dashboards (grep first)
 
-- [ ] **Step 1:** Make the edits above. Do not restate commands in the PR body; link the runbook entry.
-- [ ] **Step 2: Verify**
+- [x] **Step 1:** Make the edits above. Do not restate commands in the PR body; link the runbook entry.
+- [x] **Step 2: Verify**
 
 Run: `kustomize build --enable-helm argocd/apps/kube-prometheus-stack/prod | grep -n default_home_dashboard_path` and `pre-commit run --all-files` with the Global Constraints env.
 Expected: one grep line naming the path; pre-commit passes (`check-manifests.sh` kube-prometheus-stack failure is the known helm-3 local limitation, CI is the check).
-- [ ] **Step 3: Commit** `docs: adr and runbook for dashboards part 2b`; the values change is its own commit `feat: grafana home dashboard is overview`.
+- [x] **Step 3: Commit** `docs: adr and runbook for dashboards part 2b`; the values change is its own commit `feat: grafana home dashboard is overview`.
 - [ ] **Step 4:** Supervisor: write the PR body with the operator checklist (below), `gh pr ready 159` only after CI is green and the final whole-branch review is clean.
 
 ## Operator checklist (goes in the PR body)
