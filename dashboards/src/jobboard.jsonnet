@@ -37,7 +37,7 @@ h.dashboard('Jobboard', 'jobboard', ['app'])
 + g.dashboard.withVariables([h.envVar(), hostVar])
 + h.withPanels([
   // Pods.
-  h.stat('Pods not ready', 'sum(kube_pod_status_ready{' + sel + ', condition="false"}) or vector(0)', 'short', [[0, h.colors.green], [1, h.colors.red]]),
+  h.stat('Pods not ready', 'sum(kube_pod_status_ready{' + sel + ', condition="false"} * on(namespace, pod) group_left() (kube_pod_status_phase{' + sel + ', phase=~"Running|Pending"} == 1)) or vector(0)', 'short', [[0, h.colors.green], [1, h.colors.red]]),
   h.stat('Container restarts, 1h', 'sum(increase(kube_pod_container_status_restarts_total{' + sel + '}[1h])) or vector(0)', 'short', [[0, h.colors.green], [1, h.colors.amber]]),
   h.timeseries('Pod restarts by pod', { '{{pod}}': 'increase(kube_pod_container_status_restarts_total{' + sel + '}[5m])' }),
   // Storage.
@@ -54,6 +54,6 @@ h.dashboard('Jobboard', 'jobboard', ['app'])
   h.timeseries('5xx ratio (prod)', { '5xx': 'sum(rate(nginx_ingress_controller_requests{' + ing + ', status=~"5.."}[5m])) / clamp_min(sum(rate(nginx_ingress_controller_requests{' + ing + '}[5m])), 1e-9)' }, 'percentunit'),
   h.timeseries('p95 latency (prod)', { p95: 'histogram_quantile(0.95, sum by (le) (rate(nginx_ingress_controller_request_duration_seconds_bucket{' + ing + '}[5m])))' }, 's'),
   // Containers.
-  h.timeseries('Container CPU', { '{{container}}': 'sum by (container) (rate(container_cpu_usage_seconds_total{' + sel + ', container!=""}[5m]))' }, 'cores'),
+  h.timeseries('Container CPU', { '{{container}}': 'sum by (container) (rate(container_cpu_usage_seconds_total{' + sel + ', container!=""}[5m]))' }, 'short'),
   h.timeseries('Container memory', { '{{container}}': 'sum by (container) (container_memory_working_set_bytes{' + sel + ', container!=""})' }, 'bytes'),
 ])

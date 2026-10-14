@@ -278,10 +278,10 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\"}[5m]))"
+               "expr": "sum(rate(nginx_ingress_controller_requests{cluster=\"prod\", host=\"jobs.mgryn.cc\"}[5m]))"
             }
          ],
-         "title": "jobs.mgryn.cc requests per second",
+         "title": "jobs.mgryn.cc requests per second (prod)",
          "type": "stat"
       },
       {
@@ -325,10 +325,10 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\", status=~\"5..\"}[5m])) / clamp_min(sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\"}[5m])), 1e-9) or vector(0)"
+               "expr": "sum(rate(nginx_ingress_controller_requests{cluster=\"prod\", host=\"jobs.mgryn.cc\", status=~\"5..\"}[5m])) / clamp_min(sum(rate(nginx_ingress_controller_requests{cluster=\"prod\", host=\"jobs.mgryn.cc\"}[5m])), 1e-9) or vector(0)"
             }
          ],
-         "title": "jobs.mgryn.cc 5xx ratio",
+         "title": "jobs.mgryn.cc 5xx ratio (prod)",
          "type": "stat"
       },
       {

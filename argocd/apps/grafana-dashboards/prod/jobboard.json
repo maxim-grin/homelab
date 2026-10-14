@@ -50,7 +50,7 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "sum(kube_pod_status_ready{cluster=\"$env\", namespace=\"jobboard\", condition=\"false\"}) or vector(0)"
+               "expr": "sum(kube_pod_status_ready{cluster=\"$env\", namespace=\"jobboard\", condition=\"false\"} * on(namespace, pod) group_left() (kube_pod_status_phase{cluster=\"$env\", namespace=\"jobboard\", phase=~\"Running|Pending\"} == 1)) or vector(0)"
             }
          ],
          "title": "Pods not ready",
@@ -520,7 +520,7 @@
                "custom": {
                   "fillOpacity": 10
                },
-               "unit": "cores"
+               "unit": "short"
             }
          },
          "gridPos": {
