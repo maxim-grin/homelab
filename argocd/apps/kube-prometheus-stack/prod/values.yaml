@@ -161,6 +161,10 @@ grafana:
   grafana.ini:
     server:
       root_url: https://grafana.mgryn.cc
+    dashboards:
+      # The sidecar writes dashboards to /tmp/dashboards/<folder>/<key>
+      # because foldersFromFilesStructure is on.
+      default_home_dashboard_path: /tmp/dashboards/Homelab/overview.json
 
   ingress:
     enabled: true

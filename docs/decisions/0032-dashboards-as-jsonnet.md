@@ -18,8 +18,9 @@ committed.** Argo delivers the committed JSON; nothing renders at sync
 time.
 
 - **Source:** `dashboards/src/<name>.jsonnet`, with shared helpers in
-  `dashboards/lib/`. Two dashboards exist: Homelab overview (uid
-  `homelab-overview`) and Proxmox (uid `proxmox`).
+  `dashboards/lib/`. Four dashboards exist: Homelab overview (uid
+  `homelab-overview`), Proxmox (uid `proxmox`), jobboard (uid
+  `jobboard`) and platform (uid `platform`).
 - **Render:** `scripts/check-dashboards.sh --write` writes
   `argocd/apps/grafana-dashboards/prod/<name>.json`. Without `--write`
   the script compares and fails on drift, so CI proves the committed JSON
@@ -44,6 +45,46 @@ time.
   `gen/grafonnet-v13.0.0` is a deliberate later upgrade.
   `dashboards/vendor/` is gitignored and fetched by
   `jb install`.
+- **An `env` dropdown selects the spoke.** The overview, jobboard and
+  platform dashboards carry a single-select `env` variable
+  (`label_values(up, cluster)`, default `prod`), and most selectors in
+  them match `cluster="$env"` (`h.envVar()` and `h.cluster` in
+  `dashboards/lib/`). The exceptions are the ingress panels, the ArgoCD
+  row, the firing-alerts tile and the Proxmox dashboard. The jobboard dashboard also has a `host` dropdown,
+  which applies to prod only.
+- **ArgoCD panels are hub-wide, not per `env`.** The hub's Prometheus
+  scrapes the one ArgoCD, so every `argocd_app_info` series carries
+  `cluster="prod"`, the hub, whatever the application deploys to. The
+  spoke an application targets is the `dest_server` label. Filtering
+  those panels by `env` would show the hub's series under `prod` and
+  nothing under `dev`, so they ignore the dropdown.
+- **Ingress panels are prod-only for now.** Dev's ingress-nginx is not
+  scraped (`nginx_ingress_controller_requests` has series for
+  `cluster="prod"` only), so the panels hard-code `cluster="prod"` and
+  their titles say "(prod)". With `env=dev` they still show prod data:
+  the jobboard ingress panels and the platform ingress row ignore `env`.
+  Following `env` once dev's ingress-nginx is scraped needs a dashboard
+  change; the spec allows the dropdown to drive them then.
+- **Grafana's home dashboard is the overview.** `grafana.ini` sets
+  `default_home_dashboard_path` to
+  `/tmp/dashboards/Homelab/overview.json`, where the sidecar writes the
+  file (`/tmp/dashboards/<folder>/<key>`, because
+  `foldersFromFilesStructure` is on). The setting needs a Grafana restart
+  the first time. A wrong path does not fall back to Grafana's default
+  home page: opening `/` fails with HTTP 500 "Failed to load home
+  dashboard", while other dashboards and Grafana itself start normally.
+  The same error can show briefly after a restart, before the sidecar
+  has written the file. The fix is to correct the path in the
+  kube-prometheus-stack `values.yaml`.
+- **Every dashboard links to the others by tag.** Each is tagged
+  `homelab`, and `h.dashboard` adds a dropdown link, "Homelab dashboards",
+  that lists every dashboard with that tag. A new dashboard needs the tag
+  and nothing else.
+- **Two jobboard panels wait for the crawl CronJob.** They read
+  `kube_job_*` and `kube_cronjob_status_last_*` series, which exist only
+  after the first run (04:00 UTC), and their titles end "(after first
+  run)". Dev has no crawl CronJob (only prod's kustomization lists
+  `crawl-cronjob.yaml`), so the CronJob panels are empty for `env=dev`.
 - **No swap panel on the Proxmox dashboard:** `pve-exporter` exposes no
   swap metric, and a panel on a metric that does not exist reads as zero.
 
@@ -70,11 +111,9 @@ time.
   every dashboard lands in the General folder.
 - A UI edit to a provisioned dashboard is lost at the next sync. Edit the
   source.
-- Deferred to a second pull request: a jobboard dashboard, platform
-  dashboards, and ArgoCD metrics scraping. Also deferred, because they
-  depend on those dashboards: the overview as Grafana's home dashboard
-  (`default_home_dashboard_path` in `grafana.ini`) and the overview's
-  links to every dashboard through a tag link.
+- The `deployment` label on the platform dashboard's nfs-provisioner
+  panels is unverified against the live series; correct it if a panel
+  reads empty.
 - The overview links to the chart's kubernetes-mixin and node-exporter
   dashboards by uid, pinned to chart 92.3.0; recheck them on a chart
   bump.

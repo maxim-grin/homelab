@@ -2,9 +2,13 @@
    "editable": false,
    "links": [
       {
-         "title": "Proxmox",
-         "type": "link",
-         "url": "/d/proxmox"
+         "asDropdown": true,
+         "includeVars": true,
+         "tags": [
+            "homelab"
+         ],
+         "title": "Homelab dashboards",
+         "type": "dashboards"
       },
       {
          "title": "Kubernetes / Compute Resources / Cluster",
@@ -55,7 +59,7 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "sum(up{job=\"node-exporter\", cluster!=\"dev\"} == 1) or vector(0)"
+               "expr": "sum(up{job=\"node-exporter\", cluster=\"$env\"} == 1) or vector(0)"
             }
          ],
          "title": "Nodes up",
@@ -102,7 +106,7 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "sum(kube_pod_status_ready{condition=\"false\", cluster!=\"dev\"} * on(namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\", cluster!=\"dev\"} == 1)) or vector(0)"
+               "expr": "sum(kube_pod_status_ready{condition=\"false\", cluster=\"$env\"} * on(namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\", cluster=\"$env\"} == 1)) or vector(0)"
             }
          ],
          "title": "Pods not ready",
@@ -148,7 +152,7 @@
                "expr": "count(ALERTS{alertstate=\"firing\", alertname!=\"Watchdog\"}) or vector(0)"
             }
          ],
-         "title": "Firing alerts",
+         "title": "Firing alerts (prod)",
          "type": "stat"
       },
       {
@@ -188,7 +192,7 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "count((certmanager_certificate_expiration_timestamp_seconds{cluster!=\"dev\"} > 0) - time() < 14 * 86400) or vector(0)"
+               "expr": "count((certmanager_certificate_expiration_timestamp_seconds{cluster=\"$env\"} > 0) - time() < 14 * 86400) or vector(0)"
             }
          ],
          "title": "Certificates expiring within 14 days",
@@ -274,10 +278,10 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\"}[5m]))"
+               "expr": "sum(rate(nginx_ingress_controller_requests{cluster=\"prod\", host=\"jobs.mgryn.cc\"}[5m]))"
             }
          ],
-         "title": "jobs.mgryn.cc requests per second",
+         "title": "jobs.mgryn.cc requests per second (prod)",
          "type": "stat"
       },
       {
@@ -321,10 +325,10 @@
                   "type": "prometheus",
                   "uid": "prometheus"
                },
-               "expr": "sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\", status=~\"5..\"}[5m])) / clamp_min(sum(rate(nginx_ingress_controller_requests{host=\"jobs.mgryn.cc\"}[5m])), 1e-9) or vector(0)"
+               "expr": "sum(rate(nginx_ingress_controller_requests{cluster=\"prod\", host=\"jobs.mgryn.cc\", status=~\"5..\"}[5m])) / clamp_min(sum(rate(nginx_ingress_controller_requests{cluster=\"prod\", host=\"jobs.mgryn.cc\"}[5m])), 1e-9) or vector(0)"
             }
          ],
-         "title": "jobs.mgryn.cc 5xx ratio",
+         "title": "jobs.mgryn.cc 5xx ratio (prod)",
          "type": "stat"
       },
       {
@@ -351,7 +355,7 @@
                "instant": true
             }
          ],
-         "title": "Firing alerts",
+         "title": "Firing alerts (prod)",
          "type": "table"
       }
    ],
@@ -361,6 +365,27 @@
       "homelab",
       "overview"
    ],
+   "templating": {
+      "list": [
+         {
+            "current": {
+               "text": "prod",
+               "value": "prod"
+            },
+            "datasource": {
+               "type": "prometheus",
+               "uid": "prometheus"
+            },
+            "includeAll": false,
+            "multi": false,
+            "name": "env",
+            "query": "label_values(up, cluster)",
+            "refresh": 1,
+            "sort": 1,
+            "type": "query"
+         }
+      ]
+   },
    "time": {
       "from": "now-6h",
       "to": "now"

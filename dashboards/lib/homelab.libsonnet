@@ -31,6 +31,19 @@ local thresholds(steps) =
   ds:: ds,
   colors:: colors,
 
+  // Matcher for the env variable: interpolate into selectors.
+  cluster:: 'cluster="$env"',
+
+  // Environment picker: one value of the cluster label, default prod.
+  envVar()::
+    g.dashboard.variable.query.new('env', 'label_values(up, cluster)')
+    + g.dashboard.variable.query.withDatasource(ds.type, ds.uid)
+    + g.dashboard.variable.query.withSort(1)
+    + g.dashboard.variable.query.refresh.onLoad()
+    + g.dashboard.variable.query.selectionOptions.withMulti(false)
+    + g.dashboard.variable.query.selectionOptions.withIncludeAll(false)
+    + { current: { text: 'prod', value: 'prod' } },
+
   // uid is never random: pass the dashboard's file name without the
   // extension (src/foo.jsonnet -> 'foo').
   dashboard(title, uid, tags=[])::
@@ -38,6 +51,11 @@ local thresholds(steps) =
     + g.dashboard.withUid(uid)
     + g.dashboard.withTags(['homelab'] + tags)
     + g.dashboard.withEditable(false)
+    + g.dashboard.withLinksMixin([
+      g.dashboard.link.dashboards.new('Homelab dashboards', ['homelab'])
+      + g.dashboard.link.dashboards.options.withAsDropdown(true)
+      + g.dashboard.link.dashboards.options.withIncludeVars(true),
+    ])
     + g.dashboard.withRefresh('1m')
     + g.dashboard.time.withFrom('now-6h')
     + g.dashboard.time.withTo('now'),

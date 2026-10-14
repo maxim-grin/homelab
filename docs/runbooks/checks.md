@@ -610,13 +610,32 @@ scripts/check-dashboards.sh           # compare; the check CI runs
 git add dashboards argocd/apps/grafana-dashboards
 ```
 
+Dashboards with an `env` dropdown (overview, jobboard, platform) select
+the cluster, `prod` or `dev`; the jobboard dashboard also has a `host`
+dropdown, prod only. ArgoCD panels ignore `env` and show the hub, and
+ingress panels are fixed to `prod`, so with `env=dev` they still show
+prod data. Dev has no crawl CronJob (only prod's kustomization lists
+`crawl-cronjob.yaml`), so the jobboard CronJob panels are empty for
+`env=dev`.
+
 Commit the source and the rendered JSON together. A new dashboard also
 needs a `configMapGenerator` entry in
 `argocd/apps/grafana-dashboards/prod/kustomization.yaml`.
 
 Expect: the second command exits 0. After the pull request merges and Argo
 syncs (about 3 minutes), the dashboard appears in the Homelab folder at
-`grafana.mgryn.cc`; the sidecar reloads without a restart.
+`grafana.mgryn.cc`; the sidecar reloads without a restart. The one
+exception is a change to Grafana's home dashboard (`default_home_dashboard_path` in the
+kube-prometheus-stack values), which restarts Grafana once. After that
+merge, open `grafana.mgryn.cc`: it should land on Homelab overview. A
+wrong path does not fall back to Grafana's default home page: opening
+`/` fails with HTTP 500 "Failed to load home dashboard", while other
+dashboards still open. The same error can show briefly right after the
+restart, before the sidecar writes the file, so reload once first. If it
+persists, list the folder
+(`kubectl --kubeconfig "$PROD_KC" -n monitoring exec deploy/monitoring-grafana -c grafana -- ls /tmp/dashboards/Homelab`)
+and correct `default_home_dashboard_path` in the kube-prometheus-stack
+`values.yaml`.
 
 If not: drift means the JSON was not re-rendered, so run `--write` and
 commit it. A dashboard missing from Grafana: check its ConfigMap carries

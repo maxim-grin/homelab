@@ -2,9 +2,13 @@
    "editable": false,
    "links": [
       {
-         "title": "Homelab overview",
-         "type": "link",
-         "url": "/d/homelab-overview"
+         "asDropdown": true,
+         "includeVars": true,
+         "tags": [
+            "homelab"
+         ],
+         "title": "Homelab dashboards",
+         "type": "dashboards"
       }
    ],
    "panels": [

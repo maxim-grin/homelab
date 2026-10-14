@@ -39,10 +39,6 @@ local guestVar =
   + g.dashboard.variable.query.refresh.onTime()
   + g.dashboard.variable.query.withSort(1);
 
-local links = [
-  g.dashboard.link.link.new('Homelab overview', '/d/homelab-overview'),
-];
-
 local thin = 'pve_disk_usage_bytes{id=~"storage/.+/local-lvm"} / pve_disk_size_bytes{id=~"storage/.+/local-lvm"}';
 
 local storageUse = 'pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"} * on(id) group_left(storage) pve_storage_info';
@@ -106,7 +102,6 @@ local guestTable =
   ]);
 
 h.dashboard('Proxmox', 'proxmox', ['proxmox'])
-+ g.dashboard.withLinks(links)
 + g.dashboard.withVariables([guestVar])
 + h.withPanels([
   // Health.
