@@ -45,7 +45,26 @@ one Grafana folder, for prod and for dev, without writing PromQL.
 - `nginx_ingress_controller_requests{host, ingress, namespace, status,
   method, path, service, cluster}`; prod scrapes it via
   `job="monitoring/ingress-nginx-controller"`.
+- `kubelet_volume_stats_{used,capacity,available}_bytes` (3 series, prod).
+- `certmanager_certificate_expiration_timestamp_seconds` (4),
+  `certmanager_certificate_ready_status` (12).
+- `kube_cronjob_info{cronjob="jobboard-crawl", namespace="jobboard",
+  schedule="0 4 * * *"}`, `kube_cronjob_status_active`,
+  `kube_cronjob_next_schedule_time`, `kube_cronjob_spec_suspend`.
 - `up`, kube-state-metrics and cAdvisor series carry `cluster`.
+
+## Crawl CronJob has not run yet
+
+On 2026-10-14 `kubectl -n jobboard get cronjob` showed `LAST SCHEDULE
+<none>`, age 23h: created after the previous 04:00 UTC slot, so the
+first run is the next 04:00 UTC. No `kube_job_*` or
+`kube_cronjob_status_last_*` series exist until it runs. The last-success
+and duration panels are written from kube-state-metrics' documented
+names (`kube_cronjob_status_last_successful_time`,
+`kube_job_status_start_time`, `kube_job_status_completion_time`), and
+are marked unverified in the PR until the operator confirms them after
+the first run. Until then the dashboard shows next schedule, active runs
+and suspend state.
 
 ## Dashboards
 
