@@ -632,8 +632,9 @@ wrong path does not fall back to Grafana's default home page: opening
 `/` fails with HTTP 500 "Failed to load home dashboard", while other
 dashboards still open. The same error can show briefly right after the
 restart, before the sidecar writes the file, so reload once first. If it
-persists, list the folder
-(`kubectl --kubeconfig "$PROD_KC" -n monitoring exec deploy/monitoring-grafana -c grafana -- ls /tmp/dashboards/Homelab`)
+persists, list the folder from the sidecar container, because the
+Grafana image has no `ls`
+(`kubectl --kubeconfig "$PROD_KC" -n monitoring exec deploy/monitoring-grafana -c grafana-sc-dashboard -- ls /tmp/dashboards/Homelab`)
 and correct `default_home_dashboard_path` in the kube-prometheus-stack
 `values.yaml`.
 
