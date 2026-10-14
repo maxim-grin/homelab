@@ -26,10 +26,10 @@ one Grafana folder, for prod and for dev, without writing PromQL.
   `clusters`, `root-prod`). Panels group by `name`, `project`,
   `dest_namespace`.
 - **Jobboard host is a dropdown, not a constant.** A `host` variable
-  from `label_values(nginx_ingress_controller_requests{cluster="$env",
-  host!=""}, host)` follows `env` with no hostnames in the dashboard code
-  (`jobs.mgryn.cc` prod, `dev-jobs.mgryn.cc` dev). It costs a second
-  dropdown the viewer must set; accepted.
+  from `label_values(nginx_ingress_controller_requests{cluster="prod",
+  host!=""}, host)` keeps hostnames out of the dashboard code. Prod only
+  while dev's ingress is unscraped (see "Not in this PR"); the dropdown
+  can follow `env` once dev is scraped.
 - **Home dashboard and links.** `grafana.ini` `default_home_dashboard_path`
   points at the overview file the sidecar writes; every dashboard gets a
   tag-based dashboard link (`homelab` tag) so each reaches the others.
@@ -60,9 +60,13 @@ one Grafana folder, for prod and for dev, without writing PromQL.
 
 ## Not in this PR
 
-- Dev's ingress panels show data only if dev's Prometheus agent scrapes
-  its ingress-nginx and remote-writes it. If a panel is empty for
-  `env=dev`, the fix is a scrape change in dev, a separate PR.
+- Dev ingress metrics. `count by (cluster)
+  (nginx_ingress_controller_requests)` on 2026-10-14 returned prod only
+  (44 series): dev's ingress-nginx is not scraped. The ingress rows of
+  jobboard and Platform are therefore prod-only (`cluster="prod"`, not
+  `$env`), titled as such; the `host` dropdown follows prod. Everything
+  else on the jobboard dashboard honours `env`. Scraping dev's ingress is
+  a separate PR.
 - Grafana-side alerting, LAN exporters, Vault and Postgres exporters
   (unchanged from the parent spec).
 - PR 1 leftovers: `perGuestRate` dedupe, uid-from-filename enforcement.
