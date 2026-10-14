@@ -42,9 +42,13 @@ spec:
                     secretKeyRef:
                       name: jobboard-secrets
                       key: DATABASE_URL
+              # 512Mi was OOMKilled at 338 of 508 companies (2026-10-14,
+              # peak working set 480 MiB at the last sample). With no retry,
+              # a killed run leaves its row `running`. Memory grows with the
+              # board, so the limit keeps headroom over a full run.
               resources:
                 requests:
                   cpu: 100m
-                  memory: 256Mi
-                limits:
                   memory: 512Mi
+                limits:
+                  memory: 1Gi
