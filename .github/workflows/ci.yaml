@@ -96,6 +96,8 @@ jobs:
               - dashboards/**
               - argocd/apps/grafana-dashboards/**
               - scripts/check-dashboards.sh
+              - scripts/tests/check-dashboards.test.sh
+              - scripts/tests/fixtures/dashboards/**
             scripts:
               - *ci
               - scripts/**

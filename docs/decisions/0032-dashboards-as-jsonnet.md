@@ -71,4 +71,10 @@ time.
 - A UI edit to a provisioned dashboard is lost at the next sync. Edit the
   source.
 - Deferred to a second pull request: a jobboard dashboard, platform
-  dashboards, and ArgoCD metrics scraping.
+  dashboards, and ArgoCD metrics scraping. Also deferred, because they
+  depend on those dashboards: the overview as Grafana's home dashboard
+  (`default_home_dashboard_path` in `grafana.ini`) and the overview's
+  links to every dashboard through a tag link.
+- The overview links to the chart's kubernetes-mixin and node-exporter
+  dashboards by uid, pinned to chart 92.3.0; recheck them on a chart
+  bump.

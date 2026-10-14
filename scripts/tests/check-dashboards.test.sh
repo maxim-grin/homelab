@@ -52,8 +52,16 @@ local panel = import 'panel.libsonnet';
 JS
 expect stale 1 'differs from dashboards/src/a.jsonnet'
 
+# Portable in-place edit: GNU and BSD sed disagree on -i.
+sedi() {
+  local f="${!#}" tmp
+  tmp=$(mktemp)
+  sed "${@:1:$#-1}" "$f" > "$tmp" && cat "$tmp" > "$f"
+  rm -f "$tmp"
+}
+
 fixture hand-edited
-sed -i 's/"Up"/"Down"/' "$work/hand-edited/$PROD/b.json"
+sedi 's/"Up"/"Down"/' "$work/hand-edited/$PROD/b.json"
 expect hand-edited 1 'differs from dashboards/src/b.jsonnet'
 
 fixture no-json
@@ -67,12 +75,13 @@ expect no-src 1 'c.json has no dashboards/src/c.jsonnet'
 # b renders the same uid as a; its JSON is re-rendered so only the
 # duplicate is wrong.
 fixture dup-uid
-sed -i "s/fixture-b/fixture-a/" "$work/dup-uid/dashboards/src/b.jsonnet"
+sedi "s/fixture-b/fixture-a/" "$work/dup-uid/dashboards/src/b.jsonnet"
 (cd "$work/dup-uid" && DASHBOARDS_ROOT="$PWD" "$CHECK" --write >/dev/null 2>&1)
 expect dup-uid 1 'duplicate dashboard uid: fixture-a'
 
 fixture not-in-kustomization
-sed -i '/dashboard-b/,$d' "$work/not-in-kustomization/$PROD/kustomization.yaml"
+# shellcheck disable=SC2016 # sed address, not a shell expansion
+sedi '/dashboard-b/,$d' "$work/not-in-kustomization/$PROD/kustomization.yaml"
 expect not-in-kustomization 1 'b.json is not listed'
 
 fixture unformatted
@@ -81,7 +90,7 @@ expect unformatted 1 'not jsonnetfmt-clean'
 
 # --write repairs a stale tree.
 fixture write
-sed -i 's/"Up"/"Down"/' "$work/write/$PROD/b.json"
+sedi 's/"Up"/"Down"/' "$work/write/$PROD/b.json"
 (cd "$work/write" && DASHBOARDS_ROOT="$PWD" "$CHECK" --write >/dev/null 2>&1)
 expect write 0 'dashboards ok'
 

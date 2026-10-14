@@ -67,10 +67,10 @@ echo "== render"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$out"
-for s in "${sources[@]}"; do
+for s in ${sources[@]+"${sources[@]}"}; do
   n=$(basename "$s" .jsonnet)
   # jsonnet emits keys sorted, three-space indented: stable diffs.
-  if ! jsonnet "${include[@]}" "$s" > "$work/$n.json"; then
+  if ! jsonnet ${include[@]+"${include[@]}"} "$s" > "$work/$n.json"; then
     fail "jsonnet failed to render $s"
     continue
   fi
@@ -100,7 +100,7 @@ done | sort | uniq -d)
 echo "== kustomization"
 if [ -f "$out/kustomization.yaml" ]; then
   listed=$(yq -r '.configMapGenerator[]?.files[]?' "$out/kustomization.yaml" | sed 's/^.*=//')
-  for s in "${sources[@]}"; do
+  for s in ${sources[@]+"${sources[@]}"}; do
     n=$(basename "$s" .jsonnet)
     grep -qxF "$n.json" <<<"$listed" || fail "$n.json is not listed in $out/kustomization.yaml"
   done
