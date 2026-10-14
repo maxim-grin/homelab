@@ -108,28 +108,28 @@ README.md, docs/operations.md, docs/runbooks/*.md
   repo root) so the test can point at fixtures.
 - Consumes: `jsonnet`, `jsonnetfmt`, `jb`, `kustomize`, `yq` on PATH.
 
-- [ ] **Step 1: Install the pinned tools locally** from the constraints
+- [x] **Step 1: Install the pinned tools locally** from the constraints
       above, verifying each SHA-256, into a directory outside the repo.
       Run `jsonnet --version`; expected `v0.22.0`.
-- [ ] **Step 2: Write the test first.** `check-dashboards.test.sh`
+- [x] **Step 2: Write the test first.** `check-dashboards.test.sh`
       builds fixtures and asserts exit codes for: matching render (0);
       stale JSON (1); hand-edited JSON (1); `src` file with no JSON (1);
       JSON with no `src` (1); duplicate `uid` across two dashboards (1);
       `src` file missing from the kustomization (1); missing tool (2).
       Run it; expected: fails, script absent.
-- [ ] **Step 3: Write `check-dashboards.sh`** to make the test pass.
+- [x] **Step 3: Write `check-dashboards.sh`** to make the test pass.
       Pattern after `scripts/check-manifests.sh` (strict mode, repo-root
       `cd`, tool presence loop). It runs `jb install` in `dashboards/`,
       `jsonnetfmt --test` on every `.jsonnet`/`.libsonnet`, renders with
       `-J dashboards/vendor -J dashboards/lib`, and compares. Rendered
       JSON is key-sorted and indented so diffs are stable.
-- [ ] **Step 4: Initialise jb.** `jb init`, then `jb install` the
+- [x] **Step 4: Initialise jb.** `jb init`, then `jb install` the
       Grafonnet dependency with the subdir and commit above. Confirm the
       lock file records that commit. Check the Grafana version the chart
       ships (`argocd/apps/kube-prometheus-stack/prod/charts/` after
       `kustomize build --enable-helm`) accepts the v11.4.0 schema; if
       not, switch to v13.0.0 and record why in the ADR.
-- [ ] **Step 5: CI.** Add `JSONNET_VERSION`, `JSONNET_SHA256`,
+- [x] **Step 5: CI.** Add `JSONNET_VERSION`, `JSONNET_SHA256`,
       `JB_VERSION`, `JB_SHA256` to the workflow env block with
       `# renovate:` comments in the existing style. Add a `dashboards`
       output and path filter (`*ci`, `dashboards/**`,
@@ -138,9 +138,9 @@ README.md, docs/operations.md, docs/runbooks/*.md
       `manifests`, which downloads, checksums and installs the three
       tools (kustomize, yq as the `manifests` job does) and runs the
       script and its test. Add both to the `shellcheck` step's file list.
-- [ ] **Step 6: Verify.** `scripts/tests/check-dashboards.test.sh` passes;
+- [x] **Step 6: Verify.** `scripts/tests/check-dashboards.test.sh` passes;
       `shellcheck` clean; `pre-commit run --all-files` passes.
-- [ ] **Step 7: Commit** `feat: add dashboard render check`.
+- [x] **Step 7: Commit** `feat: add dashboard render check`.
 
 ### Task 2: Library, app skeleton, delivery
 
@@ -163,24 +163,24 @@ README.md, docs/operations.md, docs/runbooks/*.md
   `prod/*.json` with the Global Constraints' label, annotation, namespace
   and no hash suffix, listing each dashboard explicitly.
 
-- [ ] **Step 1: Write the lib** with the helpers above. Panels share
+- [x] **Step 1: Write the lib** with the helpers above. Panels share
       sizes, units and colour thresholds, so the dashboards are visually
       consistent. A `uid` is derived from the dashboard's filename, never
       random.
-- [ ] **Step 2: Write `config.yaml`** from the Global Constraints, with a
+- [x] **Step 2: Write `config.yaml`** from the Global Constraints, with a
       header comment in the style of the other apps' (ordering: after
       `kube-prometheus-stack`; why `serverSideApply`).
-- [ ] **Step 3: Write the kustomization** with an empty-safe structure;
+- [x] **Step 3: Write the kustomization** with an empty-safe structure;
       the dashboards are added in Tasks 3 and 4.
-- [ ] **Step 4: Add a `jsonnetfmt` pre-commit hook** (`language: system`,
+- [x] **Step 4: Add a `jsonnetfmt` pre-commit hook** (`language: system`,
       matching how `ansible-lint` is declared, with a `files:` filter for
       `.jsonnet`/`.libsonnet`). Add its id to `SKIP` in the CI
       `pre-commit` job, since the `dashboards` job runs it.
-- [ ] **Step 5: Verify.** `scripts/check-appsets.sh` passes (the app
+- [x] **Step 5: Verify.** `scripts/check-appsets.sh` passes (the app
       appears as `prod-grafana-dashboards`);
       `scripts/check-manifests.sh` passes; `pre-commit run --all-files`
       passes.
-- [ ] **Step 6: Commit** `feat: add grafana-dashboards app`.
+- [x] **Step 6: Commit** `feat: add grafana-dashboards app`.
 
 ### Task 3: Homelab overview dashboard
 
@@ -206,16 +206,16 @@ and 5xx ratio (`nginx_ingress_controller_requests`, `host` label). A
 links row to the Proxmox dashboard (by uid) and to the chart's
 kubernetes-mixin and node-exporter dashboards.
 
-- [ ] **Step 1: Read the existing alert expressions** in
+- [x] **Step 1: Read the existing alert expressions** in
       `alerts/prod/rules.yaml` and reuse their metric names and label
       matchers verbatim where they overlap.
-- [ ] **Step 2: Write `overview.jsonnet`**, render with
+- [x] **Step 2: Write `overview.jsonnet`**, render with
       `scripts/check-dashboards.sh --write`, add it to the kustomization.
-- [ ] **Step 3: Verify.** `scripts/check-dashboards.sh` exits 0;
+- [x] **Step 3: Verify.** `scripts/check-dashboards.sh` exits 0;
       `kustomize build argocd/apps/grafana-dashboards/prod` yields a
       ConfigMap with the label and annotation; the render is a valid
       Grafana dashboard JSON (`jq .uid`).
-- [ ] **Step 4: Commit** `feat: add homelab overview dashboard`.
+- [x] **Step 4: Commit** `feat: add homelab overview dashboard`.
 
 ### Task 4: Proxmox dashboard
 
@@ -236,7 +236,7 @@ and the thin-pool, as a table with colour-coded status); guests (per-guest
 CPU, memory, disk read/write, network in/out, up/down table). A `guest`
 template variable filters the guest rows.
 
-- [ ] **Step 1: Get the real metric names.** This needs the operator:
+- [x] **Step 1: Get the real metric names.** This needs the operator:
       ask the user to run, on the Mac against the prod context,
       `kubectl -n monitoring port-forward svc/pve-exporter 9221` and
       `curl -s 'localhost:9221/pve?target=<proxmox-ip>'`, and paste the
@@ -244,12 +244,12 @@ template variable filters the guest rows.
       community dashboards (24550, 10347, 21118) without checking each
       name against that output. Record the names used in a comment at
       the top of `proxmox.jsonnet`.
-- [ ] **Step 2: Write `proxmox.jsonnet`**, render, add to the
+- [x] **Step 2: Write `proxmox.jsonnet`**, render, add to the
       kustomization.
-- [ ] **Step 3: Verify.** `scripts/check-dashboards.sh` exits 0; every
+- [x] **Step 3: Verify.** `scripts/check-dashboards.sh` exits 0; every
       metric in the file appears in the pasted output (grep each one);
       `kustomize build` shows two ConfigMaps.
-- [ ] **Step 4: Commit** `feat: add proxmox dashboard`.
+- [x] **Step 4: Commit** `feat: add proxmox dashboard`.
 
 ### Task 5: Docs and ADR
 
@@ -260,24 +260,24 @@ template variable filters the guest rows.
   diagram), `docs/operations.md`, `docs/runbooks/README.md` plus the
   runbook that fits (`checks.md`), `docs/decisions/README.md`
 
-- [ ] **Step 1: ADR 0032**, format as 0031: context (UI dashboards die
+- [x] **Step 1: ADR 0032**, format as 0031: context (UI dashboards die
       with the SSD, 2021 community JSON), decision (jsonnet source,
       rendered JSON committed, community dashboards as reference only,
       no full mixin format, Grafonnet version and why), consequences
       (toolchain pins, render step, Renovate comments).
-- [ ] **Step 2: Operations section** on editing a dashboard: edit
+- [x] **Step 2: Operations section** on editing a dashboard: edit
       `dashboards/src`, run `scripts/check-dashboards.sh --write`,
       commit both, merge, sync. Runbook entry with the same commands;
       link it from the PR's operator checklist rather than restating.
-- [ ] **Step 3: README** row for the new app; check the Mermaid diagram
+- [x] **Step 3: README** row for the new app; check the Mermaid diagram
       needs no change.
-- [ ] **Step 4: Verify.** `scripts/check-runbooks.sh` and
+- [x] **Step 4: Verify.** `scripts/check-runbooks.sh` and
       `pre-commit run --all-files` pass.
-- [ ] **Step 5: Commit** `docs: document dashboards as code`.
+- [x] **Step 5: Commit** `docs: document dashboards as code`.
 
 ### Task 6: Finish
 
-- [ ] **Step 1: Run everything:** `pre-commit run --all-files`,
+- [x] **Step 1: Run everything:** `pre-commit run --all-files`,
       `scripts/check-manifests.sh`, `scripts/check-appsets.sh`,
       `scripts/check-dashboards.sh`, the new and existing script tests.
 - [ ] **Step 2: Push and watch CI.** All of `pre-commit`, `commits`,
