@@ -1,0 +1,10 @@
+{
+   "panels": [
+      {
+         "title": "Up",
+         "type": "stat"
+      }
+   ],
+   "title": "Fixture b",
+   "uid": "fixture-b"
+}

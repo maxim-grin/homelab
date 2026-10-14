@@ -44,3 +44,4 @@ Context or Decision.
 | [0029](0029-jobboard-migrates-in-an-init-container.md) | jobboard migrates its database in an init container | Accepted | 2026-10-12 |
 | [0030](0030-opt-in-server-side-diff.md) | Apps can opt in to server-side diff | Accepted | 2026-10-12 |
 | [0031](0031-path-gated-ci.md) | CI jobs run only for the areas a pull request touches | Accepted | 2026-10-13 |
+| [0032](0032-dashboards-as-jsonnet.md) | Grafana dashboards are jsonnet, rendered to committed JSON | Accepted | 2026-10-13 |

@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# One ConfigMap per dashboard, rendered from dashboards/src/<n>.jsonnet to
+# <n>.json here; scripts/check-dashboards.sh fails when a JSON is not
+# listed below. Each generator sets the same options:
+#   namespace      monitoring, where Grafana's sidecar watches
+#   label          grafana_dashboard: "1", which the sidecar selects on
+#   annotation     grafana_folder: Homelab, the Grafana folder
+#   disableNameSuffixHash  a hash would rename the ConfigMap on every edit
+#                  and leave the old one in Grafana until pruned
+# Nothing here is secret.
+configMapGenerator:
+  - name: dashboard-overview
+    namespace: monitoring
+    files:
+      - overview.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Homelab
+  - name: dashboard-proxmox
+    namespace: monitoring
+    files:
+      - proxmox.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Homelab
