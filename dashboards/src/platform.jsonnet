@@ -78,7 +78,7 @@ local appTable =
   ]);
 
 h.dashboard('Platform', 'platform', ['platform'])
-+ g.dashboard.withDescription('Prod ingress, certificates, NFS and ArgoCD. Ingress is prod-only; ArgoCD is hub-wide and ignores the env variable. The nfs-provisioner panel reads kube_deployment_status_replicas_available in namespace nfs-system; the deployment label name is unverified, so the stat shows No data if the namespace differs.')
++ g.dashboard.withDescription('Prod ingress, certificates, NFS and ArgoCD. Ingress is prod-only; ArgoCD is hub-wide and ignores the env variable. The nfs-provisioner panel reads kube_deployment_status_replicas_available in namespace nfs-system; the deployment label is unverified, and a wrong namespace or deployment label reads 0 (red), not No data.')
 + g.dashboard.withVariables([h.envVar()])
 + g.dashboard.withPanels(
   section('Ingress (prod)', 0, [
