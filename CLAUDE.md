@@ -31,9 +31,8 @@ of its own, and the hub's `apps` ApplicationSet generates its `dev-*`
 apps. `terraform/environments/prod` is the Talos
 cluster: three nodes through the `siderolabs/talos` provider, applied from
 the operator's workstation; the prod app-of-apps delivers the hub platform apps.
-`terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs.
-Their prod halves (`nfs-prod`, `kv-prod`) stay unused until the hub platform
-lands.
+`terraform/environments/shared` holds `nfs-01`, `vault-02` and the LAN LXCs;
+each serves both clusters (`nfs-dev`/`nfs-prod` shares, `kv-dev`/`kv-prod`).
 
 ## Layout
 
@@ -45,16 +44,19 @@ argocd/           base/       AppProject
                               (Helm via helmCharts), with a config.yaml
                               per app (ADR 0026)
                   environments/prod/applications/ root-prod's children; appset.yaml
-                              generates the prod apps from the config.yaml files
+                              generates the prod and dev apps from the config.yaml files
+dashboards/       jsonnet sources for the Grafana dashboards; the rendered
+                  JSON lives in argocd/apps/grafana-dashboards
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc,
                               nfs-server, vault-vm, talos-node
                   environments/dev/     the dev machines
                   environments/prod/    the Talos prod cluster
                   environments/shared/  nfs-01, vault-02 and the LAN LXCs;
-                                        prod shares and KV ready, unused
+                                        shared by dev and prod
 docs/rebuild.md   how to recreate all of it from a bare Proxmox install
 docs/operations.md  day-to-day: UIs, applying, jobboard versions
 docs/runbooks/    copy-paste commands to run and check things; start at its README.md
+scripts/          pve-bootstrap.sh, verify-dev.sh, the check-*.sh scripts, tests/
 ```
 
 ## How a change reaches the cluster
@@ -189,7 +191,7 @@ entry from its operator checklist instead of restating the command. (ADR
 - **Resource pools are not created by Terraform**, and `terraform@pve` needs
   `TerraformProv` granted on `/pool/<name>` — the role itself carries no
   `Pool.*` privileges, so placement fails without the per-pool ACL.
-- **`nfs-dev` is the default StorageClass.** Every PVC without an explicit
+- **`nfs-dev` is dev's default StorageClass** (`nfs-prod` is prod's). Every dev PVC without an explicit
   class lands on the NFS server VM. When that provisioner is down, PVCs sit
   `Pending` and the apps above them read as broken for unrelated reasons.
   (ADR [0003](docs/decisions/0003-nfs-default-storageclass.md))
@@ -330,6 +332,7 @@ scripts/tests/verify-dev.test.sh               # dev smoke script against stubbe
 scripts/check-talos-pins.sh                    # script's Talos pins equal the prod root's defaults
 scripts/check-runbooks.sh                      # runbooks name every playbook; commands and links resolve
 scripts/check-appsets.sh                       # expands the ApplicationSet: names, paths, destinations (bash >= 4)
+scripts/check-dashboards.sh                    # committed dashboard JSON equals its jsonnet sources
 scripts/tests/check-appsets.test.sh            # the check against good and broken fixtures
 ```
 

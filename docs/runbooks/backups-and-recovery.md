@@ -333,8 +333,8 @@ it with `sudo sed -i.bak '/jobs\.mgryn\.cc/d' /etc/hosts`) and confirm the resto
 
 In Cloudflare, with every record DNS-only (grey cloud), change the A record
 for `jobs.mgryn.cc` from the dev node `$DEV_NODE_IP` to two records, `$PROD_W1_IP`
-and `$PROD_W2_IP`. Add `dev-jobs.mgryn.cc` -> `$DEV_NODE_IP` only after the
-follow-up PR that serves dev's jobboard under that name has merged. Verify by
+and `$PROD_W2_IP`. Add `dev-jobs.mgryn.cc` -> `$DEV_NODE_IP` for dev's staging copy, which
+its ingress already serves under that name. Verify by
 name:
 
 ```bash

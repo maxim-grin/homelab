@@ -27,7 +27,7 @@ Context or Decision.
 | [0012](0012-hub-and-spoke-topology.md) | Hub and spoke: Talos prod hub, kubeadm dev spoke | Accepted, prod built (0021) | 2026-09-26 |
 | [0013](0013-terraform-renames-need-moved-blocks.md) | Every Terraform rename carries a `moved` block | Accepted | 2026-09-27 |
 | [0014](0014-lan-services-as-lxcs.md) | LAN services as one unprivileged LXC each, outside both clusters | Accepted | 2026-09-27 |
-| [0015](0015-gatus-and-glance-over-alternatives.md) | Gatus + Telegram over Uptime Kuma; Glance over Homepage | Accepted (Glance not yet built) | 2026-09-27 |
+| [0015](0015-gatus-and-glance-over-alternatives.md) | Gatus + Telegram over Uptime Kuma; Glance over Homepage | Accepted | 2026-09-27 |
 | [0016](0016-traefik-as-lan-edge.md) | Traefik as the LAN edge, its own Cloudflare token, one ACME resolver rendered | Accepted | 2026-09-28 |
 | [0017](0017-verify-lan-service-binaries-sha256.md) | Every LAN-service binary is verified by SHA-256 | Accepted | 2026-09-28 |
 | [0018](0018-commit-msg-hook-enforces-rules.md) | Commit rules enforced by a commit-msg hook, not by review | Accepted | 2026-09-29 |

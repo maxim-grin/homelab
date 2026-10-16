@@ -12,8 +12,8 @@ unintended apply (#47) rebuilt all three dev VMs from the blank template;
 the cluster was recreated by the playbooks in "Rebuild order" and the
 jobboard database restored from its old volume on `nfs-01` — see
 "Rebuilding dev only". A full run from a fresh Proxmox install on a new
-disk has not been done; the bootstrap script has stub tests but has not yet
-been run on a real host, so its first real run is the final test.
+disk has not been done; the bootstrap script has stub tests and has not
+been run end to end on a fresh host, so that run is the final test.
 
 ## What git does not contain
 
@@ -341,8 +341,8 @@ Three later changes moved those numbers, all deliberate overcommit:
 module's 10 GiB default to 30 GiB the same day — on 10 GiB disks
 `/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods —
 and `nfs-01` gained a third, 10 GiB `scsi3` disk for a `backups` share
-exported to `vault-02` for Vault's raft snapshots — a daily timer keeping
-14 is coming with the Vault role rebuild, nothing writes to it yet.
+exported to `vault-02` for Vault's raft snapshots — a daily timer on `vault-02`
+keeps 14 snapshots there.
 Measured after the first two, `pvesm status` reported `local-lvm` 30.2%
 used with 98 GiB available. The pool itself is still 141 GiB; declared
 sizes now far exceed it and keep drifting further above it with each
@@ -671,8 +671,8 @@ from `secret.yaml`.
     ```
 
     Done when `kubectl get nodes` shows three Ready nodes: `talos-prod-cp1`,
-    `talos-prod-w1` and `talos-prod-w2`. The cluster has no workloads; the
-    hub platform is sub-project 3 of the roadmap.
+    `talos-prod-w1` and `talos-prod-w2`. The cluster has no workloads yet;
+    the platform apps arrive in step 18.
 
     Right after the apply returns, `kubectl get nodes` prints `No resources
     found`: the API server answers but the kubelets have not registered.
@@ -1206,20 +1206,16 @@ dev's database is staging data, and a prod rebuild restores the dump with
 
 ## Gaps worth closing before the disk is replaced
 
-Roughly in order of how much they would hurt. None is urgent while the
-cluster holds no data.
+Roughly in order of how much they would hurt.
 
 1. **Install `qemu-guest-agent` on the VMs built before 2026-09-09.** The
    template now carries it and new clones inherit it, verified with
    `qm agent 102 ping`. The five older VMs still run without it while
    Proxmox is configured to expect one, so their shutdowns are ACPI-only
    and backups cannot freeze their filesystems.
-2. **Script the template build.** The commands above are a start; a
-   `scripts/build-template.sh` would be better than a document that can drift.
-3. **Store the ansible-vault password, and the Vault unseal key and root
+2. **Store the ansible-vault password, and the Vault unseal key and root
    token, in a password manager** if they are not already there. This is
    the one that bites without warning: `secret.yaml` is committed and
    encrypted, so losing the password loses the file, and Vault has no
    recovery path at all without its unseal key — a sealed Vault with a
    lost key is unseal-able forever, not just inconvenient.
-4. **Export Grafana dashboards to git** once any are built.
