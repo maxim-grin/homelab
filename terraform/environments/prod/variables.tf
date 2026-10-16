@@ -108,7 +108,7 @@ variable "talos_nodes" {
 
   validation {
     condition     = alltrue([for n in values(var.talos_nodes) : can(cidrhost("${n.ip}/32", 0)) && can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$", n.ip))])
-    error_message = "ip must be a bare IPv4 address such as 10.0.0.110, with no prefix length."
+    error_message = "ip must be a bare IPv4 address such as 192.0.2.110, with no prefix length."
   }
 
   validation {

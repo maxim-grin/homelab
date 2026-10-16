@@ -16,7 +16,7 @@ not the LAN's clients.
 
 ## Decision
 
-Pi-hole answers the devices that are pointed at `10.0.0.140` by hand, and
+Pi-hole answers the devices that are pointed at its address by hand, and
 only those. Every other device keeps resolving through the router.
 
 Rejected:

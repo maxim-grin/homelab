@@ -210,12 +210,12 @@ entry from its operator checklist instead of restating the command. (ADR
   `jobs.mgryn.cc` (jobboard, `prod-jobboard`) needs no entry either:
   DNS-only (grey cloud) Cloudflare A records for the two prod workers, so
   it resolves on any device on the LAN. `dev-jobs.mgryn.cc` is dev's
-  staging copy (ADR 0028), one A record to `10.0.0.101`.
+  staging copy (ADR 0028), one A record to the dev node.
   `*.hl.mgryn.cc` is the second exception: a DNS-only wildcard pointing at
-  Traefik on `10.0.0.141`, which terminates TLS for the LAN services and
+  Traefik, which terminates TLS for the LAN services and
   the Proxmox UI. (ADR [0002](docs/decisions/0002-ingress-nginx-daemonset.md))
 - **Pi-hole is opt-in per device.** The router's admin page cannot hand
-  out a DNS server, so only devices whose own settings name `10.0.0.140`
+  out a DNS server, so only devices whose own settings name Pi-hole's address
   (alone, never beside a public secondary) use it; the rest of the LAN
   resolves through the router. A stopped Pi-hole takes DNS from those
   devices only. Gatus alerts on it within about two minutes, resolving
@@ -250,7 +250,7 @@ entry from its operator checklist instead of restating the command. (ADR
   Argo health stays `Healthy`, because the last-applied resources are still
   there. The `ComparisonError` condition does name Vault, in AVP's stderr;
   it is the health field that lies. `vault status` on `vault-02`
-  (`VAULT_ADDR=https://10.0.0.133:8200`, or run on the host) is the
+  (`VAULT_ADDR=https://$VAULT_IP:8200`, or run on the host) is the
   first check when an app that was fine yesterday won't sync today. (ADR
   [0004](docs/decisions/0004-secrets-in-vault-via-avp.md))
 - **`vault-02` is HTTPS from a private CA, reached as `vault.mgryn.cc`.**

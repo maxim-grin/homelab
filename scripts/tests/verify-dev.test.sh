@@ -34,7 +34,7 @@ STUB
 echo "argocd $*" >> "$S/calls.log"
 [ -n "${STUB_ARGOCD_FAIL:-}" ] && { echo "FATA[0000] rpc error"; exit 20; }
 printf 'SERVER NAME VERSION STATUS MESSAGE PROJECT\n'
-printf 'https://10.0.0.101:6443 dev 1.34 %s\n' "${STUB_DEV_STATUS:-Successful}"
+printf 'https://192.0.2.101:6443 dev 1.34 %s\n' "${STUB_DEV_STATUS:-Successful}"
 printf 'https://kubernetes.default.svc in-cluster 1.34 Successful\n'
 STUB
   cat > "$d/kubectl" <<'STUB'
@@ -105,13 +105,13 @@ assert_out_lacks() {
 # ---- cases -----------------------------------------------------------------
 
 test_all_pass() {
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 0
   assert_out_contains "PASS  vault unsealed"
   assert_out_contains "PASS  cluster dev is Successful"
   assert_out_contains "PASS  every dev-* Application is Synced and Healthy"
   assert_out_contains "PASS  all expected dev-* Applications exist"
-  assert_out_contains "PASS  dev-jobs.mgryn.cc via 10.0.0.101 answers 200"
+  assert_out_contains "PASS  dev-jobs.mgryn.cc via 192.0.2.101 answers 200"
   assert_out_contains "PASS  up{cluster=\"dev\"} has a series"
   assert_out_contains "not 413"
   assert_out_lacks "FAIL"
@@ -122,7 +122,7 @@ test_all_pass() {
 }
 
 test_secret_never_printed_or_in_argv() {
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 0
   assert_out_lacks "$SECRET"
   ! grep -q "$SECRET" "$S/calls.log" || fail "credential appears in a command line"
@@ -130,21 +130,21 @@ test_secret_never_printed_or_in_argv() {
 }
 
 test_node_ip_from_env() {
-  DEV_NODE_IP=10.0.0.201 run
+  DEV_NODE_IP=192.0.2.201 run
   assert_rc 0
-  assert_out_contains "via 10.0.0.201"
+  assert_out_contains "via 192.0.2.201"
 }
 
 test_vault_sealed() {
   export STUB_SEALED=true
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  vault status exited non-zero"
 }
 
 test_cluster_not_successful() {
   export STUB_DEV_STATUS=Unknown
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  cluster dev is not Successful"
   assert_out_contains "PASS  every dev-* Application is Synced and Healthy"
@@ -152,23 +152,23 @@ test_cluster_not_successful() {
 
 test_app_not_healthy() {
   export STUB_BAD_APP=dev-jobboard
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  not Synced and Healthy: dev-jobboard"
   assert_out_contains "PASS  cluster dev is Successful"
 }
 
 test_expected_app_missing() {
-  REQUIRED_APPS="dev-cert-manager dev-nosuchapp" run 10.0.0.101
+  REQUIRED_APPS="dev-cert-manager dev-nosuchapp" run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  missing dev-* Applications: dev-nosuchapp"
 }
 
 test_jobs_down() {
   export STUB_JOBS_CODE=502
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
-  assert_out_contains "FAIL  dev-jobs.mgryn.cc via 10.0.0.101 answers '502'"
+  assert_out_contains "FAIL  dev-jobs.mgryn.cc via 192.0.2.101 answers '502'"
 }
 
 test_no_node_ip() {
@@ -179,21 +179,21 @@ test_no_node_ip() {
 
 test_no_series() {
   export STUB_NO_SERIES=1
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  up{cluster=\"dev\"} is empty"
 }
 
 test_write_413() {
   export STUB_WRITE_CODE=413
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  receiver answers 413"
 }
 
 test_write_401() {
   export STUB_WRITE_CODE=401
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  receiver answers 401"
   assert_out_contains "size passed"
@@ -201,7 +201,7 @@ test_write_401() {
 
 test_write_000() {
   export STUB_WRITE_CODE=000
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  receiver answers '000'"
 }
@@ -210,7 +210,7 @@ test_write_403_404_fail() {
   local c
   for c in 403 404 502; do
     export STUB_WRITE_CODE=$c
-    run 10.0.0.101
+    run 192.0.2.101
     assert_rc 1
     assert_out_contains "FAIL  receiver answers '$c'"
   done
@@ -218,14 +218,14 @@ test_write_403_404_fail() {
 
 test_write_2xx_passes() {
   export STUB_WRITE_CODE=204
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 0
   assert_out_contains "PASS  receiver answers 204"
 }
 
 test_password_with_quote_and_backslash() {
   export RW_PASSWORD='pa"ss\w\\rd'
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 0
   # curl config line: both characters escaped, nothing else changed
   grep -Fq 'user = "dev-remote-write:pa\"ss\\w\\\\rd"' "$S/curl.stdin" || fail "password not escaped: $(sed 's/:.*/:<pw>/' "$S/curl.stdin")"
@@ -234,7 +234,7 @@ test_password_with_quote_and_backslash() {
 
 test_argocd_fails() {
   export STUB_ARGOCD_FAIL=1
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  argocd cluster list failed"
   assert_out_contains "PASS  every dev-* Application is Synced and Healthy"
@@ -242,7 +242,7 @@ test_argocd_fails() {
 
 test_kubectl_fails() {
   export STUB_KUBECTL_FAIL=1
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  could not list Applications on the hub"
   assert_out_contains "FAIL  prod Prometheus query failed"
@@ -251,7 +251,7 @@ test_kubectl_fails() {
 
 test_no_credential() {
   unset RW_PASSWORD
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 1
   assert_out_contains "FAIL  no remote-write credential"
 }
@@ -259,7 +259,7 @@ test_no_credential() {
 test_credential_from_vault() {
   unset RW_PASSWORD
   export VAULT_TOKEN=tok STUB_VAULT_PW="$SECRET"
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 0
   grep -q 'vault kv get -field=password kv-dev/monitoring/remote-write' "$S/calls.log" || fail "vault kv not read"
   assert_out_lacks "$SECRET"
@@ -267,7 +267,7 @@ test_credential_from_vault() {
 
 test_no_prod_kc() {
   unset PROD_KC
-  run 10.0.0.101
+  run 192.0.2.101
   assert_rc 2
   assert_out_contains "PROD_KC is not set"
 }

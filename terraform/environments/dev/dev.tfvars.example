@@ -30,8 +30,8 @@ clone_template_ubuntu = "ubuntu-cid-tp"
 clone_template_k8s    = "ubuntu-cid-tp"
 
 # Kubernetes nodes are addressed from this CIDR by the ubuntu-k8s module.
-ub_k8s_cidr = "10.0.0.0/24"
-gateway     = "10.0.0.1"
+ub_k8s_cidr = "192.0.2.0/24"
+gateway     = "192.0.2.1"
 
 # Claude Code workstation VM. Must include CIDR.
-claude_code_ip = "10.0.0.130/24"
+claude_code_ip = "192.0.2.130/24"

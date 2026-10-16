@@ -50,18 +50,18 @@ variable "gateway" {
 
 # NFS Server VM Variables
 variable "nfs_vm_ip" {
-  description = "NFS server VM IP with CIDR (e.g. '10.0.0.131/24')"
+  description = "NFS server VM IP with CIDR (e.g. '192.0.2.131/24')"
   type        = string
 }
 
 # Vault VM Variables
 variable "vault_vm_ip" {
-  description = "Vault VM IP with CIDR (e.g. '10.0.0.133/24')"
+  description = "Vault VM IP with CIDR (e.g. '192.0.2.133/24')"
   type        = string
 }
 
 # One address per LAN service, keyed by the names in local.lan_services
-# in main.tf. Each must include the prefix length, e.g. "10.0.0.140/24".
+# in main.tf. Each must include the prefix length, e.g. "192.0.2.140/24".
 variable "lxc_ips" {
   description = "Static address with prefix for each LAN service container"
   type        = map(string)
@@ -71,7 +71,7 @@ variable "lxc_ips" {
       for name in ["pihole", "traefik", "glance", "gatus", "orangutan"] :
       can(regex("^10\\.0\\.0\\.[0-9]+/24$", lookup(var.lxc_ips, name, "")))
     ])
-    error_message = "lxc_ips needs pihole, traefik, glance, gatus and orangutan, each as 10.0.0.N/24."
+    error_message = "lxc_ips needs pihole, traefik, glance, gatus and orangutan, each as 192.0.2.N/24."
   }
 }
 

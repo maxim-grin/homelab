@@ -9,4 +9,4 @@ metadata:
 type: Opaque
 stringData:
   name: prod
-  server: https://10.0.0.99:6443
+  server: https://192.0.2.99:6443

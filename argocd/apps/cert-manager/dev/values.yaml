@@ -2,7 +2,7 @@
 #
 # Here to put a real, publicly trusted certificate on jobs.mgryn.cc without
 # exposing the cluster. mgryn.cc's Cloudflare certificate cannot help: it
-# terminates at Cloudflare's edge, and jobs.mgryn.cc resolves to 10.0.0.101,
+# terminates at Cloudflare's edge, and jobs.mgryn.cc resolves to a private address,
 # so that traffic never reaches the edge to be terminated there.
 #
 # The ACME HTTP-01 challenge is equally useless here -- it requires Let's

@@ -6,7 +6,7 @@
 
 `jobs.mgryn.cc` needed a real, publicly trusted certificate. Cloudflare
 already terminates TLS for `mgryn.cc` at its edge, but `jobs.mgryn.cc`
-resolves to `10.0.0.101` — traffic to a private address never reaches
+resolves to a private address — traffic to one never reaches
 that edge, so Cloudflare's certificate has nothing to do. HTTP-01
 validation requires Let's Encrypt to reach the host from the public
 internet, which nothing here is.

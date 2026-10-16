@@ -9,14 +9,14 @@ variables {
   pm_target_node        = "pve"
   ci_user               = "test"
   ci_password           = "<PASSWORD>"
-  gateway               = "10.0.0.1"
+  gateway               = "192.0.2.1"
   project               = "homelab"
   environment           = "dev"
   ssh_private_key_path  = "/dev/null"
-  ub_k8s_cidr           = "10.0.0.0/24"
+  ub_k8s_cidr           = "192.0.2.0/24"
   clone_template_k8s    = "tmpl"
   clone_template_ubuntu = "tmpl"
-  claude_code_ip        = "10.0.0.130/24"
+  claude_code_ip        = "192.0.2.130/24"
 }
 
 run "exactly_the_kubeadm_dev_vms" {
@@ -31,7 +31,7 @@ run "exactly_the_kubeadm_dev_vms" {
     error_message = "the only worker must be kubeadm-dev-w1"
   }
   assert {
-    condition     = values(output.master_nodes)[0].ip == "10.0.0.101" && values(output.worker_nodes)[0].ip == "10.0.0.201"
+    condition     = values(output.master_nodes)[0].ip == "192.0.2.101" && values(output.worker_nodes)[0].ip == "192.0.2.201"
     error_message = "the nodes must reuse .101 and .201"
   }
   assert {

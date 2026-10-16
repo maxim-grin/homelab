@@ -74,11 +74,17 @@ Stated here once; the runbooks do not repeat them.
 - `$DEV_KC` and `$PROD_KC` are the paths of the dev and prod kubeconfigs. Fetch
   them with [Kubeconfigs](access.md#kubeconfigs); both are mode 600 and never
   committed.
+- Host addresses are not in the repo. A `$NAME_IP` variable in a block is the
+  address `host_ips` in `ansible/secret.yaml` holds for that host: `$VAULT_IP`
+  is `vault-02`, `$PROD_CP1_IP`, `$PROD_W1_IP` and `$PROD_W2_IP` are
+  `talos-prod-cp1`, `talos-w1` and `talos-w2`, `$DEV_NODE_IP` is `master-01`,
+  `$NFS_IP` is `nfs-01`, and `$PIHOLE_IP`, `$TRAEFIK_IP` are the LXCs of those
+  names. `$ROUTER_IP` is the LAN router. Export the ones a block uses first.
 - Vault is reached with `VAULT_ADDR` and a token read without echo, so it never
   lands in shell history, and the token is unset afterwards:
 
   ```bash
-  export VAULT_ADDR=https://10.0.0.133:8200
+  export VAULT_ADDR=https://${VAULT_IP:?}:8200
   export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
   printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
   # ... vault commands ...

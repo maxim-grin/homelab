@@ -15,7 +15,7 @@ proxy in front of Proxmox, Vault and both clusters.
 ## Decision
 
 Run each as its own unprivileged Debian 13 LXC in
-`terraform/environments/shared`, at `10.0.0.140`-`.144`, installed natively
+`terraform/environments/shared`, on five static addresses, installed natively
 by Ansible (no Docker) — about 1G of memory in total. Names are
 `*.hl.mgryn.cc`, served through one DNS-only Cloudflare wildcard record
 pointing at Traefik.

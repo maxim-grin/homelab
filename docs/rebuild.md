@@ -427,7 +427,7 @@ from `secret.yaml`.
    dev inventory) prepares the clients. Storage first, because everything
    else claims PVCs from it. `nfs-prod` is exported only to the prod
    workers, so `host_ips` in `secret.yaml` needs `talos-w1`
-   (`10.0.0.111`) and `talos-w2` (`10.0.0.112`) before this play runs.
+   (`$PROD_W1_IP`) and `talos-w2` (`$PROD_W2_IP`) before this play runs.
    Prod nodes do not exist yet on a first pass: re-run the play with
    `-i inventories/shared` once they do. Check with `showmount -e` on
    `nfs-01`: the prod path lists exactly those two addresses, the dev
@@ -464,7 +464,7 @@ from `secret.yaml`.
 
    ```bash
    # the role put the CA in the host's trust store, so HTTPS just works
-   export VAULT_ADDR=https://10.0.0.133:8200
+   export VAULT_ADDR=https://${VAULT_IP:?}:8200
    vault operator init -key-shares=1 -key-threshold=1
    ```
 
@@ -473,7 +473,7 @@ from `secret.yaml`.
    `vault-02`:
 
    ```bash
-   export VAULT_ADDR=https://10.0.0.133:8200
+   export VAULT_ADDR=https://${VAULT_IP:?}:8200
    vault operator unseal
    ```
 
@@ -533,7 +533,7 @@ from `secret.yaml`.
     Commands: [Configure and seed KV](runbooks/playbooks-and-terraform.md#configure-dev).
     Then pin `vault.mgryn.cc` in CoreDNS
     ([runbook](runbooks/playbooks-and-terraform.md#pin-names-in-coredns))
-    and add a DNS-only Cloudflare record, `vault.mgryn.cc` → `10.0.0.133`.
+    and add a DNS-only Cloudflare record, `vault.mgryn.cc` → `$VAULT_IP`.
 13. **The workstation VM:**
 
     ```bash
@@ -552,7 +552,7 @@ from `secret.yaml`.
 
     `vault.mgryn.cc`, like `jobs.mgryn.cc`, needs no `/etc/hosts` entry
     either: it is a DNS-only Cloudflare record pointing at `vault-02`
-    (`10.0.0.133`), not a node. Vault is not behind ingress-nginx, so
+    (`$VAULT_IP`), not a node. Vault is not behind ingress-nginx, so
     it stays reachable at `https://vault.mgryn.cc:8200` (verify with
     `--cacert ~/.homelab-ca/ca.crt`) even when the cluster itself is down
     — which is exactly when an operator needs to check whether it is
@@ -568,8 +568,8 @@ from `secret.yaml`.
 
     **Pi-hole** needs `pihole_admin_password` in `secret.yaml`. Check it
     from the workstation before pointing anything at it:
-    `dig @10.0.0.140 example.com +short` answers, and
-    `dig @10.0.0.140 doubleclick.net +short` returns `0.0.0.0`. If it
+    `dig @$PIHOLE_IP example.com +short` answers, and
+    `dig @$PIHOLE_IP doubleclick.net +short` returns `0.0.0.0`. If it
     instead returns a real address, the installer's own `pihole-FTL`
     started before gravity finished building and is stuck holding a
     stale database handle — `systemctl restart pihole-FTL` on the
@@ -590,7 +590,7 @@ from `secret.yaml`.
     **Traefik** needs `traefik_cloudflare_api_token` (its own token:
     Zone → DNS → Edit and Zone → Zone → Read on `mgryn.cc`) and
     `traefik_dashboard_users` in `secret.yaml`, and a DNS-only Cloudflare
-    record `*.hl.mgryn.cc` → `10.0.0.141`. Issue from staging first
+    record `*.hl.mgryn.cc` → `$TRAEFIK_IP`. Issue from staging first
     (`-e traefik_cert_resolver=letsencrypt-staging`), then re-run without
     it — switching resolvers is just re-running with or without that
     flag; the role removes the *other* resolver's ACME storage file each
@@ -654,7 +654,7 @@ from `secret.yaml`.
     after a nameserver change" in `docs/operations.md`.
 
     **Pi-hole for clients** — last, once Gatus is watching Pi-hole: the
-    router cannot hand out a DNS server, so set `10.0.0.140` as the only
+    router cannot hand out a DNS server, so set `$PIHOLE_IP` as the only
     DNS server in the network settings of each device that should use it
     (see "Pointing a device at Pi-hole" in `docs/operations.md`).
 
@@ -805,7 +805,7 @@ from `secret.yaml`.
        ```
 
        Done when `vault read auth/kubernetes-prod/config` on `vault-02`
-       shows `kubernetes_host https://10.0.0.110:6443`. Placeholder
+       shows `kubernetes_host https://$PROD_CP1_IP:6443`. Placeholder
        Applications read `Unknown` until this runs and clear on Argo's
        next poll.
 
@@ -841,7 +841,7 @@ from `secret.yaml`.
        and step 6 ran.
 
     8. Check the UI. Prod has no ingress controller until PR 3, so use the
-       NodePort: `http://10.0.0.111:32080` (or `.112`, or HTTPS on
+       NodePort: `http://$PROD_W1_IP:32080` (or `$PROD_W2_IP`, or HTTPS on
        `32443`) shows the login page.
 
     9. Delete the kubeconfig: `rm "$PROD_KC"`.
@@ -864,9 +864,9 @@ from `secret.yaml`.
     the seed data is `secret.yaml`'s `kv-prod` and `kv-dev` blocks.
 
     1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
-       `argocd` and `grafana`, each to `10.0.0.111` and to `10.0.0.112`.
+       `argocd` and `grafana`, each to `$PROD_W1_IP` and to `$PROD_W2_IP`.
        On the workstation, point both names at a worker in `/etc/hosts`
-       (`10.0.0.111 argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
+       (`$PROD_W1_IP argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
        `grafana.mgryn.cc` and `argocd.mgryn.cc` lines that point at a dev
        node: dev has no Grafana or
        ArgoCD UI of its own.
@@ -945,8 +945,8 @@ from `secret.yaml`.
     6. Serving, from the workstation:
 
        ```bash
-       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.111/
-       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.112/
+       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://$PROD_W1_IP/
+       curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://$PROD_W2_IP/
        ```
 
        Expect `302` or `200` from both. Then in Grafana

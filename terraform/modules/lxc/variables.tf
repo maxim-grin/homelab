@@ -131,7 +131,7 @@ variable "network_bridge" {
 }
 
 variable "network_ip" {
-  description = "IP address with CIDR (e.g., '10.0.0.100/24' or 'dhcp')"
+  description = "IP address with CIDR (e.g., '192.0.2.100/24' or 'dhcp')"
   type        = string
   default     = "dhcp"
 }

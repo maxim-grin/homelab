@@ -19,7 +19,7 @@ When: after any `vault-02` reboot, or an Application `Unknown` on sync
 status. Run on `vault-02`, or from the workstation with the private CA.
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
 vault status
 ```
@@ -37,7 +37,7 @@ When: an Application shows `ComparisonError` naming a missing path or field.
 `kv list` prints names only; the field test prints nothing but a word.
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
 vault kv list kv-dev/monitoring
@@ -63,7 +63,7 @@ shows `ComparisonError` naming `kv-prod/jobboard`. The loop prints a word
 per field and never a value.
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
 for f in POSTGRES_PASSWORD DATABASE_URL JOBBOARD_SECRET; do
@@ -370,7 +370,7 @@ Application's name, `<new>` is `prod-<dir>`.
 
 ```bash
 # Vault must be unsealed first
-ssh vault-02 'VAULT_ADDR=https://10.0.0.133:8200 vault status'
+ssh vault-02 'VAULT_ADDR=https://${VAULT_IP:?}:8200 vault status'
 # gate: the controller must not delete Applications a generator stops
 # yielding; this must print create-update (re-run the argocd role if not)
 kubectl --kubeconfig "$PROD_KC" -n argocd get cm argocd-cmd-params-cm \
@@ -457,10 +457,10 @@ node address. The remote-write password is read from Vault with your token,
 never printed; `RW_PASSWORD` in the environment works too.
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 export VAULT_CACERT=~/.homelab-ca/ca.crt
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
-PROD_KC="${PROD_KC:?}" scripts/verify-dev.sh 10.0.0.101
+PROD_KC="${PROD_KC:?}" scripts/verify-dev.sh $DEV_NODE_IP
 unset VAULT_TOKEN
 ```
 
@@ -734,8 +734,8 @@ If not: `kubectl -n ingress-nginx describe ds ingress-nginx-controller`; a
 `Host:` header, for example prod's Grafana:
 
 ```bash
-curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.111/
-curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://10.0.0.112/
+curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://$PROD_W1_IP/
+curl -sk -o /dev/null -w '%{http_code}\n' -H 'Host: grafana.mgryn.cc' https://$PROD_W2_IP/
 ```
 
 Expect `302` or `200` from both.
@@ -743,8 +743,8 @@ Expect `302` or `200` from both.
 ## NFS
 
 Both clusters use `nfs-01`. The `nfs-dev` share path is `/srv/nfs/k8s`;
-`nfs-prod` is exported to the two prod workers only (`10.0.0.111`,
-`10.0.0.112`).
+`nfs-prod` is exported to the two prod workers only (`$PROD_W1_IP`,
+`$PROD_W2_IP`).
 
 ### Exports
 

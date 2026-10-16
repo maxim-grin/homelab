@@ -1,6 +1,6 @@
 # NFS_SERVER and the volume's server/path are literal because ArgoCD renders
 # from git: a value it cannot read is a value it cannot apply, and Deployment
-# .spec...volumes.nfs.server takes no ConfigMap reference. 10.0.0.131 is
+# .spec...volumes.nfs.server takes no ConfigMap reference. The address is
 # RFC1918, so committing it to a public repo exposes nothing routable.
 apiVersion: apps/v1
 kind: Deployment
