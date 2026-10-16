@@ -10,81 +10,61 @@ stay in Vault and are resolved at sync time, TLS comes from Let's Encrypt over
 DNS-01, and a row of small LXCs serves the LAN — DNS, a reverse proxy,
 uptime alerts.
 
+Three views, each answering one question. Names are the host names in
+`ansible/secret.yaml`'s `host_ips`; the table below says where each is defined.
+
+**Where things run.** One Proxmox host (`pve`, one SSD), three Terraform roots.
+
 ```mermaid
-flowchart TB
-    subgraph internet["Internet"]
-        github["GitHub<br/>maxim-grin/homelab main"]
-        cloudflare["Cloudflare DNS<br/>jobs · vault · *.hl"]
-        letsencrypt["Let's Encrypt"]
-        telegram["Telegram"]
+flowchart LR
+    subgraph dev["environments/dev: kubeadm spoke"]
+        master["master-01"]
+        worker["worker-01"]
+        claude["claude-code"]
     end
-
-    router["Router<br/>DHCP pool"]
-    lan["LAN clients<br/>laptop, phones, TV"]
-    extender["Wi-Fi extender"]
-
-    lan --- router
-    router --- extender
-
-    subgraph pve["Proxmox VE host pve — one SSD"]
-        subgraph dev["terraform/environments/dev"]
-            subgraph k8s["kubeadm cluster"]
-                master["master-01"]
-                w1["worker-01"]
-                ingress["ingress-nginx<br/>host ports 80/443"]
-                certmgr["cert-manager"]
-                jobboard["jobboard staging"]
-                mon["Prometheus agent"]
-            end
-            claude["claude-code"]
-        end
-
-        subgraph shared["terraform/environments/shared"]
-            nfs["nfs-01<br/>nfs-dev · nfs-prod · backups"]
-            vault["vault-02<br/>kv-dev · kv-prod"]
-            subgraph lxcs["LAN services, one LXC each"]
-                pihole["Pi-hole<br/>DNS + ad blocking"]
-                traefik["Traefik<br/>*.hl.mgryn.cc"]
-                glance["Glance<br/>dashboard"]
-                gatus["Gatus<br/>uptime"]
-                orangutan["LAN Orangutan<br/>device discovery"]
-            end
-        end
-
-        subgraph prod["terraform/environments/prod"]
-            talos["Talos cluster<br/>cp1 .110 · w1 .111 · w2"]
-            argocd["ArgoCD + AVP<br/>the hub"]
-            appset["ApplicationSet apps<br/>one Application per app"]
-            prodjob["jobboard + Postgres"]
-        end
+    subgraph shared["environments/shared"]
+        nfs["nfs-01<br/>nfs-dev, nfs-prod, backups"]
+        vault["vault-02<br/>kv-dev, kv-prod"]
+        lxcs["LXCs: pihole, traefik,<br/>glance, gatus, orangutan"]
     end
-
-    extender --- pve
-
-    argocd -- "syncs main" --> github
-    argocd -- "AVP reads secrets" --> vault
-    argocd -- "deploys dev apps" --> k8s
-    k8s -- "PVCs" --> nfs
-    vault -- "raft snapshots" --> nfs
-    certmgr -- "DNS-01" --> cloudflare
-    lan -- "jobs.mgryn.cc" --> prodjob
-    ingress -- "dev-jobs.mgryn.cc" --> jobboard
-
-    lan -. "DNS, devices that opt in" .-> pihole
-    lan -- "*.hl.mgryn.cc" --> traefik
-    traefik --> glance
-    traefik --> gatus
-    traefik --> orangutan
-    traefik --> pihole
-    traefik -- "DNS-01" --> letsencrypt
-    gatus -- "alerts" --> telegram
-    talos -. "manages" .-> k8s
-    appset -- "generates from argocd/apps/*/config.yaml" --> github
-    appset --> talos
-
+    subgraph prod["environments/prod: Talos hub"]
+        cp1["talos-prod-cp1"]
+        w1["talos-w1"]
+        w2["talos-w2"]
+    end
 ```
 
-Every machine in the diagram has a static address outside the router's DHCP
+**How a change deploys.** Merging to `main` is the deploy; the hub's ArgoCD
+syncs it to both clusters, and Vault fills in secrets at sync time.
+
+```mermaid
+flowchart LR
+    github["GitHub<br/>main"] --> argocd["ArgoCD on prod<br/>root-prod + ApplicationSet"]
+    vault["vault-02"] -- "AVP resolves<br/>secret placeholders" --> argocd
+    argocd --> prodapps["prod apps<br/>ingress-nginx, cert-manager,<br/>monitoring, jobboard"]
+    argocd --> devapps["dev-* apps<br/>ingress-nginx, cert-manager,<br/>jobboard staging, Prometheus agent"]
+    prodapps -- "PVCs" --> nfs["nfs-01"]
+    devapps -- "PVCs" --> nfs
+    devapps -- "remote-write" --> prodapps
+```
+
+**How the LAN reaches things.** Public DNS names resolve to private
+addresses; Traefik fronts the LAN services and ingress-nginx fronts jobboard.
+
+```mermaid
+flowchart LR
+    lan["LAN clients"] -- "*.hl.mgryn.cc" --> traefik["Traefik"]
+    lan -- "jobs, argocd, grafana" --> prodingress["prod ingress-nginx"]
+    lan -- "dev-jobs" --> devingress["dev ingress-nginx"]
+    lan -. "DNS, devices that opt in" .-> pihole["Pi-hole"]
+    traefik --> services["Glance, Gatus,<br/>Orangutan, Proxmox UI"]
+    traefik -- "DNS-01" --> letsencrypt["Let's Encrypt"]
+    prodingress --> jobboard["jobboard + Postgres"]
+    devingress --> staging["jobboard staging"]
+    services -- "Gatus alerts" --> telegram["Telegram"]
+```
+
+Every machine in these diagrams has a static address outside the router's DHCP
 pool; `host_ips` in `ansible/secret.yaml` records them.
 
 ## What actually runs
