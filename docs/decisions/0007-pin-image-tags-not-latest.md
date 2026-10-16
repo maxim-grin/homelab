@@ -30,6 +30,5 @@ self-correcting rather than silent.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-15-jobboard-version-pinning-design.md`;
 [#14](https://github.com/maxim-grin/homelab/pull/14); README.md "jobboard
 image version".

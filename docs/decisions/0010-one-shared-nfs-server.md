@@ -37,7 +37,6 @@ server's IP stayed the same — the migration itself was not a no-op.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-22-nfs-shared-server-design.md`;
 [#31](https://github.com/maxim-grin/homelab/pull/31),
 [#37](https://github.com/maxim-grin/homelab/pull/37); CLAUDE.md "nfs-dev"
 and "`nfs-dev`'s share path" bullets.

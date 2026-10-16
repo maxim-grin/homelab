@@ -94,7 +94,9 @@ use the `superpowers` plugin's skills by name — brainstorming to agree the
 shape, writing-plans to sequence it, requesting-code-review before landing,
 finishing-a-development-branch for its pre-merge checks (stop before it
 merges; see below). Invoke them with the Skill tool; do not approximate them
-by hand.
+by hand. Specs and plans are working files: they live in
+`docs/superpowers/`, which is gitignored, and never land in a PR. What a
+change decided is recorded in its ADR and its PR description.
 
 **Plans record decisions, not finished code.** A plan says what each
 task must do, which files it touches, in what order, and how to check
@@ -125,21 +127,21 @@ gh pr create --base main --head <change-name> --title "..." --body-file <file>
 `GITHUB_TOKEN` in the environment silently overrides the logged-in account;
 if `gh` starts returning 403, check `gh auth status` first.
 
-**A spec opens the pull request.** As soon as a brainstorming spec is
-committed, push the branch and open a draft, so the design is reviewable
-on GitHub before any plan or code exists:
+**Open a draft early.** Once the design is agreed, push the branch and
+open a draft with the design summarised in the description, so it is
+reviewable on GitHub before the implementation is done:
 
 ```bash
 gh pr create --draft --base main --head <change-name> --title "..." --body-file <file>
 ```
 
-The plan and implementation that follow land in the same draft; `gh pr
-ready <N>` once the branch's work is finished and verified. A draft
-cannot be merged, so this never shortcuts review.
+The implementation lands in the same draft; `gh pr ready <N>` once the
+branch's work is finished and verified. A draft cannot be merged, so this
+never shortcuts review.
 
 One PR per logical change. A repo-wide convention change and an unrelated
 feature are two PRs, not one — the title can only describe one of them
-honestly. A plan's operator steps that said "merge and push `main`" now mean
+honestly. A plan's operator steps that say "merge and push `main`" mean
 "merge the PR".
 
 GitHub merges with a merge commit (`Merge pull request #N from …`) and

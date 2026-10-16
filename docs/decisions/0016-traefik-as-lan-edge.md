@@ -32,6 +32,5 @@ plan's HTTP→HTTPS redirect check (308) was wrong — rehearsal found 301.
 
 ## Related
 
-`docs/superpowers/plans/2026-09-27-lan-services-foundation.md`;
 [#54](https://github.com/maxim-grin/homelab/pull/54) "feat: add the traefik
 role"; `ansible/roles/traefik`.

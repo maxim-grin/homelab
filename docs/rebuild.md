@@ -564,8 +564,7 @@ from `secret.yaml`.
     ansible-playbook -i inventories/shared playbooks/lan_services.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-    Each service's play is added as its role lands; see the
-    [LAN services design](superpowers/specs/2026-09-27-lan-services-design.md).
+    Each service's play is added as its role lands.
 
     **Pi-hole** needs `pihole_admin_password` in `secret.yaml`. Check it
     from the workstation before pointing anything at it:

@@ -36,6 +36,5 @@ tracked in git.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-20-ci-design.md`;
 [#26](https://github.com/maxim-grin/homelab/pull/26)-[#28](https://github.com/maxim-grin/homelab/pull/28);
 README.md "Checks before committing" and "CI".

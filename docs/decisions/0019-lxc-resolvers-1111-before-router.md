@@ -29,6 +29,5 @@ record change — and every affected LXC needed a reboot to pick it up.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-27-lan-services-design.md` "Why no Pi-hole
-for the LXCs themselves"; [#56](https://github.com/maxim-grin/homelab/pull/56)
+[#56](https://github.com/maxim-grin/homelab/pull/56)
 "feat: add the gatus role"; `terraform/environments/shared/main.tf`.

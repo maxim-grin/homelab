@@ -51,5 +51,5 @@ a manual step.
 
 ## Related
 
-`docs/superpowers/specs/2026-10-01-pve-bootstrap-design.md`; ADR
+ADR
 [0021](0021-talos-prod-via-terraform-provider.md).

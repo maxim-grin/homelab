@@ -77,7 +77,7 @@ Rejected:
 
 ## Related
 
-`docs/superpowers/specs/2026-10-05-dev-spoke-design.md`; records
+Records
 [0004](0004-secrets-in-vault-via-avp.md),
 [0024](0024-hub-in-prod.md),
 [0026](0026-uniform-apps.md).

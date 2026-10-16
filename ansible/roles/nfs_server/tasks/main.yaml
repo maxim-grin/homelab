@@ -18,8 +18,7 @@
 # Mounting a disk over a directory that already holds data hides that data
 # from every client. On the first run after the disks are attached, dev's
 # PVCs are still on the OS disk at /srv/nfs/k8s; this stops the play before
-# the empty new disk goes over them. Move the data first -- the Migration
-# section of docs/superpowers/specs/2026-09-22-nfs-shared-server-design.md.
+# the empty new disk goes over them. Move the data first (ADR 0010).
 - name: Refuse to mount over files that are not on the share's own disk
   ansible.builtin.assert:
     that: >-

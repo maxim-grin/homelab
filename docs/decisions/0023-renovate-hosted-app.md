@@ -64,5 +64,5 @@ them), so no grouping rule is needed.
 
 ## Related
 
-`docs/superpowers/specs/2026-10-01-renovate-design.md`; record
+Record
 [0017](0017-verify-lan-service-binaries-sha256.md); `renovate.json5`.

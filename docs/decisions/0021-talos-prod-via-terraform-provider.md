@@ -60,5 +60,4 @@ the apply returns: `kubectl get nodes` first prints `No resources found`.
 
 ## Related
 
-`docs/superpowers/specs/2026-10-01-talos-prod-design.md`;
 [#66](https://github.com/maxim-grin/homelab/pull/66).

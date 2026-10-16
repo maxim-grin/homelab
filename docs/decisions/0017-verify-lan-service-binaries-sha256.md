@@ -47,6 +47,4 @@ new digest as well, with the `gh api` command in the workflow's comment.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-27-lan-services-design.md` "Ansible";
-`docs/superpowers/plans/2026-09-28-lan-services-apps.md` "Facts established
-while planning"; `ansible/roles/traefik`, `ansible/roles/gatus`.
+`ansible/roles/traefik`, `ansible/roles/gatus`.

@@ -36,6 +36,5 @@ deleted secret, not a lost disk.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-25-vault-vm-design.md`;
 [#35](https://github.com/maxim-grin/homelab/pull/35)-[#43](https://github.com/maxim-grin/homelab/pull/43);
 CLAUDE.md vault bullets; README.md "What actually runs".

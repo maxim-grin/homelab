@@ -51,6 +51,6 @@ Rejected:
 
 ## Related
 
-`docs/superpowers/specs/2026-10-04-runbooks-design.md`; ADR
+ADR
 [0013](0013-terraform-renames-need-moved-blocks.md) (the moved-block rule
 the Terraform entry links to).

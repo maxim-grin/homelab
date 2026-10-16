@@ -49,5 +49,4 @@ supersede this record with the LAN-wide cutover.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-27-lan-services-design.md`;
 `ansible/roles/gatus/defaults/main.yaml`.

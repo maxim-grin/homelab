@@ -33,3 +33,6 @@ argocd/argocd-values.yaml
 
 # kustomize --enable-helm chart cache
 charts/
+
+# superpowers specs and plans: local working files
+docs/superpowers/
