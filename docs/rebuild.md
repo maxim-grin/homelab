@@ -542,8 +542,7 @@ from `secret.yaml`.
 
 14. **Names.** No name needs an `/etc/hosts` entry: dev has no Grafana or
     Prometheus UI, and `grafana.mgryn.cc` and `prometheus.mgryn.cc` are the
-    hub's public records. Remove any old hosts-file line that points one at
-    a dev node.
+    hub's public records.
 
     `jobs.mgryn.cc` is a DNS-only Cloudflare record
     holding the prod workers' IPs. If they changed in this rebuild, update
@@ -864,8 +863,7 @@ from `secret.yaml`.
 
     1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
        `argocd` and `grafana`, each to `$PROD_W1_IP` and to `$PROD_W2_IP`.
-       Dev has no Grafana or ArgoCD UI of its own, so delete any old
-       hosts-file line for these names that points at a dev node.
+       Dev has no Grafana or ArgoCD UI of its own.
 
     2. Get the platform apps onto `main`, which `root-prod` reads (on
        the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then

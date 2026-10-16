@@ -75,9 +75,7 @@ If not: `talosctl -n <ip> services` shows what a node is waiting for, and
 ## Names
 
 Every name is a DNS-only (grey cloud) Cloudflare record and resolves on its
-own; nothing needs an `/etc/hosts` entry. A leftover hosts-file line that
-points `dev-grafana.mgryn.cc`, `prometheus.mgryn.cc` or `grafana.mgryn.cc`
-at a dev node hides the hub's name from you; delete it.
+own; nothing needs an `/etc/hosts` entry.
 
 | Name                | Resolves to                                              | Behind                          |
 | ------------------- | -------------------------------------------------------- | ------------------------------- |
