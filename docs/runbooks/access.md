@@ -74,33 +74,10 @@ If not: `talosctl -n <ip> services` shows what a node is waiting for, and
 
 ## Names
 
-Two kinds. A name with no public DNS needs `/etc/hosts` on the
-workstation; none is left for dev. The rest are DNS-only (grey cloud)
-Cloudflare records and resolve on their own.
-
-### Add the dev names to /etc/hosts
-
-When: almost never. Dev has no Grafana or Prometheus UI of its own since
-agent-mode monitoring (ADR 0027):
-the hub's Grafana (`grafana.mgryn.cc`) shows dev as `cluster=dev`, and
-`prometheus.mgryn.cc` is the hub's write-only receiver. Both are
-Cloudflare records to the prod workers and need no entry. Delete any
-leftover `/etc/hosts` line for `dev-grafana.mgryn.cc`,
-`prometheus.mgryn.cc` or `grafana.mgryn.cc` that points at a dev node;
-one hides the hub's name from you.
-
-```bash
-grep -nE 'dev-grafana|prometheus\.mgryn|grafana\.mgryn' /etc/hosts
-```
-
-Expect: no line pointing at a dev node. If one shows, remove it with
-`sudo sed -i.bak '/dev-grafana\.mgryn\.cc/d' /etc/hosts` (adjust the
-pattern to the line shown). A dev app that later needs a name without
-public DNS gets a line `<dev-node-ip> <name>`, where `<dev-node-ip>` is
-`host_ips['worker-01']` in `secret.yaml`; ingress-nginx is a DaemonSet on
-host ports 80/443, so any dev node answers.
-
-### Names that resolve without /etc/hosts
+Every name is a DNS-only (grey cloud) Cloudflare record and resolves on its
+own; nothing needs an `/etc/hosts` entry. A leftover hosts-file line that
+points `dev-grafana.mgryn.cc`, `prometheus.mgryn.cc` or `grafana.mgryn.cc`
+at a dev node hides the hub's name from you; delete it.
 
 | Name                | Resolves to                                              | Behind                          |
 | ------------------- | -------------------------------------------------------- | ------------------------------- |

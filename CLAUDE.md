@@ -206,10 +206,10 @@ entry from its operator checklist instead of restating the command. (ADR
   export with no client list is exported to everyone. (ADR
   [0010](docs/decisions/0010-one-shared-nfs-server.md))
 - **ingress-nginx is a DaemonSet on host ports 80/443**, not a Service. This
-  is bare metal with no LoadBalancer and no MetalLB. Dev has no
-  names that need `/etc/hosts`; `argocd.mgryn.cc`, `grafana.mgryn.cc` and
+  is bare metal with no LoadBalancer and no MetalLB. No name needs an
+  `/etc/hosts` entry: `argocd.mgryn.cc`, `grafana.mgryn.cc` and
   `prometheus.mgryn.cc` (the write-only receiver) are the prod hub's.
-  `jobs.mgryn.cc` (jobboard, `prod-jobboard`) needs no entry either:
+  `jobs.mgryn.cc` (jobboard, `prod-jobboard`) is
   DNS-only (grey cloud) Cloudflare A records for the two prod workers, so
   it resolves on any device on the LAN. `dev-jobs.mgryn.cc` is dev's
   staging copy (ADR 0028), one A record to the dev node.

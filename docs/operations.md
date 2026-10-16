@@ -41,12 +41,9 @@ is a stop — see
 | `https://vault.mgryn.cc:8200`                                                                    | Vault UI, straight to `vault-02`, not through ingress-nginx, so reachable while the cluster is down | private CA   |
 | `https://pihole.hl.mgryn.cc`, `proxmox.hl.mgryn.cc`, `traefik.hl.mgryn.cc`, `status.hl.mgryn.cc`, `lan.hl.mgryn.cc`, `home.hl.mgryn.cc` | Pi-hole, the Proxmox UI, Traefik's dashboard, Gatus, LAN Orangutan, Glance                                               | Traefik      |
 
-The `*.mgryn.cc` names without `hl.` resolve through `/etc/hosts` on the
-workstation, pointing at any node IP since ingress-nginx answers on every
-node — except `jobs.mgryn.cc`, `dev-jobs.mgryn.cc`, `vault.mgryn.cc`, `argocd.mgryn.cc` and
-`grafana.mgryn.cc`, which have DNS-only Cloudflare records (all but
-`vault` and `dev-jobs` are grey-cloud A records, two each, to the prod
-workers; `dev-jobs` is one, to `$DEV_NODE_IP`). `*.hl.mgryn.cc` is a DNS-only wildcard to `$TRAEFIK_IP`.
+Every name resolves through a DNS-only Cloudflare record, so nothing needs an
+`/etc/hosts` entry: all but `vault` and `dev-jobs` are grey-cloud A records,
+two each, to the prod workers; `dev-jobs` is one, to `$DEV_NODE_IP`. `*.hl.mgryn.cc` is a DNS-only wildcard to `$TRAEFIK_IP`.
 
 ## Prod hub ArgoCD
 

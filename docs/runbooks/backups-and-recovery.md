@@ -327,9 +327,8 @@ kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get certificate jobboard-tls
 
 Expect: `303` from both (the login page) and the certificate `READY`
 `True`. Without `-k`, the chain should verify too once the certificate is
-issued. Then log in with a restored account in a browser pointed at prod
-(add `$PROD_W1_IP jobs.mgryn.cc` to `/etc/hosts` for the proof, then remove
-it with `sudo sed -i.bak '/jobs\.mgryn\.cc/d' /etc/hosts`) and confirm the restored rows are there.
+issued. Confirm the restored rows in a browser once the record has moved, below;
+until then `jobs.mgryn.cc` still resolves to dev.
 
 In Cloudflare, with every record DNS-only (grey cloud), change the A record
 for `jobs.mgryn.cc` from the dev node `$DEV_NODE_IP` to two records, `$PROD_W1_IP`

@@ -135,8 +135,7 @@ entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → Traefik covers
 `pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
-straight at `vault-02`. Dev has no names of its own
-that need `/etc/hosts`. Pi-hole
+straight at `vault-02`. No name needs a hosts-file entry. Pi-hole
 answers only the devices pointed at it by hand, because
 the router cannot advertise a DNS server; the rest resolve through the
 router. There is no Cloudflare Tunnel.

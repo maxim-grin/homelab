@@ -540,18 +540,17 @@ from `secret.yaml`.
     ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-14. **`/etc/hosts`** needs no dev lines: dev has no Grafana or Prometheus
-    UI, and `grafana.mgryn.cc` and `prometheus.mgryn.cc` are the hub's
-    public records. Remove any old line that points one at a dev node
-    ([Add the dev names to /etc/hosts](runbooks/access.md#add-the-dev-names-to-etchosts)).
+14. **Names.** No name needs an `/etc/hosts` entry: dev has no Grafana or
+    Prometheus UI, and `grafana.mgryn.cc` and `prometheus.mgryn.cc` are the
+    hub's public records. Remove any old hosts-file line that points one at
+    a dev node.
 
-    `jobs.mgryn.cc` needs no entry: it is a DNS-only Cloudflare record
+    `jobs.mgryn.cc` is a DNS-only Cloudflare record
     holding the prod workers' IPs. If they changed in this rebuild, update
     that record in Cloudflare instead. Its certificate is prod's: it re-issues on its own once step 17 has
     seeded `kv-prod/cert-manager/cloudflare`.
 
-    `vault.mgryn.cc`, like `jobs.mgryn.cc`, needs no `/etc/hosts` entry
-    either: it is a DNS-only Cloudflare record pointing at `vault-02`
+    `vault.mgryn.cc`, like `jobs.mgryn.cc`, is a DNS-only Cloudflare record pointing at `vault-02`
     (`$VAULT_IP`), not a node. Vault is not behind ingress-nginx, so
     it stays reachable at `https://vault.mgryn.cc:8200` (verify with
     `--cacert ~/.homelab-ca/ca.crt`) even when the cluster itself is down
@@ -865,11 +864,8 @@ from `secret.yaml`.
 
     1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
        `argocd` and `grafana`, each to `$PROD_W1_IP` and to `$PROD_W2_IP`.
-       On the workstation, point both names at a worker in `/etc/hosts`
-       (`$PROD_W1_IP argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
-       `grafana.mgryn.cc` and `argocd.mgryn.cc` lines that point at a dev
-       node: dev has no Grafana or
-       ArgoCD UI of its own.
+       Dev has no Grafana or ArgoCD UI of its own, so delete any old
+       hosts-file line for these names that points at a dev node.
 
     2. Get the platform apps onto `main`, which `root-prod` reads (on
        the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then
@@ -1126,7 +1122,7 @@ not — a `terraform apply` that replaced them, as PR #47's module rename
 did on 2026-09-27 — skip steps 1–5 and 7 above, and step 13 unless `claude-code` was
 replaced too. Vault is initialised
 and seeded, NFS still holds every PVC's data, and the node vmids and IPs
-come back unchanged, so `/etc/hosts` and the Cloudflare records need
+come back unchanged, so the Cloudflare records need
 nothing.
 
 From the workstation, in `ansible/`:
