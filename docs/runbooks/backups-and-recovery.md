@@ -73,7 +73,7 @@ is this runbook's addition):
 Run on `vault-02`; `<file>` is a name from the listing above.
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN   # current root token, before the restore
 vault operator raft snapshot restore -force /mnt/vault-backups/<file>
 unset VAULT_TOKEN
@@ -319,7 +319,7 @@ this last, so the rollback is flipping the record back.
 Prove prod before DNS, from the workstation, against each worker:
 
 ```bash
-for ip in 10.0.0.111 10.0.0.112; do
+for ip in $PROD_W1_IP $PROD_W2_IP; do
   curl -sk -o /dev/null -w "$ip %{http_code}\n" --resolve jobs.mgryn.cc:443:$ip https://jobs.mgryn.cc/
 done
 kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get certificate jobboard-tls
@@ -328,12 +328,12 @@ kubectl --kubeconfig "${PROD_KC:?}" -n jobboard get certificate jobboard-tls
 Expect: `303` from both (the login page) and the certificate `READY`
 `True`. Without `-k`, the chain should verify too once the certificate is
 issued. Then log in with a restored account in a browser pointed at prod
-(add `10.0.0.111 jobs.mgryn.cc` to `/etc/hosts` for the proof, then remove
+(add `$PROD_W1_IP jobs.mgryn.cc` to `/etc/hosts` for the proof, then remove
 it with `sudo sed -i.bak '/jobs\.mgryn\.cc/d' /etc/hosts`) and confirm the restored rows are there.
 
 In Cloudflare, with every record DNS-only (grey cloud), change the A record
-for `jobs.mgryn.cc` from the dev node `10.0.0.101` to two records, `10.0.0.111`
-and `10.0.0.112`. Add `dev-jobs.mgryn.cc` -> `10.0.0.101` only after the
+for `jobs.mgryn.cc` from the dev node `$DEV_NODE_IP` to two records, `$PROD_W1_IP`
+and `$PROD_W2_IP`. Add `dev-jobs.mgryn.cc` -> `$DEV_NODE_IP` only after the
 follow-up PR that serves dev's jobboard under that name has merged. Verify by
 name:
 
@@ -347,7 +347,7 @@ Mind the record's TTL and the workstation's resolver cache.
 
 Rollback before the flip: scale `prod-jobboard` to 0 (hold it as in the
 restore entry) and stop; DNS never moved. Rollback after the flip: point the
-record back to `10.0.0.101`. Dev's jobboard still has its own certificate
+record back to `$DEV_NODE_IP`. Dev's jobboard still has its own certificate
 and an empty database, so rows written to prod after the flip are not
 carried back to dev. If not working: `kubectl --kubeconfig "$PROD_KC" -n
 jobboard describe certificate jobboard-tls` and `get order,challenge` on prod; debug with

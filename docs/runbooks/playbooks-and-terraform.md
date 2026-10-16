@@ -225,8 +225,8 @@ kubectl --kubeconfig "$DEV_KC" run -it --rm dnscheck --image=busybox:1.36 --rest
 kubectl --kubeconfig "$DEV_KC" run -it --rm dnscheck --image=busybox:1.36 --restart=Never -- nslookup prometheus.mgryn.cc
 ```
 
-Expect: the first lookup answers `10.0.0.133`; the second answers the two
-prod workers, `10.0.0.111` and `10.0.0.112`. If not: re-run the playbook; check
+Expect: the first lookup answers `$VAULT_IP`; the second answers the two
+prod workers, `$PROD_W1_IP` and `$PROD_W2_IP`. If not: re-run the playbook; check
 `coredns_hosts_entries` in the role.
 
 ### Provision NFS
@@ -340,7 +340,7 @@ rm "$PROD_TMP"
 ```
 
 Expect: `vault read auth/kubernetes-prod/config` on `vault-02` shows
-`kubernetes_host https://10.0.0.110:6443`. If not: [checks.md](checks.md).
+`kubernetes_host https://$PROD_CP1_IP:6443`. If not: [checks.md](checks.md).
 
 ### Widen prod's policy to read kv-dev
 
@@ -352,7 +352,7 @@ a short-lived token carrying only the prod policy; the token never prints a
 secret value.
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
 vault policy read argocd-read-prod
 PROD_ROLE_TOKEN="$(vault token create -policy=argocd-read-prod -ttl=5m -field=token)"
@@ -397,7 +397,7 @@ In the editor, under `vault_kv`, set `kv-dev` `monitoring/remote-write`
 `vault-02` without printing the values:
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
 vault kv get -field=htpasswd kv-prod/monitoring/remote-write | cut -c1-20
 vault kv get -field=username kv-dev/monitoring/remote-write

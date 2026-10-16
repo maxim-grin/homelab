@@ -81,6 +81,6 @@ variable "ub_k8s_cidr" {
 
 # Claude Code VM Variables
 variable "claude_code_ip" {
-  description = "Claude Code VM IP with CIDR (e.g. '10.0.0.130/24')"
+  description = "Claude Code VM IP with CIDR (e.g. '192.0.2.130/24')"
   type        = string
 }

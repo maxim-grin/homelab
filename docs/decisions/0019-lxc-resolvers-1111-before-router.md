@@ -22,7 +22,7 @@ at all.
 ## Consequences
 
 Found the hard way, not in planning: Gatus's first live run reported
-`lookup vault.mgryn.cc on 10.0.0.1:53: no such host`, because the LXCs had
+`lookup vault.mgryn.cc on <router-ip>:53: no such host`, because the LXCs had
 originally been configured with the router's resolver ahead of
 `1.1.1.1`. The fix is resolver order alone — no Pi-hole change, no DNS
 record change — and every affected LXC needed a reboot to pick it up.

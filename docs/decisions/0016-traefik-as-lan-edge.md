@@ -11,7 +11,7 @@ cert-manager's DNS-01 setup for `jobs.mgryn.cc` (record
 
 ## Decision
 
-Traefik v3 on its own LXC (`10.0.0.141`), fetched from the release archive
+Traefik v3 on its own LXC, fetched from the release archive
 and checked against its published checksums, running as the `traefik`
 user with `CAP_NET_BIND_SERVICE`. It gets a wildcard certificate (`hl.mgryn.cc`
 + `*.hl.mgryn.cc`) by DNS-01 through Cloudflare, using its own token in

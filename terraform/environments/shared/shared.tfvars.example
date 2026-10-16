@@ -20,15 +20,15 @@ ssh_public_key = "ssh-ed25519 AAAA... homelab-dev"
 # commands that build it.
 clone_template_ubuntu = "ubuntu-cid-tp"
 
-gateway = "10.0.0.1"
+gateway = "192.0.2.1"
 
 # NFS server VM. Must include CIDR.
-nfs_vm_ip = "10.0.0.131/24"
+nfs_vm_ip = "192.0.2.131/24"
 
 # Vault VM. Must include CIDR. Confirm it is outside the router's DHCP pool
 # before applying -- every VM here takes a static address and the pool has
 # not been checked against them.
-vault_vm_ip = "10.0.0.133/24"
+vault_vm_ip = "192.0.2.133/24"
 
 # LAN services (ADR 0014).
 # The template must already be on the host:
@@ -39,9 +39,9 @@ debian_lxc_template = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
 # Outside the router's DHCP pool (.2-.99). vmids in main.tf match the last
 # octet.
 lxc_ips = {
-  pihole    = "10.0.0.140/24"
-  traefik   = "10.0.0.141/24"
-  glance    = "10.0.0.142/24"
-  gatus     = "10.0.0.143/24"
-  orangutan = "10.0.0.144/24"
+  pihole    = "192.0.2.140/24"
+  traefik   = "192.0.2.141/24"
+  glance    = "192.0.2.142/24"
+  gatus     = "192.0.2.143/24"
+  orangutan = "192.0.2.144/24"
 }

@@ -5,7 +5,7 @@
 ## Context
 
 `nfs-01` lived in the `dev` Terraform root, exporting one share,
-`/srv/nfs/k8s`, from its 20G OS disk to all of `10.0.0.0/24`. A future
+`/srv/nfs/k8s`, from its 20G OS disk to the whole LAN subnet. A future
 prod cluster's storage would then depend on a machine dev's
 `terraform apply` could change or destroy, nothing separated the
 environments' data, and a full share could take the VM's own OS disk down
@@ -14,8 +14,7 @@ with it.
 ## Decision
 
 Move `nfs-01` into a new `terraform/environments/shared` root with its own
-state and tfvars, adopted in place at the same vmid (103) and IP
-(`10.0.0.131`). Give it one virtual disk per share — `scsi1` for
+state and tfvars, adopted in place at the same vmid (103) and IP. Give it one virtual disk per share — `scsi1` for
 `nfs-dev`, `scsi2` for `nfs-prod`, later `scsi3` for backups — each
 exported only to its own cluster's exact node IPs, mounted by label. The
 `nfs_server` role refuses to mount over a non-empty directory and the

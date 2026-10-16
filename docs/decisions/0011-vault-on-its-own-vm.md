@@ -19,7 +19,7 @@ disk, TLS from a private CA (`~/.homelab-ca/`, reached as
 `vault.mgryn.cc`), audit logging to `/var/log/vault/audit.log`, separate
 `kv-dev/`/`kv-prod/` mounts each read by only its own cluster's policy,
 and daily Raft snapshots to a dedicated NFS share
-(`/srv/nfs/backups`, mode 0700, exported only to `10.0.0.133`). The new
+(`/srv/nfs/backups`, mode 0700, exported only to `vault-02`). The new
 machine was built alongside the old one and only cut over once proven, in
 five PRs, so every step before cutover was reversible by doing nothing;
 the LXC was decommissioned the same day as cutover, after a restore drill

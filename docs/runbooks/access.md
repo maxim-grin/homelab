@@ -62,12 +62,12 @@ Same source as the prod kubeconfig.
 ```bash
 TC_TMP="$(mktemp)"
 ( cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" && terraform output -raw talosconfig ) > "$TC_TMP"
-talosctl --talosconfig "$TC_TMP" -n 10.0.0.110 health
+talosctl --talosconfig "$TC_TMP" -n $PROD_CP1_IP health
 echo "talosconfig is at $TC_TMP"
 ```
 
-Expect: `health` reports the checks passing for the node. `10.0.0.110` is
-`talos-prod-cp1`; workers are `10.0.0.111` and `10.0.0.112`. `rm` the file when done.
+Expect: `health` reports the checks passing for the node. `$PROD_CP1_IP` is
+`talos-prod-cp1`; workers are `$PROD_W1_IP` and `$PROD_W2_IP`. `rm` the file when done.
 
 If not: `talosctl -n <ip> services` shows what a node is waiting for, and
 `qm terminal <vmid>` on `pve` shows its console.
@@ -104,14 +104,14 @@ host ports 80/443, so any dev node answers.
 
 | Name                | Resolves to                                              | Behind                          |
 | ------------------- | -------------------------------------------------------- | ------------------------------- |
-| `jobs.mgryn.cc`     | `10.0.0.111` and `10.0.0.112` (two grey-cloud A records) | prod ingress-nginx, cert-manager TLS |
-| `dev-jobs.mgryn.cc` | `10.0.0.101` (one grey-cloud A record)                   | dev ingress-nginx, dev cert-manager TLS (staging) |
-| `argocd.mgryn.cc`   | `10.0.0.111` and `10.0.0.112` (two grey-cloud A records) | prod ingress-nginx              |
-| `grafana.mgryn.cc`  | `10.0.0.111` and `10.0.0.112`                            | prod ingress-nginx              |
-| `vault.mgryn.cc`    | `10.0.0.133` (`vault-02`)                                | Vault itself, port 8200, no ingress |
-| `*.hl.mgryn.cc`     | `10.0.0.141` (DNS-only wildcard)                         | Traefik, one route per service  |
+| `jobs.mgryn.cc`     | `$PROD_W1_IP` and `$PROD_W2_IP` (two grey-cloud A records) | prod ingress-nginx, cert-manager TLS |
+| `dev-jobs.mgryn.cc` | `$DEV_NODE_IP` (one grey-cloud A record)                   | dev ingress-nginx, dev cert-manager TLS (staging) |
+| `argocd.mgryn.cc`   | `$PROD_W1_IP` and `$PROD_W2_IP` (two grey-cloud A records) | prod ingress-nginx              |
+| `grafana.mgryn.cc`  | `$PROD_W1_IP` and `$PROD_W2_IP`                            | prod ingress-nginx              |
+| `vault.mgryn.cc`    | `$VAULT_IP` (`vault-02`)                                | Vault itself, port 8200, no ingress |
+| `*.hl.mgryn.cc`     | `$TRAEFIK_IP` (DNS-only wildcard)                         | Traefik, one route per service  |
 
-Pi-hole (`10.0.0.140`) is opt-in per device and not needed for any of
+Pi-hole (`$PIHOLE_IP`) is opt-in per device and not needed for any of
 these ([ADR 0020](../decisions/0020-pihole-opt-in-per-device.md)).
 
 ## UIs
@@ -122,7 +122,7 @@ means `ansible/secret.yaml` (`ansible-vault view`); Vault paths are read with
 
 | UI                | URL                                      | Where the login comes from |
 | ----------------- | ---------------------------------------- | -------------------------- |
-| ArgoCD (prod hub) | `https://argocd.mgryn.cc`; break-glass `http://10.0.0.111:32080` (or `.112`, HTTPS `32443`) | user `admin`; password is not in Vault, its bcrypt hash is `argocd_admin_password_hash` in `secret.yaml` (the plaintext is yours) |
+| ArgoCD (prod hub) | `https://argocd.mgryn.cc`; break-glass `http://$PROD_W1_IP:32080` (or `$PROD_W2_IP`, HTTPS `32443`) | user `admin`; password is not in Vault, its bcrypt hash is `argocd_admin_password_hash` in `secret.yaml` (the plaintext is yours) |
 | Grafana (prod)    | `https://grafana.mgryn.cc`               | `kv-prod/monitoring/grafana`, fields `admin-user`, `admin-password` (only read when Grafana first creates its database) |
 | Prometheus, Alertmanager (prod) | no UI Ingress; through Grafana, or `kubectl port-forward` ([operations.md](../operations.md)). The one Ingress is write-only: `https://prometheus.mgryn.cc/api/v1/write`, for dev's sender | basic auth, `kv-prod/monitoring/remote-write` (`htpasswd`; the plain pair is `kv-dev/monitoring/remote-write`) |
 | jobboard          | `https://jobs.mgryn.cc` (staging: `https://dev-jobs.mgryn.cc`) | app login; no infrastructure credential |
@@ -169,7 +169,7 @@ prints the field to the terminal only; do not redirect it into a file or
 history.
 
 ```bash
-export VAULT_ADDR=https://10.0.0.133:8200
+export VAULT_ADDR=https://${VAULT_IP:?}:8200
 export VAULT_CACERT=~/.homelab-ca/ca.crt   # not needed on vault-02 itself
 printf 'Vault token: '; read -rs VAULT_TOKEN; echo; export VAULT_TOKEN
 vault kv get -field=admin-user kv-prod/monitoring/grafana

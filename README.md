@@ -18,7 +18,7 @@ flowchart TB
         telegram["Telegram"]
     end
 
-    router["Router 10.0.0.1<br/>DHCP .2–.99"]
+    router["Router<br/>DHCP pool"]
     lan["LAN clients<br/>laptop, phones, TV"]
     extender["Wi-Fi extender"]
 
@@ -84,9 +84,8 @@ flowchart TB
     classDef planned stroke-dasharray: 5 5,opacity:0.8
 ```
 
-Solid boxes run today; dashed boxes are planned. Addresses are on
-`10.0.0.0/24`, whose DHCP pool is `.2`–`.99`; every machine in the
-diagram has a static address above that pool.
+Solid boxes run today; dashed boxes are planned. Every machine in the diagram has a static address outside the router's DHCP
+pool; `host_ips` in `ansible/secret.yaml` records them.
 
 ## What actually runs
 
@@ -134,11 +133,11 @@ all are DNS-only (grey cloud) Cloudflare records holding
 a private IP, so any device on the LAN resolves them without a hosts
 entry. Public DNS
 answering with a private address is fine, though some routers drop it as
-DNS-rebinding protection. `*.hl.mgryn.cc` → `10.0.0.141` covers
+DNS-rebinding protection. `*.hl.mgryn.cc` → Traefik covers
 `pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
 straight at `vault-02`. Dev has no names of its own
 that need `/etc/hosts`. Pi-hole
-(`10.0.0.140`) answers only the devices pointed at it by hand, because
+answers only the devices pointed at it by hand, because
 the router cannot advertise a DNS server; the rest resolve through the
 router. There is no Cloudflare Tunnel.
 

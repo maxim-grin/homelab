@@ -34,7 +34,7 @@ is a stop — see
 | Name                                                                                             | What                                                                                                | TLS          |
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------ |
 | `https://jobs.mgryn.cc`                                                                          | jobboard (prod); HTTP 308s to HTTPS                                                                       | cert-manager |
-| `http://10.0.0.111:32080`                                                                        | ArgoCD UI (prod), NodePort break-glass on a prod worker; `.112` and HTTPS `32443` work too            | none         |
+| `http://$PROD_W1_IP:32080`                                                                       | ArgoCD UI (prod), NodePort break-glass on a prod worker; `$PROD_W2_IP` and HTTPS `32443` work too            | none         |
 | `https://argocd.mgryn.cc`                                                                        | ArgoCD UI (prod hub); HTTP 308s to HTTPS                                                              | cert-manager |
 | `https://grafana.mgryn.cc`                                                                       | Grafana (prod hub); HTTP 308s to HTTPS                                                                | cert-manager |
 | `https://prometheus.mgryn.cc/api/v1/write`                                                      | the hub's write-only Prometheus receiver for dev's agent; basic auth, `kv-dev/monitoring/remote-write` | cert-manager |
@@ -46,7 +46,7 @@ workstation, pointing at any node IP since ingress-nginx answers on every
 node — except `jobs.mgryn.cc`, `dev-jobs.mgryn.cc`, `vault.mgryn.cc`, `argocd.mgryn.cc` and
 `grafana.mgryn.cc`, which have DNS-only Cloudflare records (all but
 `vault` and `dev-jobs` are grey-cloud A records, two each, to the prod
-workers; `dev-jobs` is one, to `10.0.0.101`). `*.hl.mgryn.cc` is a DNS-only wildcard to `10.0.0.141`.
+workers; `dev-jobs` is one, to `$DEV_NODE_IP`). `*.hl.mgryn.cc` is a DNS-only wildcard to `$TRAEFIK_IP`.
 
 ## Prod hub ArgoCD
 
@@ -63,7 +63,7 @@ rm "$PROD_KC"
 
 **A prod Application is `Unknown` on sync status while health says
 `Healthy`.** Check Vault first: `vault status` on `vault-02`
-(`VAULT_ADDR=https://10.0.0.133:8200`, or run it on the host). A sealed
+(`VAULT_ADDR=https://${VAULT_IP:?}:8200`, or run it on the host). A sealed
 Vault looks healthy: AVP renders nothing, the last-applied resources stay
 in place, and only the sync status turns `Unknown`. Unseal, and the
 Application clears on Argo's next poll. If Vault is unsealed, read the
@@ -85,8 +85,8 @@ bootstrap play takes its bcrypt hash from `secret.yaml`, because
 ArgoCD must be up before AVP can read anything.
 
 **Break-glass UI.** When the ingress is broken, the ArgoCD server is also
-a NodePort: `http://10.0.0.111:32080`, or
-`.112`, HTTPS on `32443`. Bootstrapping the hub is in
+a NodePort: `http://$PROD_W1_IP:32080`, or
+`$PROD_W2_IP`, HTTPS on `32443`. Bootstrapping the hub is in
 [rebuild.md](rebuild.md), step 17
 ([ADR 0024](decisions/0024-hub-in-prod.md)).
 
@@ -293,7 +293,7 @@ cert-manager; debug it with `-e traefik_cert_resolver=letsencrypt-staging`
 
 ## Stale resolv.conf after a nameserver change
 
-Terraform's `nameserver` for the LAN service LXCs is `1.1.1.1 10.0.0.1`,
+Terraform's `nameserver` for the LAN service LXCs is `1.1.1.1 $ROUTER_IP`,
 in that order: the router answers `mgryn.cc` names that point at a
 private address with an empty NOERROR, and a resolver takes that as final.
 Proxmox writes the setting into a container's `/etc/resolv.conf` only when
@@ -319,7 +319,7 @@ Then `pct exec <id> -- getent hosts vault.mgryn.cc` answers.
 The router's admin page offers only a DHCP address range, so it cannot
 hand out Pi-hole's address (record
 [0020](decisions/0020-pihole-opt-in-per-device.md)). A device uses Pi-hole
-only when its own network settings name `10.0.0.140` as the DNS server;
+only when its own network settings name `$PIHOLE_IP` as the DNS server;
 set it to that alone, with no second server, or the device will bypass
 Pi-hole at will. Everything else keeps resolving through the router.
 

@@ -22,7 +22,7 @@ metadata:
 spec:
   # ingress-nginx runs as a DaemonSet on host ports 80/443 (bare metal, no
   # LoadBalancer). dev-jobs.mgryn.cc is a DNS-only (grey cloud) Cloudflare
-  # A record for 10.0.0.101; jobs.mgryn.cc is prod's (ADR 0028).
+  # A record for the dev node; jobs.mgryn.cc is prod's (ADR 0028).
   ingressClassName: nginx
   # cert-manager watches this block: it creates a Certificate named after
   # secretName, solves the challenge, and writes the result there.
