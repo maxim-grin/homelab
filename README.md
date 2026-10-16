@@ -114,7 +114,7 @@ diagram has a static address above that pool.
 hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
 delivers the platform apps (storage, TLS, ingress, monitoring, alerting)
 from `main` once they merge; the operator's rollout checks are steps 18
-and 19 of `docs/rebuild.md`. This is sub-project 3 of the [roadmap](docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md)
+and 19 of `docs/rebuild.md`. This is sub-project 3 of the roadmap
 ([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)).
 
 **Rebuilding** after a disk replacement or a total loss starts at
@@ -177,7 +177,6 @@ scripts/          check-manifests.sh (the CI manifests check, runnable
                   host), check-talos-pins.sh, check-appsets.sh and ad-hoc helpers.
 docs/             rebuild.md, operations.md
                   decisions/   architecture decision records
-                  superpowers/ design specs and implementation plans
 ```
 
 ## Checks before committing

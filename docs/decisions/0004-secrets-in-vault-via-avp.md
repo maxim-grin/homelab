@@ -35,5 +35,5 @@ because the last-applied resources are unchanged.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-10-vault-avp-design.md`; [#3](https://github.com/maxim-grin/homelab/pull/3),
+[#3](https://github.com/maxim-grin/homelab/pull/3),
 [#10](https://github.com/maxim-grin/homelab/pull/10); CLAUDE.md "Secrets".

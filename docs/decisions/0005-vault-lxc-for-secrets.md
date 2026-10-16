@@ -30,7 +30,5 @@ addresses.
 
 ## Related
 
-[#7](https://github.com/maxim-grin/homelab/pull/7) "Add Vault LXC";
-`docs/superpowers/specs/2026-09-10-vault-avp-design.md`;
-`docs/superpowers/specs/2026-09-25-vault-vm-design.md` "Problem"; superseded
+[#7](https://github.com/maxim-grin/homelab/pull/7) "Add Vault LXC"; superseded
 by [#35](https://github.com/maxim-grin/homelab/pull/35)-[#43](https://github.com/maxim-grin/homelab/pull/43).

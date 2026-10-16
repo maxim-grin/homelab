@@ -160,7 +160,7 @@ Rejected:
 
 ## Related
 
-`docs/superpowers/specs/2026-10-05-uniform-apps-design.md`; records
+Records
 [0004](0004-secrets-in-vault-via-avp.md),
 [0011](0011-vault-on-its-own-vm.md),
 [0023](0023-renovate-hosted-app.md),

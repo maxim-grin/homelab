@@ -63,6 +63,6 @@ Rejected:
 
 ## Related
 
-`docs/superpowers/specs/2026-10-11-jobboard-prod-design.md`; records
+Records
 [0026](0026-uniform-apps.md),
 [0027](0027-dev-is-a-spoke.md).

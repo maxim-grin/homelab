@@ -33,6 +33,5 @@ to be retired. Sub-project 2 built the prod cluster
 
 ## Related
 
-`docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md`;
 [#44](https://github.com/maxim-grin/homelab/pull/44),
 [#46](https://github.com/maxim-grin/homelab/pull/46).

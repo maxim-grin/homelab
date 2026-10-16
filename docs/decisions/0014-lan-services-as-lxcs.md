@@ -33,7 +33,4 @@ one at 128M, putting the real total closer to 1.25G.
 
 ## Related
 
-`docs/superpowers/specs/2026-09-27-lan-services-design.md`;
-[#51](https://github.com/maxim-grin/homelab/pull/51) "feat: lan services";
-`docs/superpowers/specs/2026-09-26-homelab-roadmap-design.md` "Why LAN
-services sit outside both clusters".
+[#51](https://github.com/maxim-grin/homelab/pull/51) "feat: lan services".
