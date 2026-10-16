@@ -1,27 +1,33 @@
-## 📁 Directory Structure
+# ArgoCD
+
+## Directory structure
 
 ```txt
 argocd/
-├── base/                        # ArgoCD base configuration
-│   ├── projects.yaml           # ArgoCD Projects (homelab)
+├── base/                          # the homelab AppProject, synced by argocd-config
+│   ├── projects.yaml
 │   ├── vault-auth-delegator.yaml  # vault-auth ServiceAccount + Secret for Vault's Kubernetes auth
 │   └── kustomization.yaml
-├── apps/                        # Application manifests
-│   └── monitoring/             # Grafana + Prometheus stack
-│       ├── namespace.yaml
-│       ├── prometheus/         # Prometheus configs
-│       ├── grafana/            # Grafana configs
-│       └── kustomization.yaml
-├── environments/                # Environment-specific ArgoCD apps
-│   └── prod/                     # the hub's ArgoCD; dev's apps come from here too
-│       └── applications/
-│           ├── app-of-apps.yaml      # Root application (root-prod)
-│           ├── appset.yaml           # ApplicationSet: <env>-<dir> apps, prod and dev
-│           ├── argocd-config.yaml    # Syncs argocd/base
-│           ├── clusters.yaml         # The prod cluster Secret
-│           └── clusters-dev.yaml     # The dev cluster Secret
-└── readme.md
+├── apps/                          # one directory per app (ADR 0026)
+│   ├── <app>/config.yaml          # which envs it deploys to, namespace, sync options
+│   ├── <app>/base/                # shared manifests, where an app has them
+│   ├── <app>/dev/  <app>/prod/    # kustomize per env (Helm via helmCharts)
+│   └── clusters/                  # the dev and prod cluster Secrets
+├── environments/
+│   └── prod/applications/         # root-prod's children, on the hub
+│       ├── app-of-apps.yaml       # root application (root-prod)
+│       ├── appset.yaml            # ApplicationSet: <cluster>-<dir> apps, prod and dev
+│       ├── argocd-config.yaml     # syncs argocd/base
+│       ├── clusters.yaml          # the prod cluster Secret app
+│       └── clusters-dev.yaml      # the dev cluster Secret app
+└── README.md
 ```
+
+Apps today: `alerts`, `cert-manager`, `cert-manager-issuers`,
+`grafana-dashboards`, `ingress-nginx`, `jobboard`, `kube-prometheus-stack`,
+`monitoring-secrets`, `nfs-provisioner`, `pve-exporter`. Each `config.yaml`
+says which of them reach dev and prod. The hub bootstrap order is in
+[docs/rebuild.md](../docs/rebuild.md).
 
 ### Step 1: Apply ArgoCD Projects (Bootstrap Only)
 

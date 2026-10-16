@@ -36,7 +36,7 @@ vault_vm_ip = "192.0.2.133/24"
 #   pveam download local debian-13-standard_<version>_amd64.tar.zst
 debian_lxc_template = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
 
-# Outside the router's DHCP pool (.2-.99). vmids in main.tf match the last
+# Outside the router's DHCP pool. vmids in main.tf match the last
 # octet.
 lxc_ips = {
   pihole    = "192.0.2.140/24"

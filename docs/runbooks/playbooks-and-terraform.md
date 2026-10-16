@@ -364,20 +364,19 @@ unset VAULT_TOKEN PROD_ROLE_TOKEN
 Expect: the policy names `kv-prod/` and `kv-dev/` data and metadata paths,
 and both `kv list` calls print names. The token check proves the policy only, not
 the Kubernetes-auth login; the real proof is an Argo sync of a `kv-dev` app on
-prod, once sub-project 4 lands. If not: `permission denied` on
+prod (any `dev-*` app). If not: `permission denied` on
 `kv-dev` means the policy was not rewritten; re-run configure prod and
 check the play for `Write the policy for prod`.
 
 ### Seed the remote-write credential
 
-When: BEFORE merging the uniform-apps PR, and on a rebuild before prod's
-`monitoring-secrets` first syncs. That Application renders the Secret
+When: on a rebuild, before prod's `monitoring-secrets` first syncs. That Application renders the Secret
 `prometheus-basic-auth` from
 `<path:kv-prod/data/monitoring/remote-write#htpasswd>` as soon as the
 Secret is on `main`; a missing field fails AVP for the whole app: sync
 status `Unknown` with a `ComparisonError`, health still `Healthy`, and the
 Grafana and Alertmanager Secrets frozen. `kv-dev/monitoring/remote-write`
-holds the plain pair for dev's sender (sub-project 4).
+holds the plain pair for dev's sender.
 
 Generate the bcrypt line on the operator's workstation with the `argocd`
 CLI (`argocd account bcrypt` runs locally and needs no login; it emits

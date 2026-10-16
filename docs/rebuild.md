@@ -12,8 +12,8 @@ unintended apply (#47) rebuilt all three dev VMs from the blank template;
 the cluster was recreated by the playbooks in "Rebuild order" and the
 jobboard database restored from its old volume on `nfs-01` — see
 "Rebuilding dev only". A full run from a fresh Proxmox install on a new
-disk has not been done; the bootstrap script has stub tests but has not yet
-been run on a real host, so its first real run is the final test.
+disk has not been done; the bootstrap script has stub tests and has not
+been run end to end on a fresh host, so that run is the final test.
 
 ## What git does not contain
 
@@ -341,8 +341,8 @@ Three later changes moved those numbers, all deliberate overcommit:
 module's 10 GiB default to 30 GiB the same day — on 10 GiB disks
 `/var/lib/containerd` alone reached 3.8 GiB and kubelet evicted pods —
 and `nfs-01` gained a third, 10 GiB `scsi3` disk for a `backups` share
-exported to `vault-02` for Vault's raft snapshots — a daily timer keeping
-14 is coming with the Vault role rebuild, nothing writes to it yet.
+exported to `vault-02` for Vault's raft snapshots — a daily timer on `vault-02`
+keeps 14 snapshots there.
 Measured after the first two, `pvesm status` reported `local-lvm` 30.2%
 used with 98 GiB available. The pool itself is still 141 GiB; declared
 sizes now far exceed it and keep drifting further above it with each
@@ -540,18 +540,16 @@ from `secret.yaml`.
     ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
     ```
 
-14. **`/etc/hosts`** needs no dev lines: dev has no Grafana or Prometheus
-    UI, and `grafana.mgryn.cc` and `prometheus.mgryn.cc` are the hub's
-    public records. Remove any old line that points one at a dev node
-    ([Add the dev names to /etc/hosts](runbooks/access.md#add-the-dev-names-to-etchosts)).
+14. **Names.** No name needs an `/etc/hosts` entry: dev has no Grafana or
+    Prometheus UI, and `grafana.mgryn.cc` and `prometheus.mgryn.cc` are the
+    hub's public records.
 
-    `jobs.mgryn.cc` needs no entry: it is a DNS-only Cloudflare record
+    `jobs.mgryn.cc` is a DNS-only Cloudflare record
     holding the prod workers' IPs. If they changed in this rebuild, update
     that record in Cloudflare instead. Its certificate is prod's: it re-issues on its own once step 17 has
     seeded `kv-prod/cert-manager/cloudflare`.
 
-    `vault.mgryn.cc`, like `jobs.mgryn.cc`, needs no `/etc/hosts` entry
-    either: it is a DNS-only Cloudflare record pointing at `vault-02`
+    `vault.mgryn.cc`, like `jobs.mgryn.cc`, is a DNS-only Cloudflare record pointing at `vault-02`
     (`$VAULT_IP`), not a node. Vault is not behind ingress-nginx, so
     it stays reachable at `https://vault.mgryn.cc:8200` (verify with
     `--cacert ~/.homelab-ca/ca.crt`) even when the cluster itself is down
@@ -671,8 +669,8 @@ from `secret.yaml`.
     ```
 
     Done when `kubectl get nodes` shows three Ready nodes: `talos-prod-cp1`,
-    `talos-prod-w1` and `talos-prod-w2`. The cluster has no workloads; the
-    hub platform is sub-project 3 of the roadmap.
+    `talos-prod-w1` and `talos-prod-w2`. The cluster has no workloads yet;
+    the platform apps arrive in step 18.
 
     Right after the apply returns, `kubectl get nodes` prints `No resources
     found`: the API server answers but the kubelets have not registered.
@@ -865,11 +863,7 @@ from `secret.yaml`.
 
     1. Names. In Cloudflare add four DNS-only (grey cloud) A records:
        `argocd` and `grafana`, each to `$PROD_W1_IP` and to `$PROD_W2_IP`.
-       On the workstation, point both names at a worker in `/etc/hosts`
-       (`$PROD_W1_IP argocd.mgryn.cc grafana.mgryn.cc`) and delete the old
-       `grafana.mgryn.cc` and `argocd.mgryn.cc` lines that point at a dev
-       node: dev has no Grafana or
-       ArgoCD UI of its own.
+       Dev has no Grafana or ArgoCD UI of its own.
 
     2. Get the platform apps onto `main`, which `root-prod` reads (on
        the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then
@@ -1126,7 +1120,7 @@ not — a `terraform apply` that replaced them, as PR #47's module rename
 did on 2026-09-27 — skip steps 1–5 and 7 above, and step 13 unless `claude-code` was
 replaced too. Vault is initialised
 and seeded, NFS still holds every PVC's data, and the node vmids and IPs
-come back unchanged, so `/etc/hosts` and the Cloudflare records need
+come back unchanged, so the Cloudflare records need
 nothing.
 
 From the workstation, in `ansible/`:
@@ -1206,20 +1200,16 @@ dev's database is staging data, and a prod rebuild restores the dump with
 
 ## Gaps worth closing before the disk is replaced
 
-Roughly in order of how much they would hurt. None is urgent while the
-cluster holds no data.
+Roughly in order of how much they would hurt.
 
 1. **Install `qemu-guest-agent` on the VMs built before 2026-09-09.** The
    template now carries it and new clones inherit it, verified with
    `qm agent 102 ping`. The five older VMs still run without it while
    Proxmox is configured to expect one, so their shutdowns are ACPI-only
    and backups cannot freeze their filesystems.
-2. **Script the template build.** The commands above are a start; a
-   `scripts/build-template.sh` would be better than a document that can drift.
-3. **Store the ansible-vault password, and the Vault unseal key and root
+2. **Store the ansible-vault password, and the Vault unseal key and root
    token, in a password manager** if they are not already there. This is
    the one that bites without warning: `secret.yaml` is committed and
    encrypted, so losing the password loses the file, and Vault has no
    recovery path at all without its unseal key — a sealed Vault with a
    lost key is unseal-able forever, not just inconvenient.
-4. **Export Grafana dashboards to git** once any are built.

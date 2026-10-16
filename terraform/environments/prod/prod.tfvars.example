@@ -10,8 +10,7 @@ pm_api_url          = "https://<PROXMOX_IP>:8006/api2/json"
 pm_api_token_id     = "root@pam!terraform"
 pm_api_token_secret = "<UUID>"
 
-# The LAN's gateway. Node addresses sit above the router's DHCP pool
-# (.2-.99), in the block the README diagram reserves for Talos.
+# The LAN's gateway. Node addresses sit outside the router's DHCP pool.
 gateway = "192.0.2.1"
 
 # cp1 is 4096, not Talos's documented minimum of 2048: at 2048 the API server

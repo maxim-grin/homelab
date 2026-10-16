@@ -2,8 +2,7 @@
 
 Three Terraform roots, one per state file. `dev` holds the kubeadm
 cluster and `claude-code`; `shared` holds what outlives any one cluster —
-`nfs-01`, `vault-02` and the LAN LXCs; `prod` is the Talos cluster (roadmap
-sub-project 2, ADRs [0012](../docs/decisions/0012-hub-and-spoke-topology.md)
+`nfs-01`, `vault-02` and the LAN LXCs; `prod` is the Talos cluster (ADRs [0012](../docs/decisions/0012-hub-and-spoke-topology.md)
 and [0021](../docs/decisions/0021-talos-prod-via-terraform-provider.md)). The
 layout:
 
@@ -14,6 +13,7 @@ terraform/
 │   ├── dev/
 │   │   ├── .terraform.lock.hcl
 │   │   ├── backend.tf.example   # gitignored backend.tf copies from this
+│   │   ├── dev.tftest.hcl       # mock-provider tests
 │   │   ├── dev.tfvars.example   # gitignored dev.tfvars copies from this
 │   │   ├── main.tf
 │   │   ├── outputs.tf
@@ -32,6 +32,7 @@ terraform/
 │       ├── backend.tf.example
 │       ├── main.tf
 │       ├── outputs.tf
+│       ├── prod.tftest.hcl      # mock-provider tests
 │       ├── prod.tfvars.example
 │       ├── variables.tf
 │       └── versions.tf
@@ -154,8 +155,7 @@ terraform apply -var-file="prod.tfvars"
 The root builds the three-node Talos cluster and is applied from the
 operator's workstation. Its prerequisites, the `Talos-K8s` pool and the
 `talos-tp` template, are in `docs/rebuild.md` section 2b. CI validates it
-with the other two roots. `terraform -chdir=terraform/environments/prod test`
-runs its mock-provider tests.
+with the other two roots, and CI runs `terraform test` in `dev` and `prod`.
 
 > Avoid manual changes to Terraform-managed Proxmox resources; use Terraform for drift-free automation.
 >
@@ -173,4 +173,3 @@ runs its mock-provider tests.
 - **modules/ubuntu-vm** – baseline Ubuntu VM provisioning with cloud-init.
 - **modules/talos-node** – one Talos VM, a full clone of `talos-tp` with a static cloud-init address; used by `environments/prod`.
 - **modules/ubuntu-k8s** – Ubuntu-based Kubernetes nodes via kubeadm.
-- Additional modules can be added under `modules/` and referenced from environment `main.tf` files.

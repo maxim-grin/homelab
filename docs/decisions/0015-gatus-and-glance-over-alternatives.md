@@ -1,7 +1,7 @@
 # 0015. Gatus + Telegram over Uptime Kuma; Glance over Homepage
 
-**Status:** Accepted (2026-09-27) — Gatus built 2026-09-30; Glance not yet
-built
+**Status:** Accepted (2026-09-27) — Gatus built 2026-09-30, Glance
+2026-10-01
 
 ## Context
 

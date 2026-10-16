@@ -4,7 +4,8 @@
 
 A single-host Proxmox homelab run as code: Terraform provisions the VMs and
 LXCs, Ansible configures them, and ArgoCD delivers applications to a
-kubeadm Kubernetes cluster from this repository's `main`. Cluster secrets
+Talos prod cluster (the hub) and a kubeadm dev cluster from this
+repository's `main`. Cluster secrets
 stay in Vault and are resolved at sync time, TLS comes from Let's Encrypt over
 DNS-01, and a row of small LXCs serves the LAN — DNS, a reverse proxy,
 uptime alerts.
@@ -28,30 +29,30 @@ flowchart TB
     subgraph pve["Proxmox VE host pve — one SSD"]
         subgraph dev["terraform/environments/dev"]
             subgraph k8s["kubeadm cluster"]
-                master["master-01 .101"]
-                w1["worker-01 .201"]
+                master["master-01"]
+                w1["worker-01"]
                 ingress["ingress-nginx<br/>host ports 80/443"]
                 certmgr["cert-manager"]
                 jobboard["jobboard staging"]
                 mon["Prometheus agent"]
             end
-            claude["claude-code .130"]
+            claude["claude-code"]
         end
 
         subgraph shared["terraform/environments/shared"]
-            nfs["nfs-01 .131<br/>nfs-dev · nfs-prod · backups"]
-            vault["vault-02 .133<br/>kv-dev · kv-prod"]
+            nfs["nfs-01<br/>nfs-dev · nfs-prod · backups"]
+            vault["vault-02<br/>kv-dev · kv-prod"]
             subgraph lxcs["LAN services, one LXC each"]
-                pihole["Pi-hole .140<br/>DNS + ad blocking"]
-                traefik["Traefik .141<br/>*.hl.mgryn.cc"]
-                glance["Glance .142<br/>dashboard"]
-                gatus["Gatus .143<br/>uptime"]
-                orangutan["LAN Orangutan .144<br/>device discovery"]
+                pihole["Pi-hole<br/>DNS + ad blocking"]
+                traefik["Traefik<br/>*.hl.mgryn.cc"]
+                glance["Glance<br/>dashboard"]
+                gatus["Gatus<br/>uptime"]
+                orangutan["LAN Orangutan<br/>device discovery"]
             end
         end
 
         subgraph prod["terraform/environments/prod"]
-            talos["Talos cluster<br/>cp1 .110 · w1 .111 · w2 .112"]
+            talos["Talos cluster<br/>cp1 .110 · w1 .111 · w2"]
             argocd["ArgoCD + AVP<br/>the hub"]
             appset["ApplicationSet apps<br/>one Application per app"]
             prodjob["jobboard + Postgres"]
@@ -81,10 +82,9 @@ flowchart TB
     appset -- "generates from argocd/apps/*/config.yaml" --> github
     appset --> talos
 
-    classDef planned stroke-dasharray: 5 5,opacity:0.8
 ```
 
-Solid boxes run today; dashed boxes are planned. Every machine in the diagram has a static address outside the router's DHCP
+Every machine in the diagram has a static address outside the router's DHCP
 pool; `host_ips` in `ansible/secret.yaml` records them.
 
 ## What actually runs
@@ -92,16 +92,16 @@ pool; `host_ips` in `ansible/secret.yaml` records them.
 | Layer      | What                                                                                                                                                                            | Where it is defined                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                                                                                                                                          | not in git — see `docs/rebuild.md`                                                                      |
-| VMs        | `kubeadm-dev`: one control plane and one worker (`.101`, `.201`), `claude-code` workstation                                                                                     | `terraform/environments/dev`                                                                            |
-| VM         | Talos prod cluster: one control plane and two workers, `.110`–`.112`; the hub, platform apps delivered by `root-prod`                                                           | `terraform/environments/prod`, `terraform/modules/talos-node`                                           |
+| VMs        | `kubeadm-dev`: one control plane and one worker, `claude-code` workstation                                                                                     | `terraform/environments/dev`                                                                            |
+| VM         | Talos prod cluster: one control plane and two workers; the hub, platform apps delivered by `root-prod`                                                           | `terraform/environments/prod`, `terraform/modules/talos-node`                                           |
 | VM         | `nfs-01`, NFS for dev and prod; `nfs-prod` is exported to the prod workers only                                                                                    | `terraform/environments/shared`                                                                         |
 | VM         | `vault-02`, the Vault VM; `kv-dev` and `kv-prod` both read by AVP                                                                                                               | `terraform/environments/shared`                                                                         |
-| LXCs       | `pihole` (DNS, ad blocking) at `.140`, `traefik` (`*.hl.mgryn.cc`) at `.141`, `glance` (dashboard) at `.142`, `gatus` (uptime, Telegram alerts) at `.143`, `orangutan` (device discovery) at `.144` | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
+| LXCs       | `pihole` (DNS, ad blocking), `traefik` (`*.hl.mgryn.cc`), `glance` (dashboard), `gatus` (uptime, Telegram alerts), `orangutan` (device discovery) | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
 | OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
 | GitOps     | ArgoCD on the Talos cluster, bootstrapped by `playbooks/argocd-prod.yaml`, app-of-apps `root-prod` plus one ApplicationSet that generates the prod apps ([ADR 0024](docs/decisions/0024-hub-in-prod.md), [ADR 0026](docs/decisions/0026-uniform-apps.md)) | `ansible/playbooks/argocd-prod.yaml`, `argocd/environments/prod`                                        |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                                                                                   | `argocd/apps/ingress-nginx`                                                                             |
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare                                                                                                                  | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers`                                          |
-| Storage    | NFS server VM exporting `/srv/nfs/k8s`, `nfs-dev` StorageClass                                                                                                                  | `ansible/roles/nfs_server`, `argocd/apps/nfs-provisioner`                                               |
+| Storage    | `nfs-01` exporting `/srv/nfs/k8s` (`nfs-dev`, the default StorageClass) and the prod share (`nfs-prod`)                                                                                                                  | `ansible/roles/nfs_server`, `argocd/apps/nfs-provisioner`                                               |
 | Apps       | monitoring (a Prometheus agent that remote-writes to the hub); jobboard (prod, with dev as its staging), the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/`                                                                                          |
 | Prod hub   | `kube-prometheus-stack` (Prometheus, Grafana, Alertmanager), cert-manager, ingress-nginx and `nfs-prod` on the Talos cluster, generated by the ApplicationSet from `argocd/apps/<app>/config.yaml`; rollout in `docs/rebuild.md` step 18 | `argocd/environments/prod`, `argocd/apps/`                                                              |
 | Dashboards | Grafana dashboards written in jsonnet and rendered to committed JSON: Homelab overview, Proxmox, jobboard and platform ([ADR 0032](docs/decisions/0032-dashboards-as-jsonnet.md)); editing steps in [`docs/runbooks/checks.md`](docs/runbooks/checks.md#edit-a-grafana-dashboard) | `dashboards/`, `argocd/apps/grafana-dashboards` |
@@ -113,8 +113,8 @@ pool; `host_ips` in `ansible/secret.yaml` records them.
 hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
 delivers the platform apps (storage, TLS, ingress, monitoring, alerting)
 from `main` once they merge; the operator's rollout checks are steps 18
-and 19 of `docs/rebuild.md`. This is sub-project 3 of the roadmap
-([ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md)).
+and 19 of `docs/rebuild.md`. The topology is
+[ADR 0012](docs/decisions/0012-hub-and-spoke-topology.md).
 
 **Rebuilding** after a disk replacement or a total loss starts at
 [docs/rebuild.md](docs/rebuild.md), which lists what this repository does
@@ -135,8 +135,7 @@ entry. Public DNS
 answering with a private address is fine, though some routers drop it as
 DNS-rebinding protection. `*.hl.mgryn.cc` → Traefik covers
 `pihole`, `proxmox`, `traefik`, `status`, `lan` and `home`; `vault.mgryn.cc` points
-straight at `vault-02`. Dev has no names of its own
-that need `/etc/hosts`. Pi-hole
+straight at `vault-02`. No name needs a hosts-file entry. Pi-hole
 answers only the devices pointed at it by hand, because
 the router cannot advertise a DNS server; the rest resolve through the
 router. There is no Cloudflare Tunnel.
@@ -171,11 +170,15 @@ terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, nfs-server,
                   environments/dev/     the kubeadm cluster and claude-code
                   environments/shared/  nfs-01, vault-02, the LAN LXCs
                   environments/prod/    the Talos prod cluster
-scripts/          check-manifests.sh (the CI manifests check, runnable
-                  locally), pve-bootstrap.sh (bootstraps a fresh Proxmox
-                  host), check-talos-pins.sh, check-appsets.sh and ad-hoc helpers.
+dashboards/       jsonnet sources for the Grafana dashboards; the rendered
+                  JSON is committed under argocd/apps/grafana-dashboards
+scripts/          pve-bootstrap.sh (bootstraps a fresh Proxmox host), the
+                  check-*.sh scripts CI runs (manifests, appsets, dashboards,
+                  runbooks, Talos pins), verify-dev.sh, and tests/
 docs/             rebuild.md, operations.md
                   decisions/   architecture decision records
+                  runbooks/    commands to run and check things
+renovate.json5    dependency updates (ADR 0023)
 ```
 
 ## Checks before committing
@@ -188,7 +191,8 @@ pre-commit install                          # wires pre-commit AND commit-msg
 ```
 
 The hooks: file hygiene, `check-yaml`, `detect-private-key`, `gitleaks`,
-`ansible-lint`, `terraform fmt`, and two checks on the message: its
+`shellcheck`, `ansible-lint`, `jsonnetfmt`, `terraform fmt`,
+`check-runbooks`, and two checks on the message: its
 conventional-commit format, and `scripts/check-commit-msg.py` — subject
 ≤ 50 characters, body ≤ 72, no attribution lines. `ansible-lint` runs at
 profile `production` with no ignore file, so any finding fails — see
@@ -204,20 +208,21 @@ every push to `main`. Nothing in it touches the cluster, Proxmox or any
 secret; it only reads. Pull requests run only the jobs whose area they
 touch (a `changes` job decides; a skipped job counts as passing for the
 required checks), `pre-commit` and `commits` always; a push to `main`
-runs everything (ADR [0031](docs/decisions/0031-path-gated-ci.md)). Six
+runs everything (ADR [0031](docs/decisions/0031-path-gated-ci.md)). Seven
 jobs, in parallel:
 
 | Job          | What it runs                                                                                                                                                                                                                                                   |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pre-commit` | `pre-commit run --all-files` — the same hooks as above, minus `ansible-lint` and `terraform fmt`, which run in their own jobs — plus a full-history `gitleaks` scan (the hook itself only scans staged changes)                                                                                                                       |
+| `pre-commit` | `pre-commit run --all-files` — the same hooks as above, minus `ansible-lint`, `terraform fmt` and `jsonnetfmt`, which run in their own jobs — plus a full-history `gitleaks` scan (the hook itself only scans staged changes)                                                                                                                       |
 | `commits`    | the conventional-commit hook over every non-merge commit in the PR (PRs only; skipped for `renovate[bot]`, whose titles exceed 50 characters and are squash-merged with a short subject, ADR 0023)                                                                                                                                                                                  |
 | `ansible-lint` | `ansible-lint` over the whole `ansible/` project, with the collections from `ansible/requirements.yml` (only when `ansible/` changed) |
-| `terraform`  | `terraform fmt -check`, `terraform init -backend=false`, `validate` and `tflint` in `terraform/environments/dev`, `terraform/environments/shared` and `terraform/environments/prod`                                                                                                                                   |
+| `terraform`  | `terraform fmt -check`, `terraform init -backend=false`, `validate`, `terraform test` (dev and prod) and `tflint` in `terraform/environments/dev`, `terraform/environments/shared` and `terraform/environments/prod`                                                                                                                                   |
 | `manifests`  | `scripts/check-manifests.sh`: `kustomize build` of every kustomization, a failure for any `chart:` source in an Application CR (charts are rendered through `helmCharts:` in the kustomizations), `kubeconform -strict` on the output (`CustomResourceDefinition` objects are skipped: no schema is published for that kind), then `scripts/check-appsets.sh` expands the ApplicationSet and checks names, paths and destinations |
-| `scripts`    | `shellcheck` on the bootstrap script, its tests and the pin check; `scripts/check-talos-pins.sh` (the script's Talos version and schematic equal the prod root's defaults); `scripts/tests/pve-bootstrap.test.sh` (the script against stubbed `pveum`, `qm` and `pveam`) |
+| `dashboards` | `scripts/check-dashboards.sh`: the committed dashboard JSON matches its jsonnet sources, plus the check's own tests (only when `dashboards/` or the rendered output changed) |
+| `scripts`    | `shellcheck` on the scripts and their tests; `scripts/check-talos-pins.sh` (the script's Talos version and schematic equal the prod root's defaults); `check-runbooks.sh`; and the tests for the bootstrap script (against stubbed `pveum`, `qm` and `pveam`), `verify-dev.sh`, the runbook guard and the ApplicationSet check |
 
 Run the `manifests` job locally with `scripts/check-manifests.sh`. It needs
 `kustomize`, `helm`, `yq` (mikefarah v4) and `kubeconform` on `PATH`. `<path:...>`
 placeholders are checked as plain strings; nothing resolves them against Vault.
 
-See `ansible/README.md` and `terraform/README.md` for the detail of each half.
+See `ansible/README.md`, `argocd/README.md` and `terraform/README.md` for the detail of each part.
