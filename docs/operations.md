@@ -288,6 +288,16 @@ Traefik's `*.hl.mgryn.cc` certificate is Traefik's own ACME client, not
 cert-manager; debug it with `-e traefik_cert_resolver=letsencrypt-staging`
 (see `ansible/roles/traefik/defaults/main.yaml`).
 
+## Dev checks in Gatus (not yet)
+
+Gatus checks no dev endpoint, so stopping or rebuilding the dev VMs
+alerts nothing. Adding dev checks would make every stopped dev machine
+a Telegram alert and a red tile. Before adding them, put them in their
+own list behind a `gatus_dev_monitored` variable (default `true`) in
+`ansible/roles/gatus`, and set it to `false` and re-run the Gatus play
+when dev is off. Gatus's maintenance windows are time-based, so they do
+not fit "off until I say".
+
 ## Stale resolv.conf after a nameserver change
 
 Terraform's `nameserver` for the LAN service LXCs is `1.1.1.1 $ROUTER_IP`,

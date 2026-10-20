@@ -88,7 +88,7 @@ gatus_endpoints:
     url: https://home.hl.mgryn.cc/
     conditions: ["[CONNECTED] == true", "[STATUS] < 400", "[CERTIFICATE_EXPIRATION] > 336h"]
   - name: jobs.mgryn.cc
-    group: dev
+    group: prod
     url: https://jobs.mgryn.cc/
     conditions: ["[CONNECTED] == true", "[STATUS] < 400"]
   # The prod hub: grey-cloud records point both names at the two prod

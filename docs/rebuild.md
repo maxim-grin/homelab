@@ -1086,6 +1086,19 @@ from `secret.yaml`.
        1000 MiB. On 2026-10-05: `data%` 57.77, metadata 2.98, `available`
        2974 MiB.
 
+20. **Done means Gatus is green** — Argo `Synced` and a finished play prove
+    configuration, not service. Open `https://status.hl.mgryn.cc`: every
+    endpoint (groups `infra`, `dns`, `lan` and `prod`, and the router)
+    must be green and stay green for 5 minutes, the alert threshold's two
+    intervals with margin. Gatus checks from outside both clusters, so it
+    sees what ArgoCD cannot: ingress, DNS and certificates.
+
+    A red endpoint is a gap in this guide, not a flake: fix the cause,
+    write the missing step into the guide, and re-check. Gatus runs on
+    the host it watches, so it can only judge once its own LXC is back
+    (step 15's Gatus play). Dev has no Gatus checks yet; see
+    [Dev checks in Gatus](operations.md#dev-checks-in-gatus-not-yet).
+
 Expect steps 10 and 11 to be the confusing ones: ArgoCD reads `main` from
 GitHub, not the local checkout, so anything uncommitted is invisible to it.
 
