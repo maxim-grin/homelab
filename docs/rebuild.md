@@ -7,6 +7,12 @@ the VM template every machine clones — is set up by `scripts/pve-bootstrap.sh`
 not Terraform, and the template blocks every `terraform apply` until it
 exists.
 
+**Before you replace the disk,** run the
+[off-box checklist](runbooks/backups-and-recovery.md#before-an-ssd-swap).
+It takes a fresh dump of prod's jobboard database, the one thing here
+that cannot be regenerated, and checks that the workstation-only files and
+the vault passwords are in place.
+
 **What has been exercised, and what has not.** On 2026-09-27 an
 unintended apply (#47) rebuilt all three dev VMs from the blank template;
 the cluster was recreated by the playbooks in "Rebuild order" and the
@@ -1203,12 +1209,16 @@ dev's database is staging data, and a prod rebuild restores the dump with
 
 Roughly in order of how much they would hurt.
 
-1. **Install `qemu-guest-agent` on the VMs built before 2026-09-09.** The
+1. **Take a fresh prod jobboard dump, with a second copy off the
+   machine.** The rows exist only in prod's Postgres, and a rebuild
+   restores from the newest dump (step 18). See the
+   [off-box checklist](runbooks/backups-and-recovery.md#before-an-ssd-swap).
+2. **Install `qemu-guest-agent` on the VMs built before 2026-09-09.** The
    template now carries it and new clones inherit it, verified with
    `qm agent 102 ping`. The five older VMs still run without it while
    Proxmox is configured to expect one, so their shutdowns are ACPI-only
    and backups cannot freeze their filesystems.
-2. **Store the ansible-vault password, and the Vault unseal key and root
+3. **Store the ansible-vault password, and the Vault unseal key and root
    token, in a password manager** if they are not already there. This is
    the one that bites without warning: `secret.yaml` is committed and
    encrypted, so losing the password loses the file, and Vault has no
