@@ -1112,8 +1112,7 @@ vault operator raft snapshot restore -force <file>
 
 then unseal with the **original** unseal key and log in with the
 **original** root token — the ones recorded when the snapshot's data was
-written, not the fresh store's own. The drill that proves this works
-end-to-end is PR 4's (Task 14).
+written, not the fresh store's own.
 
 ## Rebuilding dev only
 
