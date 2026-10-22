@@ -724,11 +724,9 @@ from `secret.yaml`.
     Prerequisites:
 
     - Prod nodes at 4G memory and `nfs-prod` exported to the prod
-      workers (the hub-nodes PR applied).
-    - PR 1 (hub-nodes) and PR 2 (hub-bootstrap) merged to `main` before
-      step 4; steps 1-3 can run from the branch. `root-prod` reads
-      `main`, so applying it earlier deploys stale apps and never
-      creates the `vault-auth` Secret.
+      workers.
+    - The hub manifests are on `main`. `root-prod` reads `main`, so
+      anything not merged is invisible to it.
     - `kv-prod` seeded. Step 17.7 below resolves a `kv-prod` placeholder, and
       nothing else seeds it. With the `kv-prod` block of `secret.yaml`
       filled in (see `secret.yaml.example`), seed from `ansible/`;
@@ -772,10 +770,8 @@ from `secret.yaml`.
        Done when every pod is `Running` or `Completed` and `repo-server`
        is not stuck in `Init`.
 
-    4. PR 1 (hub-nodes) and PR 2 (hub-bootstrap) are merged to `main`
-       before this step; steps 1-3 can run from the branch. Apply the
-       AppProject and the app-of-apps by hand, as on dev (steps 10 and
-       11); the `argocd` role does not apply them:
+    4. Apply the AppProject and the app-of-apps by hand, as on dev
+       (steps 10 and 11); the `argocd` role does not apply them:
 
        ```bash
        kubectl --kubeconfig "$PROD_KC" apply -f ../argocd/base/projects.yaml
@@ -838,14 +834,14 @@ from `secret.yaml`.
        on `vault-02` first (sealed Vault), then that `kv-prod` is seeded
        and step 6 ran.
 
-    8. Check the UI. Prod has no ingress controller until PR 3, so use the
+    8. Check the UI. Prod has no ingress controller until step 18, so use the
        NodePort: `http://$PROD_W1_IP:32080` (or `$PROD_W2_IP`, or HTTPS on
        `32443`) shows the login page.
 
     9. Delete the kubeconfig: `rm "$PROD_KC"`.
 
 18. **Prod platform apps rollout** — storage, TLS, ingress and monitoring
-    on the Talos cluster, delivered by `root-prod` once PR 3 is on `main`
+    on the Talos cluster, delivered by `root-prod` from `main`
     ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
     workstation; kubectl commands use a `$PROD_KC` extracted as in step
     17.1 (`rm "$PROD_KC"` when done).
@@ -854,7 +850,7 @@ from `secret.yaml`.
     `cert-manager/cloudflare` (the Cloudflare token), `monitoring/grafana`
     (the admin login), `monitoring/alertmanager` (the Telegram bot
     token and chat id) and `monitoring/pve-exporter` (its token and the
-    Proxmox address, step 19; a full rebuild already has the PR 4 apps on
+    Proxmox address, step 19; the alerting apps are already on
     `main`) and `monitoring/remote-write` (the receiver's `htpasswd`
     line, without which `monitoring-secrets` cannot render; `kv-dev`
     holds the plain pair,
@@ -865,17 +861,14 @@ from `secret.yaml`.
        `argocd` and `grafana`, each to `$PROD_W1_IP` and to `$PROD_W2_IP`.
        Dev has no Grafana or ArgoCD UI of its own.
 
-    2. Get the platform apps onto `main`, which `root-prod` reads (on
-       the first rollout: merge PR 1 hub-nodes, PR 2 hub-bootstrap, then
-       PR 3 hub-platform, in that order). Watch:
+    2. The platform apps are on `main`, which `root-prod` reads. Watch:
 
        ```bash
        kubectl --kubeconfig "$PROD_KC" -n argocd get applications
        ```
 
-       After the uniform-apps rollout (rollout 4 merged): expect
-       `argocd-config`, the `clusters` Secret Application, `clusters-dev` and
-       the set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
+       Expect `argocd-config`, the `clusters` Secret Application,
+       `clusters-dev` and the set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
        `prod-cert-manager`, `prod-cert-manager-issuers`,
        `prod-ingress-nginx`, `prod-monitoring-secrets`,
        `prod-kube-prometheus-stack`, `prod-jobboard`), all `Synced` and `Healthy` after
@@ -889,10 +882,6 @@ from `secret.yaml`.
        chart. On a from-scratch bootstrap the retries can run out, so
        expect to need one manual sync below. Moving an existing app into
        the set is [Roll an app into the set](runbooks/checks.md#roll-an-app-into-the-set).
-       Until rollout 4 is on `main`, a rebuild from `main` creates the
-       old per-app Applications (`nfs`, `cert-manager`, `monitoring`,
-       ...) instead, beside an `apps` set that generates only the apps
-       already rolled out.
 
        After a sealed or briefly unreachable Vault, `monitoring-secrets`
        and `cert-manager-issuers` show a `ComparisonError` and sync on
@@ -990,13 +979,13 @@ from `secret.yaml`.
     its `kv-prod/jobboard/*` seed comes from `secret.yaml` in step 17.
 
 19. **Alerting rollout** — the Proxmox exporter, scrapes and alert rules,
-    delivered by `root-prod` once PR 4 (hub-alerting) is on `main`
+    delivered by `root-prod` from `main`
     ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
     workstation, with `$PROD_KC` extracted as in step 17.1
     (`rm "$PROD_KC"` when done). Prerequisite: step 18 done. On a full
     rebuild everything here is already on `main`: do 2 and 3, then 4 on.
 
-    1. Merge PR 4. Its Applications, `pve-exporter` and `alerts`, need
+    1. The Applications `pve-exporter` and `alerts` need
        the CRDs of `kube-prometheus-stack` and the namespace
        `monitoring-secrets` owns; with no sync waves they rely on the
        set's finite retry for the race. Until Vault holds
