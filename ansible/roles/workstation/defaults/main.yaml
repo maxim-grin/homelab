@@ -3,6 +3,13 @@
 workstation_user: "{{ user_name }}"
 workstation_home: "/home/{{ workstation_user }}"
 
+# Unprivileged account for running agents on this box. Deliberately in no
+# groups: not sudo, and not docker, which is root-equivalent.
+workstation_agent_user: claude
+# Public keys allowed to log in as the agent user; none means key login is
+# left unconfigured and the password stays locked.
+workstation_agent_authorized_keys: []
+
 # Node is here for the projects you check out on this box, not for Claude
 # Code itself -- the native installer ships its own runtime.
 workstation_nodejs_major: 22

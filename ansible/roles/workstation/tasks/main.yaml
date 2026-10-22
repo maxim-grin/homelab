@@ -77,6 +77,22 @@
     update_cache: true
   when: workstation_nodesource_repo is changed or workstation_nodesource_old_list is changed
 
+- name: Create the agent user
+  ansible.builtin.user:
+    name: "{{ workstation_agent_user }}"
+    comment: Claude agent
+    shell: /bin/bash
+    create_home: true
+    groups: []
+    append: false
+    password_lock: true
+
+- name: Authorize the agent user's SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ workstation_agent_user }}"
+    key: "{{ item }}"
+  loop: "{{ workstation_agent_authorized_keys }}"
+
 - name: Install Node.js
   ansible.builtin.apt:
     name: nodejs
