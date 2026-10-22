@@ -782,7 +782,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://home.hl.mgryn.cc/
 Expect: both below 400 (these are the same conditions Gatus checks), and
 every Gatus endpoint green, including `argocd.mgryn.cc` and
 `grafana.mgryn.cc` in group `prod`. Gatus alerts to Telegram within about
-two minutes of a failure.
+two minutes of a failure. After a rebuild, all green for 5 minutes is the
+pass criterion ([rebuild.md](../rebuild.md), step 20).
 
 If not: Glance's Services widget showing ERROR for every hostname is a stale
 `/etc/resolv.conf` in a LAN container
