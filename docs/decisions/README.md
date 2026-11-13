@@ -45,3 +45,4 @@ Context or Decision.
 | [0030](0030-opt-in-server-side-diff.md) | Apps can opt in to server-side diff | Accepted | 2026-10-12 |
 | [0031](0031-path-gated-ci.md) | CI jobs run only for the areas a pull request touches | Accepted | 2026-10-13 |
 | [0032](0032-dashboards-as-jsonnet.md) | Grafana dashboards are jsonnet, rendered to committed JSON | Accepted | 2026-10-13 |
+| [0033](0033-shortener-sqlite-on-nfs.md) | The shortener keeps SQLite on the NFS StorageClasses | Accepted | 2026-11-13 |
