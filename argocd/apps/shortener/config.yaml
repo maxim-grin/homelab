@@ -1,0 +1,9 @@
+# One list entry per env; see argocd/environments/prod/applications/appset.yaml.
+- env: prod
+  namespace: shortener
+  createNamespace: true
+  serverSideApply: true
+- env: dev
+  namespace: shortener
+  createNamespace: true
+  serverSideApply: true
