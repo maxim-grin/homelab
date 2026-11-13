@@ -18,14 +18,21 @@ spec:
     spec:
       # The image runs as uid 10001; fsGroup makes the volume writable for it.
       securityContext:
+        runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: shortener
           # The overlay's `images:` sets the version; the repo holds one version string.
           image: ghcr.io/maxim-grin/multi-short-url
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 8080
               name: http
