@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: directive-copilot
+
+resources:
+  - namespace.yaml
+  - postgres-statefulset.yaml
+  - postgres-service.yaml
+  - backup-pvc.yaml
+  - backup-cronjob.yaml
+
+# The name carries a content hash, so a changed script reaches the next run.
+configMapGenerator:
+  - name: postgres-backup-script
+    files:
+      - backup.sh

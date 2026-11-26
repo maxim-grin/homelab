@@ -1,0 +1,11 @@
+# A volume of its own, so losing the database's volume leaves the dumps.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-backup
+spec:
+  accessModes: [ReadWriteOnce]
+  # storageClassName comes from the overlay.
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,10 @@
+# One list entry per env; see argocd/environments/prod/applications/appset.yaml.
+- env: prod
+  namespace: directive-copilot
+  createNamespace: true
+  # Keeps the rendered Secret out of the last-applied-configuration
+  # annotation, which would hold its values in clear text.
+  serverSideApply: true
+  # Compare the way it syncs, or the postgres StatefulSet can read OutOfSync
+  # forever on fields the API server fills in (ADR 0030).
+  serverSideDiff: true
