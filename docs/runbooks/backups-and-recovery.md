@@ -404,14 +404,20 @@ database. `<user_name>` is `user_name` in `secret.yaml`. The archive goes
 to the home directory, never into this public repository:
 
 ```bash
-TAR="$HOME/directive-copilot-dumps-$(date +%F).tar"
-ssh -i ~/.ssh/homelab_dev <user_name>@${NFS_IP:?} \
-  'cd /srv/nfs/prod && tar -cf - directive-copilot-postgres-backup-*' > "$TAR"
+TAR="$HOME/directive-copilot-dumps-$(date +%Y%m%dT%H%M%S).tar"
+(
+  umask 077
+  ssh -n -i ~/.ssh/homelab_dev <user_name>@${NFS_IP:?} \
+    'cd /srv/nfs/prod && tar -cf - directive-copilot-postgres-backup-*' \
+    > "$TAR.partial" &&
+    mv "$TAR.partial" "$TAR"
+)
 tar -tvf "$TAR"
 ```
 
-Expect: `.dump` files with non-zero sizes. If not: list `/srv/nfs/prod` on
-`nfs-01` and find the backup volume's directory.
+Expect: `.dump` files with non-zero sizes. If not: a `.tar.partial` file is an
+incomplete copy, so delete it; list `/srv/nfs/prod` on `nfs-01`, find the
+backup volume's directory and run the block again.
 
 Retained volumes: deleting either PVC leaves its data under `/srv/nfs/prod`
 (`nfs-prod` retains it), but a new PVC gets a new, empty directory and does

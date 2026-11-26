@@ -16,7 +16,10 @@ spec:
       labels:
         app: ollama
     spec:
-      # 10001 owns the NFS share's files through fsGroup.
+      # The Service named ollama would inject OLLAMA_PORT and similar.
+      enableServiceLinks: false
+      # uid 10001 can write because the NFS share directory is 0777; fsGroup only
+      # matters on storage that honours it.
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001

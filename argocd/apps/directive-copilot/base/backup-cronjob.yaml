@@ -4,6 +4,7 @@ metadata:
   name: postgres-backup
 spec:
   schedule: "0 9 * * *"
+  timeZone: UTC
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
