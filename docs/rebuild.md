@@ -284,18 +284,36 @@ reconcile against a machine that is gone and produce confusing errors.
 
 After the SSD is replaced, discard it rather than fighting it:
 
+One block per root, in this order. Read each plan before answering `yes`.
+
 ```bash
-for env in shared dev prod; do
-  cd terraform/environments/$env
-  rm terraform.tfstate terraform.tfstate.backup
-  terraform init
-  terraform apply -var-file=$env.tfvars    # creates everything fresh
-  cd -
-done
+cd "$(git rev-parse --show-toplevel)/terraform/environments/shared" &&
+rm -f terraform.tfstate terraform.tfstate.backup &&
+terraform init &&
+terraform apply -var-file=shared.tfvars    # creates everything fresh
+```
+
+Dev is paused ([ADR 0034](decisions/0034-dev-paused-prod-grown.md)), so its
+root creates only `claude-code`. Expect `1 to add, 0 to change, 0 to
+destroy`. Never drop `-target` while paused: it creates running dev VMs beside
+prod's 7 GB workers.
+
+```bash
+cd "$(git rev-parse --show-toplevel)/terraform/environments/dev" &&
+rm -f terraform.tfstate terraform.tfstate.backup &&
+terraform init &&
+terraform apply -target=module.claude_code -var-file=dev.tfvars
 ```
 
 `prod` needs the pool and the `talos-tp` template from section 2b first, and
 its `prod.tfvars` and `backend.tf` from the workstation.
+
+```bash
+cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" &&
+rm -f terraform.tfstate terraform.tfstate.backup &&
+terraform init &&
+terraform apply -var-file=prod.tfvars    # creates everything fresh
+```
 
 This is safe _because_ nothing in Proxmox survives the disk swap. Never do it
 against a live environment.
@@ -426,9 +444,10 @@ from `secret.yaml`.
    `nfs-01` (vmid 103) with its OS disk and the `nfs-dev`, `nfs-prod` and
    `nfs-backups` data disks, `vault-02` (vmid 105) with its data disk, and
    the five LAN service containers (vmids 140–144);
-   `terraform/environments/dev` with `-var-file=dev.tfvars` creates the
-   other four VMs. Dev is paused (ADR 0034): do not apply `dev` while paused,
-   since it creates running VMs beside prod's 7 GB workers.
+   `terraform/environments/dev` with `-var-file=dev.tfvars` creates
+   `claude-code` and the two kubeadm VMs. Dev is paused (ADR 0034): while
+   paused, add `-target=module.claude_code` so only `claude-code` is created.
+   An untargeted apply creates running dev VMs beside prod's 7 GB workers.
 5. **Storage** — the first formats and mounts all three data disks on
    `nfs-01` and exports `nfs-dev` to the dev nodes; the second (default
    dev inventory) prepares the clients. Storage first, because everything

@@ -40,7 +40,7 @@ Context or Decision.
 | [0025](0025-runbooks-own-operator-commands.md) | Runbooks own the operator commands; rebuild.md owns the order | Accepted | 2026-10-05 |
 | [0026](0026-uniform-apps.md) | Apps are uniform kustomize directories under one ApplicationSet | Accepted | 2026-10-05 |
 | [0027](0027-dev-is-a-spoke.md) | Dev is a spoke of the prod hub, adopted in place | Accepted | 2026-10-09 |
-| [0028](0028-jobboard-in-prod.md) | jobboard runs on the prod hub; dev is its staging | Accepted, partly superseded by [0034](0034-dev-paused-prod-grown.md) (2026-11-26) | 2026-10-11 |
+| [0028](0028-jobboard-in-prod.md) | jobboard runs on the prod hub; dev is its staging | Accepted, partly superseded by [0034](0034-dev-paused-prod-grown.md) | 2026-10-11 |
 | [0029](0029-jobboard-migrates-in-an-init-container.md) | jobboard migrates its database in an init container | Accepted | 2026-10-12 |
 | [0030](0030-opt-in-server-side-diff.md) | Apps can opt in to server-side diff | Accepted | 2026-10-12 |
 | [0031](0031-path-gated-ci.md) | CI jobs run only for the areas a pull request touches | Accepted | 2026-10-13 |
