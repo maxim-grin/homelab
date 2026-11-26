@@ -206,9 +206,19 @@ step 4. Every apply below: plan first, and stop on any destroy.
    step 4. Skip its `argocd app get clusters-dev` step here: `clusters-dev`
    does not exist until step 4. Its expectations are checked in step 6.
 4. Merge the restore PR. It restores exactly these files to their pre-pause
-   state, each taken from the commit before the pause (`git checkout <pause-sha>^ -- <file>`),
-   unless a later commit changed the file, in which case re-add only the
-   entry by hand:
+   state. Find the pause commit first, the one that deleted `clusters-dev.yaml`
+   (the pause PR has several commits, so do not guess one):
+
+```bash
+PAUSE_SHA=$(git log --diff-filter=D --format=%h -1 main -- argocd/environments/prod/applications/clusters-dev.yaml)
+git show "$PAUSE_SHA^:terraform/environments/dev/main.tf" | grep -n start_at_node_boot
+```
+
+   Expect two lines, both `start_at_node_boot = true`: `kubeadm-dev` and
+   `claude_code`. The file is taken from `"$PAUSE_SHA^"`, the parent of the commit that removed
+   it, which is the pre-pause state. Only then run
+   `git checkout "$PAUSE_SHA^" -- <file>` for each file below, unless a later
+   commit changed that file, in which case re-add only the entry by hand:
    - `terraform/environments/dev/main.tf`: `start_at_node_boot = true`.
    - `terraform/environments/dev/dev.tftest.hcl`: the boot assertion back to
      `n.start_at_node_boot`, message `both nodes start at node boot`. CI runs

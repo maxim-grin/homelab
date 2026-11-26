@@ -30,7 +30,10 @@ says which of them reach dev and prod. The hub bootstrap order is in
 
 Dev is paused ([ADR 0034](../docs/decisions/0034-dev-paused-prod-grown.md)):
 no `config.yaml` lists `env: dev` and `clusters-dev.yaml` is gone. The
-`<app>/dev/` directories and `clusters/dev` stay, so resuming is a revert.
+`<app>/dev/` directories and `clusters/dev` stay. Resume by following
+[Pause and resume dev](../docs/runbooks/playbooks-and-terraform.md#pause-and-resume-dev).
+Do not `git revert` the pause commit: it also holds prod's defaults, and
+reverting them makes the next prod apply try to shrink a disk.
 
 ### Step 1: Apply ArgoCD Projects (Bootstrap Only)
 
