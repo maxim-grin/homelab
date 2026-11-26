@@ -426,8 +426,11 @@ from `secret.yaml`.
    `nfs-01` (vmid 103) with its OS disk and the `nfs-dev`, `nfs-prod` and
    `nfs-backups` data disks, `vault-02` (vmid 105) with its data disk, and
    the five LAN service containers (vmids 140–144);
-   `terraform/environments/dev` with `-var-file=dev.tfvars` creates the
-   other four VMs.
+   `terraform/environments/dev` with `-var-file=dev.tfvars` creates
+   `claude-code`. The dev cluster is destroyed
+   ([ADR 0034](decisions/0034-dev-destroyed-prod-grown.md)): skip its parts,
+   which are the second command of step 5, step 6, step 11 and the CoreDNS
+   pin in step 12.
 5. **Storage** — the first formats and mounts all three data disks on
    `nfs-01` and exports `nfs-dev` to the dev nodes; the second (default
    dev inventory) prepares the clients. Storage first, because everything
@@ -873,8 +876,8 @@ from `secret.yaml`.
        kubectl --kubeconfig "$PROD_KC" -n argocd get applications
        ```
 
-       Expect `argocd-config`, the `clusters` Secret Application,
-       `clusters-dev` and the set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
+       Expect `argocd-config`, the `clusters` Secret Application
+       (`clusters-dev` too, only with dev rebuilt) and the set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
        `prod-cert-manager`, `prod-cert-manager-issuers`,
        `prod-ingress-nginx`, `prod-monitoring-secrets`,
        `prod-kube-prometheus-stack`, `prod-jobboard`), all `Synced` and `Healthy` after
@@ -1123,12 +1126,15 @@ written, not the fresh store's own.
 ## Rebuilding dev only
 
 When the dev VMs are recreated but the host, `nfs-01` and `vault-02` are
-not — a `terraform apply` that replaced them, as PR #47's module rename
-did on 2026-09-27 — skip steps 1–5 and 7 above, and step 13 unless `claude-code` was
-replaced too. Vault is initialised
-and seeded, NFS still holds every PVC's data, and the node vmids and IPs
-come back unchanged, so the Cloudflare records need
-nothing.
+not — after dev was destroyed
+([ADR 0034](decisions/0034-dev-destroyed-prod-grown.md)), or a
+`terraform apply` that replaced them, as PR #47's module rename did on
+2026-09-27 — skip steps 1–5 and 7 above, and step 13 unless `claude-code` was
+replaced too. If dev was destroyed, do steps 1–4 of
+[Rebuild dev](runbooks/playbooks-and-terraform.md#rebuild-dev) first: they
+shrink prod, restore dev's code and create the VMs. Vault is initialised and
+seeded, and the node vmids and IPs come back unchanged, so the Cloudflare
+records need nothing. Volumes start empty (below).
 
 From the workstation, in `ansible/`:
 
@@ -1152,8 +1158,8 @@ holds the new cluster's CA and token: the runbook entry "Register dev with the p
 The hub's `apps` ApplicationSet then syncs the dev apps; dev has no
 ArgoCD of its own.
 
-Applications that carry `<path:...>` placeholders show `Unknown` until
-the Vault step runs, and clear on Argo's next poll. jobboard restarting
+Dev's Applications show errors or `Unknown` until dev is registered, and
+ones with `<path:...>` placeholders also while Vault is sealed. jobboard restarting
 a few times at first is its database host not resolving yet; it settles.
 
 **Verify from the workstation, not a node.** A `curl` run on a node
@@ -1167,10 +1173,10 @@ on the nodes.
 
 ### The new cluster starts with empty volumes
 
-Every PVC is new, so `nfs-dev` gives each one a new directory,
-`/srv/nfs/k8s/<namespace>-<pvc>-<pv>`. The old cluster's directories are
-still there, untouched — their PVCs were never deleted, so the provisioner
-never removed them. jobboard comes up with its schema and no rows. To bring
+Every PVC is new, so `nfs-dev` gives each one a new, empty directory,
+`/srv/nfs/k8s/<namespace>-<pvc>-<pv>`. The old cluster's directories stay on
+`nfs-01` under `/srv/nfs/k8s`, untouched — their PVCs were never deleted, so
+the provisioner never removed them. jobboard comes up with its schema and no rows. To bring
 the old database back, hold the hub's `dev-jobboard` still first,
 otherwise selfHeal scales Postgres back up mid-copy: stop the
 ApplicationSet controller and set the sync policy to none
@@ -1183,8 +1189,8 @@ kubectl -n jobboard scale sts/postgres --replicas=0
 kubectl -n jobboard wait --for=delete pod/postgres-0 --timeout=2m
 ```
 
-On `nfs-01`, find the two `jobboard-data-postgres-0-pvc-*` directories
-with `ls -la /srv/nfs/k8s/` and tell them apart by date:
+On `nfs-01`, list the `jobboard-data-postgres-0-pvc-*` directories with
+`ls -la /srv/nfs/k8s/`; tell the old one and the new one apart by date:
 
 ```bash
 O=/srv/nfs/k8s/jobboard-data-postgres-0-pvc-<old>

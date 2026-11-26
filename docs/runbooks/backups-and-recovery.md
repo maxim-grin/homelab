@@ -192,6 +192,9 @@ cluster.
 
 ## Restore jobboard's database on dev
 
+Dev is destroyed ([ADR 0034](../decisions/0034-dev-destroyed-prod-grown.md)):
+[Rebuild dev](playbooks-and-terraform.md#rebuild-dev) first.
+
 ### Hold dev-jobboard still
 
 When: before copying an old Postgres data directory into a new PVC (order

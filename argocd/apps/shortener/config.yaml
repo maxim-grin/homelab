@@ -3,7 +3,3 @@
   namespace: shortener
   createNamespace: true
   serverSideApply: true
-- env: dev
-  namespace: shortener
-  createNamespace: true
-  serverSideApply: true

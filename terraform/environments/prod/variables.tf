@@ -78,13 +78,13 @@ variable "kubernetes_version" {
 variable "node_cores" {
   description = "CPU cores per node"
   type        = number
-  default     = 2
+  default     = 4
 }
 
 variable "node_disk_size" {
   description = "Boot disk size per node"
   type        = string
-  default     = "20G"
+  default     = "40G"
 }
 
 variable "talos_nodes" {
