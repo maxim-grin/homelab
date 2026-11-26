@@ -88,9 +88,25 @@ Their disks and the `nfs-dev` data stay. `$PROD_KC` is the prod kubeconfig
 
 1. Dump jobboard's database: [Dump jobboard's database](backups-and-recovery.md#dump-jobboards-database).
 2. Merge the pause PR. It removes the `env: dev` entries and
-   `argocd/environments/prod/applications/clusters-dev.yaml`. Expect the
-   `dev-*` Applications to show `Unknown`; the set does not delete them.
-3. Delete the eight `dev-*` Applications. Patch the finalizer to `null`, then
+   `argocd/environments/prod/applications/clusters-dev.yaml`. After the merge
+   `clusters-dev` is expected to be gone, and the `dev-*` Applications show
+   `Unknown`. The set does not delete them.
+3. Gate: list the Applications. Do not run step 4 unless both hold.
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+```
+
+Expect: no `clusters-dev` row, and all eight of `dev-cert-manager`,
+`dev-cert-manager-issuers`, `dev-ingress-nginx`, `dev-jobboard`,
+`dev-kube-prometheus-stack`, `dev-monitoring-secrets`, `dev-nfs-provisioner`,
+`dev-shortener` with SYNC `Unknown`. Otherwise STOP and do not run the loop.
+If `clusters-dev` is still listed, the merge has not propagated yet: wait for
+ArgoCD's next poll and list again. If a `dev-*` Application still points at
+its entry on `main`, the set re-adds the finalizer, and the delete then
+cascades into the workloads and the `nfs-dev` data.
+
+4. Delete the eight `dev-*` Applications. Patch the finalizer to `null`, then
    delete, back to back, as in [Retire an app from the set](checks.md#retire-an-app-from-the-set):
    the set's controller puts the finalizer back, so never delete with it in
    place. No cascade: the workloads and `nfs-dev` data stay.
@@ -102,12 +118,13 @@ for app in dev-cert-manager dev-cert-manager-issuers dev-ingress-nginx dev-jobbo
     --type merge -p '{"metadata":{"finalizers":null}}' &&
   kubectl --kubeconfig "$PROD_KC" -n argocd delete application "$app"
 done
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications
 ```
 
-Expect: none of the eight in `kubectl -n argocd get applications`, and none
-back after the next poll. If not: the entry is still on `main`.
+Expect: none of the eight, and no `clusters-dev`, in the last listing, and
+none back after the next poll. If one comes back, the entry is still on `main`.
 
-4. Stop the dev VMs. Their `start_at_node_boot` is already `false` from the
+5. Stop the dev VMs. Their `start_at_node_boot` is already `false` from the
    pause PR.
 
 ```bash
@@ -125,7 +142,10 @@ qm shutdown 4201
 
 Expect: `qm list` shows both `stopped`.
 
-5. Grow prod. In `prod.tfvars` set both workers to `memory = 7168` (see
+6. Grow prod. First, on `pve`, run `lvs`: the thin pool must have well over
+   60 GB free, since the three disks grow by 20 GB each. If not, STOP. A full
+   thin pool gives every guest I/O errors, and a disk cannot be shrunk back.
+   Then, in `prod.tfvars`, set both workers to `memory = 7168` (see
    `prod.tfvars.example`). Remove or update any `node_cores` or
    `node_disk_size` override, since the defaults are now 4 and `40G`.
 
@@ -138,7 +158,7 @@ Expect `0 to add, 3 to change, 0 to destroy`. Any destroy is a stop. Then
 `terraform apply -var-file=prod.tfvars`. Nothing restarts: the Talos modules
 set `automatic_reboot = false`.
 
-6. Roll the prod nodes, one at a time, workers first, then the control plane.
+7. Roll the prod nodes, one at a time, workers first, then the control plane.
    Order: `3201`, `3202`, `3101`. For each (`<node>` from `kubectl get nodes`,
    `<vmid>` the node's vmid; `drain` for workers only):
 
@@ -153,7 +173,7 @@ kubectl --kubeconfig "$PROD_KC" uncordon <node>
 Wait for `Ready` before the next node. A guest reboot does not apply pending
 changes, which is why this is `qm shutdown` and `qm start`.
 
-7. Verify:
+8. Verify:
 
 ```bash
 kubectl --kubeconfig "$PROD_KC" get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEM:.status.capacity.memory,DISK:.status.capacity.ephemeral-storage
@@ -165,20 +185,50 @@ Also expect every `prod-*` Application `Synced` and `Healthy`,
 `https://jobs.mgryn.cc/` answering, and `qm list` showing 4101 and 4201
 `stopped`.
 
-**Resume** (the reverse, in this order)
+**Resume** (in this order)
 
-1. Shrink prod: set both workers back to `memory = 4096` in `prod.tfvars`,
-   apply, and roll the nodes as in step 6. Keep `node_cores` and
-   `node_disk_size` at 4 and `40G`: Proxmox cannot shrink a disk, so do not
-   revert those defaults.
-2. Start the VMs on `pve`: `qm start 4101` and `qm start 4201`. Expect both
-   `running`, and the nodes `Ready` once they join.
-3. Revert the pause: restore `start_at_node_boot = true` on `kubeadm-dev`,
-   the `env: dev` entries and `clusters-dev.yaml`. Only dev's files are
-   reverted here. Merge it, then `terraform apply -var-file=dev.tfvars` in
-   `environments/dev`. Expect `clusters-dev` to show `ComparisonError` until
-   the next step runs ([Register dev with the prod hub](#register-dev-with-the-prod-hub)).
-4. Run [Register dev with the prod hub](#register-dev-with-the-prod-hub).
+Never `git revert` the pause commit as a whole, and never revert anything
+under `terraform/environments/prod/`. The commit also holds prod's
+`node_cores` 4 and `node_disk_size` `40G` defaults. Reverting them makes the
+next prod apply try to shrink a disk: Proxmox refuses, and Terraform state
+then records a size the host does not have. Restore only the files named in
+step 4. Every apply below: plan first, and stop on any destroy.
+
+1. Shrink prod's workers. In `prod.tfvars` set both workers back to
+   `memory = 4096`, and change nothing else: never disk or cores. Plan,
+   apply, then roll the nodes as in step 7. Before applying, check that any
+   app added since the pause (directive-copilot, for example) fits in 4 GB
+   workers, or retire it first. Otherwise its pods are evicted.
+2. Start the dev VMs on `pve`: `qm start 4101` and `qm start 4201`. Expect
+   both `running`, and the nodes `Ready` once they join.
+3. Run the dev_register playbook, [Register dev with the prod hub](#register-dev-with-the-prod-hub),
+   with Vault unsealed (its gate applies). Run it before the restore merge in
+   step 4. Skip its `argocd app get clusters-dev` step here: `clusters-dev`
+   does not exist until step 4. Its expectations are checked in step 6.
+4. Merge the restore PR. It restores exactly these files to their pre-pause
+   state, each taken from the commit before the pause (`git checkout <pause-sha>^ -- <file>`),
+   unless a later commit changed the file, in which case re-add only the
+   entry by hand:
+   - `terraform/environments/dev/main.tf`: `start_at_node_boot = true`.
+   - `terraform/environments/dev/dev.tftest.hcl`: the boot assertion back to
+     `n.start_at_node_boot`, message `both nodes start at node boot`. CI runs
+     `terraform test`.
+   - the `env: dev` entries in the eight `argocd/apps/*/config.yaml` files
+     (`cert-manager`, `cert-manager-issuers`, `ingress-nginx`, `jobboard`,
+     `kube-prometheus-stack`, `monitoring-secrets`, `nfs-provisioner`,
+     `shortener`).
+   - `argocd/environments/prod/applications/clusters-dev.yaml`.
+5. Apply dev: `cd terraform/environments/dev`, then
+   `terraform plan -var-file=dev.tfvars`. Expect no add and no destroy, with
+   `start_at_node_boot` as the change. Any destroy is a stop. Then
+   `terraform apply -var-file=dev.tfvars`.
+6. Hard-refresh and check, as the end of the [Register dev](#register-dev-with-the-prod-hub)
+   entry: `argocd app get clusters-dev --hard-refresh --grpc-web` and
+   `argocd cluster list --grpc-web`. The Register expectations differ on
+   resume. `clusters-dev` should be Synced and Healthy. The set re-creates the
+   `dev-*` Applications from the restored entries, and they sync. `dev` moves
+   from `Unknown` ("no applications") to `Successful` once its apps sync. If a
+   `dev-*` Application stays on `ComparisonError`, check the Vault seed first.
 
 ## Playbooks
 

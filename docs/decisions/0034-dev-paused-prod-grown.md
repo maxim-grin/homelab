@@ -47,10 +47,12 @@ Rejected:
 
 ## Consequences
 
-- Resuming `dev` is a revert: set `start_at_node_boot` back to `true`,
-  restore the `env: dev` entries and `clusters-dev.yaml`, start the VMs.
-  The `argocd/apps/*/dev/` directories and the VM definitions are kept for
-  this.
+- Resuming `dev` is not a plain revert. Shrink prod first: workers back to
+  4096 MB, with cores and disks left at 4 and 40G, since a disk cannot shrink.
+  Then restore dev's files only: `dev/main.tf`, `dev/dev.tftest.hcl`, the
+  `env: dev` entries and `clusters-dev.yaml`. The `argocd/apps/*/dev/`
+  directories and the VM definitions are kept for this. The runbook entry
+  "Pause and resume dev" lists the steps.
 - Prod's disks and cores are bigger after the next apply, and each node
   restarts to take them (`automatic_reboot = false`, one node at a time).
   The single control plane's restart takes the API down briefly.
