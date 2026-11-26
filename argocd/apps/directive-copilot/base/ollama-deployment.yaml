@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+spec:
+  replicas: 1
+  # The model volume is ReadWriteOnce; a rolling update would start the new pod
+  # before the old one releases it.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      # 10001 owns the NFS share's files through fsGroup.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      # The pull runs to completion before the server starts, so a restart with
+      # no internet finds the model on the volume and never reaches the registry.
+      initContainers:
+        - name: pull-model
+          # The overlay's `images:` sets the version; the repo holds one version string.
+          image: ollama/ollama
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/scripts/pull-model.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: MODEL
+              value: nomic-embed-text:v1.5
+            - name: HOME
+              value: /models
+            - name: OLLAMA_MODELS
+              value: /models
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2
+              memory: 2Gi
+      containers:
+        - name: ollama
+          image: ollama/ollama
+          imagePullPolicy: IfNotPresent
+          # The image's entrypoint is the ollama binary; `serve` is its default argument.
+          args: ["serve"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 11434
+              name: http
+          env:
+            - name: HOME
+              value: /models
+            - name: OLLAMA_MODELS
+              value: /models
+            # One request at a time: the embedding endpoint shares a 2Gi limit.
+            - name: OLLAMA_NUM_PARALLEL
+              value: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2
+              memory: 2Gi
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+        - name: script
+          configMap:
+            name: ollama-pull-script

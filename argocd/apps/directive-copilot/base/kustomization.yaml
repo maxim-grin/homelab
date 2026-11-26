@@ -9,9 +9,15 @@ resources:
   - postgres-service.yaml
   - backup-pvc.yaml
   - backup-cronjob.yaml
+  - ollama-deployment.yaml
+  - ollama-service.yaml
+  - ollama-pvc.yaml
 
-# The name carries a content hash, so a changed script reaches the next run.
+# The names carry a content hash, so a changed script reaches the next run.
 configMapGenerator:
   - name: postgres-backup-script
     files:
       - backup.sh
+  - name: ollama-pull-script
+    files:
+      - pull-model.sh

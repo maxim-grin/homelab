@@ -12,6 +12,8 @@ resources:
 images:
   - name: pgvector/pgvector
     newTag: "0.8.7-pg16@sha256:484e838076e04939d27d3e176e91c86eea96236126023be8d3059761122e579f"
+  - name: ollama/ollama
+    newTag: "0.40.18@sha256:1cabd20e1762a7a8444bf4a7110b346d923cd77ab6c97c984434140638c913ec"
 
 patches:
   - target:
@@ -24,6 +26,13 @@ patches:
   - target:
       kind: PersistentVolumeClaim
       name: postgres-backup
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: nfs-prod
+  - target:
+      kind: PersistentVolumeClaim
+      name: ollama-models
     patch: |-
       - op: add
         path: /spec/storageClassName
