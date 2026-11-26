@@ -556,6 +556,82 @@ reverts it on the next sync, so follow any emergency patch with the pull
 request. Avoid a manual run while the admin Crawl button is in use: the
 crawler is not designed for concurrent runs.
 
+### Check directive-copilot
+
+When: after the first deploy of `prod-directive-copilot`, and after any
+change to it. Before the first merge, its two `kv-prod` paths
+(`directive-copilot/db`, `directive-copilot/llm`, shape in
+`ansible/secret.yaml.example`) must be seeded
+([Seed](playbooks-and-terraform.md#seed)) with Vault left unsealed.
+
+On the operator's workstation, first the pods, the nodes' disks, pgvector
+and one backup:
+
+```bash
+argocd app get prod-directive-copilot --grpc-web | grep -E 'Sync Status|Health Status'
+kubectl --kubeconfig "${PROD_KC:?}" -n directive-copilot get pods
+kubectl --kubeconfig "$PROD_KC" get nodes \
+  -o custom-columns='NODE:.metadata.name,DISKPRESSURE:.status.conditions[?(@.type=="DiskPressure")].status'
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot exec postgres-0 -- \
+  psql -U copilot -d copilot -tAc "select default_version from pg_available_extensions where name='vector'"
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot create job backup-check \
+  --from=cronjob/postgres-backup
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot wait \
+  --for=condition=complete job/backup-check --timeout=15m
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot logs job/backup-check
+```
+
+Expect: `Synced` and `Healthy`; every pod `Running` and ready (finished
+backup pods `Completed`); `False` for `DISKPRESSURE` on every node;
+`0.8.7`; `condition met`; and a log line `backup: wrote
+copilot-<UTC timestamp>.dump` (the script has already read the whole dump
+with `pg_restore`). Then remove the Job, so the name is free next time:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot delete job backup-check
+```
+
+Never run the backup against a database that was lost or re-initialised:
+see [Dump directive-copilot's database](backups-and-recovery.md#dump-directive-copilots-database).
+
+Then the four gateway aliases, through a port-forward. The key is
+`LITELLM_MASTER_KEY` under `directive-copilot/llm` in `secret.yaml`; it is
+read without echo and reaches curl on stdin, never the command line. The
+three chat calls go to OpenRouter.
+
+```bash
+kubectl --kubeconfig "${PROD_KC:?}" -n directive-copilot port-forward svc/litellm 4000:4000 >/dev/null &
+PF=$!
+sleep 3
+printf 'LiteLLM master key: '; read -rs LLM_KEY; echo
+for m in chat judge chat-dev; do
+  printf '\n%s: ' "$m"
+  printf 'Authorization: Bearer %s\n' "$LLM_KEY" |
+    curl -sS -H @- -H 'Content-Type: application/json' \
+      -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"Say ok.\"}]}" \
+      http://127.0.0.1:4000/v1/chat/completions
+done
+printf '\nembed: '
+printf 'Authorization: Bearer %s\n' "$LLM_KEY" |
+  curl -sS -H @- -H 'Content-Type: application/json' \
+    -d '{"model":"embed","input":"hello"}' http://127.0.0.1:4000/v1/embeddings |
+  python3 -c 'import json, sys; print(len(json.load(sys.stdin)["data"][0]["embedding"]))'
+unset LLM_KEY
+kill "$PF"
+```
+
+Expect: JSON with `choices` for `chat`, `judge` and `chat-dev`, then
+`embed: 768`; OpenRouter's activity page shows OpenAI and Anthropic as the
+providers of the `chat` and `judge` calls.
+
+If not: `Unknown` with a `ComparisonError` is an unseeded path or a sealed
+Vault ([Is Vault up and unsealed](#is-vault-up-and-unsealed)). `No
+connected db` means a wrong master key: the gateway has no database, so it
+answers 400, not 401. If `chat-dev` fails on data policy, record the error
+and decide; do not silently turn zero data retention off. If `embed` fails,
+read the `ollama` pod's `pull-model` init container log. A request carrying
+its own `extra_body.provider` replaces the provider pin, so send none.
+
 ### Prove AVP end to end
 
 When: after a Vault, ArgoCD or auth-mount change, or a rebuild. Runs the

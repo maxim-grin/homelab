@@ -12,8 +12,11 @@ resources:
   - ollama-deployment.yaml
   - ollama-service.yaml
   - ollama-pvc.yaml
+  - litellm-deployment.yaml
+  - litellm-service.yaml
 
-# The names carry a content hash, so a changed script reaches the next run.
+# The names carry a content hash, so a changed script or alias list reaches
+# the pods.
 configMapGenerator:
   - name: postgres-backup-script
     files:
@@ -21,3 +24,6 @@ configMapGenerator:
   - name: ollama-pull-script
     files:
       - pull-model.sh
+  - name: litellm-config
+    files:
+      - config.yaml=litellm-config.yaml
