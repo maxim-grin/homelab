@@ -1,5 +1,8 @@
 # Ansible
 
+Dev is paused ([ADR 0034](../docs/decisions/0034-dev-paused-prod-grown.md)),
+so its playbooks run only on resume.
+
 Configures what Terraform builds: the kubeadm dev cluster's OS and packages,
 the NFS server, `vault-02`, the LAN service LXCs, the workstation VM, and
 ArgoCD on the Talos prod cluster. The commands to run each playbook, and what

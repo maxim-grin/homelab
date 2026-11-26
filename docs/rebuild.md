@@ -1122,6 +1122,9 @@ written, not the fresh store's own.
 
 ## Rebuilding dev only
 
+Dev is paused ([ADR 0034](decisions/0034-dev-paused-prod-grown.md)): resume
+it first ([Pause and resume dev](runbooks/playbooks-and-terraform.md#pause-and-resume-dev)).
+
 When the dev VMs are recreated but the host, `nfs-01` and `vault-02` are
 not — a `terraform apply` that replaced them, as PR #47's module rename
 did on 2026-09-27 — skip steps 1–5 and 7 above, and step 13 unless `claude-code` was

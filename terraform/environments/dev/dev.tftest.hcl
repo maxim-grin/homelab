@@ -52,8 +52,8 @@ run "kubeadm_dev_sizes_and_boot" {
     error_message = "both disks are 30G"
   }
   assert {
-    condition     = alltrue([for n in concat(values(output.master_nodes), values(output.worker_nodes)) : n.start_at_node_boot])
-    error_message = "both nodes start at node boot"
+    condition     = alltrue([for n in concat(values(output.master_nodes), values(output.worker_nodes)) : !n.start_at_node_boot])
+    error_message = "dev is paused: neither node starts at node boot"
   }
   assert {
     condition     = values(output.master_nodes)[0].startup == "order=20,up=60" && values(output.worker_nodes)[0].startup == "order=30"

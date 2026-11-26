@@ -26,6 +26,10 @@ manifests and Helm for third-party charts. CI on GitHub Actions
 (`.github/workflows/ci.yaml`) runs static checks and script tests, nothing
 against a live cluster.
 
+Dev is paused ([ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md)): its
+VMs are off and its apps are removed. The text below describes it as it runs
+once resumed.
+
 `dev` is the kubeadm cluster, a spoke of the prod hub: it has no ArgoCD
 of its own, and the hub's `apps` ApplicationSet generates its `dev-*`
 apps. `terraform/environments/prod` is the Talos

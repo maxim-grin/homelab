@@ -7,7 +7,7 @@ Copy-paste commands for running and checking things are in the [runbooks](runboo
 ## Applying a change
 
 ```bash
-# provision or change VMs (dev cluster, claude-code)
+# provision or change VMs (dev cluster, claude-code; dev is paused, ADR 0034)
 cd terraform/environments/dev
 terraform apply -var-file=dev.tfvars
 
@@ -200,7 +200,9 @@ jobboard is the owner's own web application, deployed here with its
 Postgres. Its source lives in a private repository; this one only
 deploys the image, `ghcr.io/maxim-grin/jobboard`.
 
-jobboard runs in prod as `prod-jobboard`; dev is its staging. Each
+jobboard runs in prod as `prod-jobboard`; dev is its staging, but dev is
+paused ([ADR 0034](decisions/0034-dev-paused-prod-grown.md)), so new tags go
+straight to prod. Each
 overlay (`argocd/apps/jobboard/dev` and `.../prod`)
 names the published version to run in its `kustomization.yaml`, and prod's
 moves only by a pull request

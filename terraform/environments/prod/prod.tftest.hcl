@@ -16,6 +16,15 @@ variables {
   }
 }
 
+run "node_defaults" {
+  command = plan
+
+  assert {
+    condition     = var.node_cores == 4 && var.node_disk_size == "40G"
+    error_message = "node defaults must be 4 cores and a 40G disk (dev's capacity moved to prod)"
+  }
+}
+
 run "three_nodes_one_controlplane" {
   command = plan
 

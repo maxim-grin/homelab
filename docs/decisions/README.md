@@ -46,3 +46,4 @@ Context or Decision.
 | [0031](0031-path-gated-ci.md) | CI jobs run only for the areas a pull request touches | Accepted | 2026-10-13 |
 | [0032](0032-dashboards-as-jsonnet.md) | Grafana dashboards are jsonnet, rendered to committed JSON | Accepted | 2026-10-13 |
 | [0033](0033-shortener-sqlite-on-nfs.md) | The shortener keeps SQLite on the NFS StorageClasses | Accepted | 2026-11-13 |
+| [0034](0034-dev-paused-prod-grown.md) | Dev is paused; prod takes its memory and grows | Accepted | 2026-11-26 |

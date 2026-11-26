@@ -63,15 +63,15 @@ module "kubeadm-dev" {
   master_disk_size = "30G"
   worker_disk_size = "30G"
 
-  # Come back after a host power loss. Without this the module defaulted to
-  # false and the entire cluster stayed down on 2026-09-10 while nfs-01 and
-  # claude-code-01, which set it, returned on their own.
+  # Paused (ADR 0034): dev's RAM is now prod's. Nodes must not start at node
+  # boot, or a host reboot would take that RAM back. Resuming means setting
+  # this to true again and starting the VMs.
   # The module's default is "stopped", which left the replacement's VMs
   # off until someone ran qm start. Create them running. The module ignores
   # later power_state changes, so this only matters at creation.
   power_state = "running"
 
-  start_at_node_boot = true
+  start_at_node_boot = false
 
   # Master ahead of the workers, with 60s for the API server to answer before
   # kubelets start trying to reach it. Both after nfs-01 at order=10, which

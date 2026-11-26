@@ -17,8 +17,11 @@ gateway = "192.0.2.1"
 # became unresponsive (connection refused, TLS handshake timeouts, the VM's
 # memory at its ceiling) when ArgoCD re-applied the monitoring chart, with its
 # large CRDs, after a merge on 2026-10-06.
+#
+# Workers are 7168, not 4096: dev's 6 GB was moved here when dev was paused
+# (ADR 0034). The defaults in variables.tf (4 cores, 40G disk) also grew.
 talos_nodes = {
   cp1 = { role = "controlplane", vmid = 3101, ip = "192.0.2.110", memory = 4096 }
-  w1  = { role = "worker", vmid = 3201, ip = "192.0.2.111", memory = 4096 }
-  w2  = { role = "worker", vmid = 3202, ip = "192.0.2.112", memory = 4096 }
+  w1  = { role = "worker", vmid = 3201, ip = "192.0.2.111", memory = 7168 }
+  w2  = { role = "worker", vmid = 3202, ip = "192.0.2.112", memory = 7168 }
 }

@@ -192,6 +192,9 @@ cluster.
 
 ## Restore jobboard's database on dev
 
+Dev is paused ([ADR 0034](../decisions/0034-dev-paused-prod-grown.md)): this
+needs dev's VMs running, so resume dev first ([Pause and resume dev](playbooks-and-terraform.md#pause-and-resume-dev)).
+
 ### Hold dev-jobboard still
 
 When: before copying an old Postgres data directory into a new PVC (order

@@ -16,10 +16,9 @@ argocd/
 ├── environments/
 │   └── prod/applications/         # root-prod's children, on the hub
 │       ├── app-of-apps.yaml       # root application (root-prod)
-│       ├── appset.yaml            # ApplicationSet: <cluster>-<dir> apps, prod and dev
+│       ├── appset.yaml            # ApplicationSet: <cluster>-<dir> apps, prod (and dev when resumed)
 │       ├── argocd-config.yaml     # syncs argocd/base
-│       ├── clusters.yaml          # the prod cluster Secret app
-│       └── clusters-dev.yaml      # the dev cluster Secret app
+│       └── clusters.yaml          # the prod cluster Secret app
 └── README.md
 ```
 
@@ -28,6 +27,10 @@ Apps today: `alerts`, `cert-manager`, `cert-manager-issuers`,
 `monitoring-secrets`, `nfs-provisioner`, `pve-exporter`. Each `config.yaml`
 says which of them reach dev and prod. The hub bootstrap order is in
 [docs/rebuild.md](../docs/rebuild.md).
+
+Dev is paused ([ADR 0034](../docs/decisions/0034-dev-paused-prod-grown.md)):
+no `config.yaml` lists `env: dev` and `clusters-dev.yaml` is gone. The
+`<app>/dev/` directories and `clusters/dev` stay, so resuming is a revert.
 
 ### Step 1: Apply ArgoCD Projects (Bootstrap Only)
 

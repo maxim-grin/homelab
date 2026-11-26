@@ -89,7 +89,7 @@ pool; `host_ips` in `ansible/secret.yaml` records them.
 | Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time                                                       | `ansible/roles/vault`, `terraform/environments/shared`                                                  |
 
 **Scope.** One physical machine, one SSD, two Kubernetes clusters: `dev`
-(kubeadm, running the platform today) and `prod` (Talos, three nodes, the
+(kubeadm, paused since [ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md), so its VMs are off) and `prod` (Talos, three nodes, the
 hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
 delivers the platform apps (storage, TLS, ingress, monitoring, alerting)
 from `main` once they merge; the operator's rollout checks are steps 18

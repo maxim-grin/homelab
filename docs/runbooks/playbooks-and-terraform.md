@@ -77,6 +77,109 @@ Expect: the node returns and reports the new size. For Talos, a guest-level
 
 If not: `qm status <vmid>`; see [checks.md](checks.md) for host checks.
 
+### Pause and resume dev
+
+When: dev's 6 GB goes to prod's workers ([ADR 0034](../decisions/0034-dev-paused-prod-grown.md)).
+The VMs are `kubeadm-dev-cp1` (vmid 4101) and `kubeadm-dev-w1` (vmid 4201).
+Their disks and the `nfs-dev` data stay. `$PROD_KC` is the prod kubeconfig
+([access](access.md)). Run these in order.
+
+**Pause**
+
+1. Dump jobboard's database: [Dump jobboard's database](backups-and-recovery.md#dump-jobboards-database).
+2. Merge the pause PR. It removes the `env: dev` entries and
+   `argocd/environments/prod/applications/clusters-dev.yaml`. Expect the
+   `dev-*` Applications to show `Unknown`; the set does not delete them.
+3. Delete the eight `dev-*` Applications. Patch the finalizer to `null`, then
+   delete, back to back, as in [Retire an app from the set](checks.md#retire-an-app-from-the-set):
+   the set's controller puts the finalizer back, so never delete with it in
+   place. No cascade: the workloads and `nfs-dev` data stay.
+
+```bash
+for app in dev-cert-manager dev-cert-manager-issuers dev-ingress-nginx dev-jobboard \
+  dev-kube-prometheus-stack dev-monitoring-secrets dev-nfs-provisioner dev-shortener; do
+  kubectl --kubeconfig "$PROD_KC" -n argocd patch application "$app" \
+    --type merge -p '{"metadata":{"finalizers":null}}' &&
+  kubectl --kubeconfig "$PROD_KC" -n argocd delete application "$app"
+done
+```
+
+Expect: none of the eight in `kubectl -n argocd get applications`, and none
+back after the next poll. If not: the entry is still on `main`.
+
+4. Stop the dev VMs. Their `start_at_node_boot` is already `false` from the
+   pause PR.
+
+```bash
+cd terraform/environments/dev
+terraform plan -var-file=dev.tfvars
+```
+
+Expect `0 to add, 2 to change, 0 to destroy`. Any destroy is a stop. Then
+`terraform apply -var-file=dev.tfvars`, and on `pve`:
+
+```bash
+qm shutdown 4101
+qm shutdown 4201
+```
+
+Expect: `qm list` shows both `stopped`.
+
+5. Grow prod. In `prod.tfvars` set both workers to `memory = 7168` (see
+   `prod.tfvars.example`). Remove or update any `node_cores` or
+   `node_disk_size` override, since the defaults are now 4 and `40G`.
+
+```bash
+cd terraform/environments/prod
+terraform plan -var-file=prod.tfvars
+```
+
+Expect `0 to add, 3 to change, 0 to destroy`. Any destroy is a stop. Then
+`terraform apply -var-file=prod.tfvars`. Nothing restarts: the Talos modules
+set `automatic_reboot = false`.
+
+6. Roll the prod nodes, one at a time, workers first, then the control plane.
+   Order: `3201`, `3202`, `3101`. For each (`<node>` from `kubectl get nodes`,
+   `<vmid>` the node's vmid; `drain` for workers only):
+
+```bash
+kubectl --kubeconfig "$PROD_KC" drain <node> --ignore-daemonsets --delete-emptydir-data
+qm shutdown <vmid>
+qm start <vmid>
+kubectl --kubeconfig "$PROD_KC" get node <node>
+kubectl --kubeconfig "$PROD_KC" uncordon <node>
+```
+
+Wait for `Ready` before the next node. A guest reboot does not apply pending
+changes, which is why this is `qm shutdown` and `qm start`.
+
+7. Verify:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEM:.status.capacity.memory,DISK:.status.capacity.ephemeral-storage
+```
+
+Expect: 4 CPU on all three nodes, about 7 GiB on the workers, and disk near
+40 GB. If disk is still near 20 GB, stop: Talos did not grow the partition.
+Also expect every `prod-*` Application `Synced` and `Healthy`,
+`https://jobs.mgryn.cc/` answering, and `qm list` showing 4101 and 4201
+`stopped`.
+
+**Resume** (the reverse, in this order)
+
+1. Shrink prod: set both workers back to `memory = 4096` in `prod.tfvars`,
+   apply, and roll the nodes as in step 6. Keep `node_cores` and
+   `node_disk_size` at 4 and `40G`: Proxmox cannot shrink a disk, so do not
+   revert those defaults.
+2. Start the VMs on `pve`: `qm start 4101` and `qm start 4201`. Expect both
+   `running`, and the nodes `Ready` once they join.
+3. Revert the pause: restore `start_at_node_boot = true` on `kubeadm-dev`,
+   the `env: dev` entries and `clusters-dev.yaml`. Only dev's files are
+   reverted here. Merge it, then `terraform apply -var-file=dev.tfvars` in
+   `environments/dev`. Expect `clusters-dev` to show `ComparisonError` until
+   the next step runs ([Register dev with the prod hub](#register-dev-with-the-prod-hub)).
+4. Run [Register dev with the prod hub](#register-dev-with-the-prod-hub).
+
 ## Playbooks
 
 Run from `ansible/` with `-e @secret.yaml --ask-vault-pass`. The default
@@ -128,6 +231,10 @@ Expect: `failed=0`; workers show `Ready` in `kubectl get nodes`. If not: see
 [checks.md](checks.md).
 
 ### Register dev with the prod hub
+
+Dev is paused ([ADR 0034](../decisions/0034-dev-paused-prod-grown.md)), so
+this runs only on resume, in [Pause and resume dev](#pause-and-resume-dev).
+The text below describes it as it runs with dev up.
 
 When: after any dev rebuild (a new cluster has a new CA and token, so the
 old ones in Vault are stale), and once when dev first becomes a spoke. It
