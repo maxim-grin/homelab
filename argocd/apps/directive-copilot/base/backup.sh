@@ -18,17 +18,18 @@ trap 'rm -f -- "$partial"' EXIT
 [ ! -e "$name" ] || { echo "backup: $name already exists" >&2; exit 1; }
 
 pg_dump -Fc -f "$partial"
-# shortcut: --list reads only the table of contents; add a full read
-# (pg_restore -f /dev/null) if a damaged dump ever gets through.
 pg_restore --list "$partial" > /dev/null
+# --list reads only the table of contents, so a truncated dump passes it; this
+# reads every data block and touches no database.
+pg_restore -f /dev/null "$partial"
 mv -- "$partial" "$name"
 echo "backup: wrote $name"
 
 # A killed run leaves its partial behind; after a day no run still writes it.
 find . -maxdepth 1 -type f -name 'copilot-*.dump.partial' -mmin +1440 -delete
 
-# Only names this script writes: a hand-made *.dump sorting after them would
-# otherwise take a slot and push real dumps out.
+# Prune only names this script writes: a hand-made *.dump is never removed, and
+# cannot take a slot and push real dumps out.
 dumps=(copilot-????????T??????Z.dump)
 for ((i = 0; i < ${#dumps[@]} - 14; i++)); do
   # With the clock set back the new dump sorts oldest; never remove it.

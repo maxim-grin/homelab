@@ -33,7 +33,8 @@ STUB
   cat > "$d/pg_restore" <<'STUB'
 #!/usr/bin/env bash
 echo "pg_restore $*" >> "$S/calls.log"
-exit "${STUB_RESTORE_RC:-0}"
+[ "$1" = --list ] && exit "${STUB_LIST_RC:-0}"
+exit "${STUB_READ_RC:-0}"
 STUB
   cat > "$d/date" <<'STUB'
 #!/usr/bin/env bash
@@ -54,7 +55,7 @@ new_env() {
   export REAL_PATH="$ORIG_PATH"
   export PATH="$root/bin:$ORIG_PATH"
   export BACKUP_DIR="$D"
-  unset STUB_STAMP STUB_DUMP_RC STUB_RESTORE_RC
+  unset STUB_STAMP STUB_DUMP_RC STUB_LIST_RC STUB_READ_RC
   # a script that fails to change directory must not write into the checkout
   cd "$root" || exit 1
 }
@@ -131,7 +132,9 @@ test_the_partial_is_dumped_in_custom_format_and_checked_before_rename() {
   grep -qx 'pg_dump -Fc -f copilot-20260201T090000Z.dump.partial' "$S/calls.log" \
     || fail "pg_dump call: $(cat "$S/calls.log")"
   grep -qx 'pg_restore --list copilot-20260201T090000Z.dump.partial' "$S/calls.log" \
-    || fail "pg_restore call: $(cat "$S/calls.log")"
+    || fail "pg_restore list call: $(cat "$S/calls.log")"
+  grep -qx 'pg_restore -f /dev/null copilot-20260201T090000Z.dump.partial' "$S/calls.log" \
+    || fail "pg_restore full read call: $(cat "$S/calls.log")"
 }
 
 test_failed_pg_dump_prunes_nothing() {
@@ -142,9 +145,18 @@ test_failed_pg_dump_prunes_nothing() {
   assert_untouched
 }
 
-test_failed_pg_restore_prunes_nothing() {
+test_failed_list_check_prunes_nothing() {
   old_dumps 15
-  STUB_RESTORE_RC=1 run
+  STUB_LIST_RC=1 run
+  assert_failed
+  assert_called pg_restore
+  assert_untouched
+}
+
+# a truncated archive keeps its table of contents, so --list passes it
+test_dump_that_lists_but_cannot_be_read_in_full_prunes_nothing() {
+  old_dumps 15
+  STUB_READ_RC=1 run
   assert_failed
   assert_called pg_restore
   assert_untouched
