@@ -16,7 +16,7 @@ argocd/
 ├── environments/
 │   └── prod/applications/         # root-prod's children, on the hub
 │       ├── app-of-apps.yaml       # root application (root-prod)
-│       ├── appset.yaml            # ApplicationSet: <cluster>-<dir> apps, prod (and dev when resumed)
+│       ├── appset.yaml            # ApplicationSet: <cluster>-<dir> apps
 │       ├── argocd-config.yaml     # syncs argocd/base
 │       └── clusters.yaml          # the prod cluster Secret app
 └── README.md
@@ -25,15 +25,14 @@ argocd/
 Apps today: `alerts`, `cert-manager`, `cert-manager-issuers`,
 `grafana-dashboards`, `ingress-nginx`, `jobboard`, `kube-prometheus-stack`,
 `monitoring-secrets`, `nfs-provisioner`, `pve-exporter`. Each `config.yaml`
-says which of them reach dev and prod. The hub bootstrap order is in
+says where each is deployed. The hub bootstrap order is in
 [docs/rebuild.md](../docs/rebuild.md).
 
-Dev is paused ([ADR 0034](../docs/decisions/0034-dev-paused-prod-grown.md)):
-no `config.yaml` lists `env: dev` and `clusters-dev.yaml` is gone. The
-`<app>/dev/` directories and `clusters/dev` stay. Resume by following
-[Pause and resume dev](../docs/runbooks/playbooks-and-terraform.md#pause-and-resume-dev).
-Do not `git revert` the pause commit: it also holds prod's defaults, and
-reverting them makes the next prod apply try to shrink a disk.
+The dev cluster is destroyed
+([ADR 0034](../docs/decisions/0034-dev-destroyed-prod-grown.md)): no
+`config.yaml` lists `env: dev` and `clusters-dev.yaml` is gone. The
+`<app>/dev/` directories and `clusters/dev` stay for
+[Rebuild dev](../docs/runbooks/playbooks-and-terraform.md#rebuild-dev).
 
 ### Step 1: Apply ArgoCD Projects (Bootstrap Only)
 

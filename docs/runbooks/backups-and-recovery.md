@@ -192,8 +192,8 @@ cluster.
 
 ## Restore jobboard's database on dev
 
-Dev is paused ([ADR 0034](../decisions/0034-dev-paused-prod-grown.md)): this
-needs dev's VMs running, so resume dev first ([Pause and resume dev](playbooks-and-terraform.md#pause-and-resume-dev)).
+Dev is destroyed ([ADR 0034](../decisions/0034-dev-destroyed-prod-grown.md)):
+[Rebuild dev](playbooks-and-terraform.md#rebuild-dev) first.
 
 ### Hold dev-jobboard still
 

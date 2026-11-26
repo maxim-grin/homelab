@@ -4,8 +4,7 @@
 
 A single-host Proxmox homelab run as code: Terraform provisions the VMs and
 LXCs, Ansible configures them, and ArgoCD delivers applications to a
-Talos prod cluster (the hub) and a kubeadm dev cluster from this
-repository's `main`. Cluster secrets
+Talos prod cluster (the hub) from this repository's `main`. Cluster secrets
 stay in Vault and are resolved at sync time, TLS comes from Let's Encrypt over
 DNS-01, and a row of small LXCs serves the LAN — DNS, a reverse proxy,
 uptime alerts.
@@ -14,14 +13,13 @@ Three views, each answering one question. Names are the host names in
 `ansible/secret.yaml`'s `host_ips`; the table below says where each is defined.
 
 **Where things run.** One Proxmox host (`pve`, one SSD), three Terraform roots.
-Dev is paused ([ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md)): only
-its two kubeadm VMs are off; `claude-code` still runs.
+The kubeadm `dev` cluster is destroyed
+([ADR 0034](docs/decisions/0034-dev-destroyed-prod-grown.md));
+[Rebuild dev](docs/runbooks/playbooks-and-terraform.md#rebuild-dev) restores it.
 
 ```mermaid
 flowchart LR
-    subgraph dev["environments/dev: kubeadm spoke (kubeadm VMs paused, ADR 0034)"]
-        master["master-01"]
-        worker["worker-01"]
+    subgraph dev["environments/dev"]
         claude["claude-code"]
     end
     subgraph shared["environments/shared"]
@@ -37,19 +35,14 @@ flowchart LR
 ```
 
 **How a change deploys.** Merging to `main` is the deploy; the hub's ArgoCD
-syncs it to both clusters, and Vault fills in secrets at sync time. While dev
-is paused ([ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md)), the
-`dev-*` apps below do not exist and only prod syncs.
+syncs it, and Vault fills in secrets at sync time.
 
 ```mermaid
 flowchart LR
     github["GitHub<br/>main"] --> argocd["ArgoCD on prod<br/>root-prod + ApplicationSet"]
     vault["vault-02"] -- "AVP resolves<br/>secret placeholders" --> argocd
     argocd --> prodapps["prod apps<br/>ingress-nginx, cert-manager,<br/>monitoring, jobboard"]
-    argocd --> devapps["dev-* apps (paused, ADR 0034)<br/>ingress-nginx, cert-manager,<br/>jobboard staging, Prometheus agent"]
     prodapps -- "PVCs" --> nfs["nfs-01"]
-    devapps -- "PVCs" --> nfs
-    devapps -- "remote-write" --> prodapps
 ```
 
 **How the LAN reaches things.** Public DNS names resolve to private
@@ -59,12 +52,10 @@ addresses; Traefik fronts the LAN services and ingress-nginx fronts jobboard.
 flowchart LR
     lan["LAN clients"] -- "*.hl.mgryn.cc" --> traefik["Traefik"]
     lan -- "jobs, argocd, grafana" --> prodingress["prod ingress-nginx"]
-    lan -- "dev-jobs (paused, ADR 0034)" --> devingress["dev ingress-nginx"]
     lan -. "DNS, devices that opt in" .-> pihole["Pi-hole"]
     traefik --> services["Glance, Gatus,<br/>Orangutan, Proxmox UI"]
     traefik -- "DNS-01" --> letsencrypt["Let's Encrypt"]
     prodingress --> jobboard["jobboard + Postgres"]
-    devingress --> staging["jobboard staging (paused)"]
     services -- "Gatus alerts" --> telegram["Telegram"]
 ```
 
@@ -76,25 +67,24 @@ pool; `host_ips` in `ansible/secret.yaml` records them.
 | Layer      | What                                                                                                                                                                            | Where it is defined                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Hypervisor | Proxmox VE, node `pve`                                                                                                                                                          | not in git — see `docs/rebuild.md`                                                                      |
-| VMs        | `kubeadm-dev`: one control plane and one worker, `claude-code` workstation                                                                                     | `terraform/environments/dev`                                                                            |
+| VMs        | `claude-code` workstation                                                                                                                                      | `terraform/environments/dev`                                                                            |
 | VM         | Talos prod cluster: one control plane and two workers; the hub, platform apps delivered by `root-prod`                                                           | `terraform/environments/prod`, `terraform/modules/talos-node`                                           |
 | VM         | `nfs-01`, NFS for dev and prod; `nfs-prod` is exported to the prod workers only                                                                                    | `terraform/environments/shared`                                                                         |
 | VM         | `vault-02`, the Vault VM; `kv-dev` and `kv-prod` both read by AVP                                                                                                               | `terraform/environments/shared`                                                                         |
 | LXCs       | `pihole` (DNS, ad blocking), `traefik` (`*.hl.mgryn.cc`), `glance` (dashboard), `gatus` (uptime, Telegram alerts), `orangutan` (device discovery) | `terraform/environments/shared`, `ansible/roles/pihole`, `ansible/roles/traefik`, `ansible/roles/gatus`, `ansible/roles/orangutan`, `ansible/roles/glance` |
-| OS config  | kubeadm cluster, containerd, NFS server and client                                                                                                                              | `ansible/`                                                                                              |
+| OS config  | NFS server, `vault-02`, the LXCs, the workstation; the kubeadm playbooks are kept for a dev rebuild                                                                             | `ansible/`                                                                                              |
 | GitOps     | ArgoCD on the Talos cluster, bootstrapped by `playbooks/argocd-prod.yaml`, app-of-apps `root-prod` plus one ApplicationSet that generates the prod apps ([ADR 0024](docs/decisions/0024-hub-in-prod.md), [ADR 0026](docs/decisions/0026-uniform-apps.md)) | `ansible/playbooks/argocd-prod.yaml`, `argocd/environments/prod`                                        |
 | Ingress    | ingress-nginx, DaemonSet on host ports 80/443                                                                                                                                   | `argocd/apps/ingress-nginx`                                                                             |
 | TLS        | cert-manager, Let's Encrypt via ACME DNS-01 through Cloudflare                                                                                                                  | `argocd/apps/cert-manager`, `argocd/apps/cert-manager-issuers`                                          |
-| Storage    | `nfs-01` exporting `/srv/nfs/k8s` (`nfs-dev`, the default StorageClass) and the prod share (`nfs-prod`)                                                                                                                  | `ansible/roles/nfs_server`, `argocd/apps/nfs-provisioner`                                               |
-| Apps       | monitoring (a Prometheus agent that remote-writes to the hub); shortener (a small URL shortener, `ghcr.io/maxim-grin/multi-short-url`, SQLite on NFS); jobboard (prod; its dev staging is paused, ADR 0034), the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/`                                                                                          |
+| Storage    | `nfs-01` exporting `/srv/nfs/k8s` (dev's share, old volumes kept) and the prod share (`nfs-prod`)                                                                                                                        | `ansible/roles/nfs_server`, `argocd/apps/nfs-provisioner`                                               |
+| Apps       | shortener (a small URL shortener, `ghcr.io/maxim-grin/multi-short-url`, SQLite on NFS); jobboard, the owner's own web app, whose source is in a private repository — only its image, `ghcr.io/maxim-grin/jobboard`, is deployed here | `argocd/apps/`                                                                                          |
 | Prod hub   | `kube-prometheus-stack` (Prometheus, Grafana, Alertmanager), cert-manager, ingress-nginx and `nfs-prod` on the Talos cluster, generated by the ApplicationSet from `argocd/apps/<app>/config.yaml`; rollout in `docs/rebuild.md` step 18 | `argocd/environments/prod`, `argocd/apps/`                                                              |
 | Dashboards | Grafana dashboards written in jsonnet and rendered to committed JSON: Homelab overview, Proxmox, jobboard and platform ([ADR 0032](docs/decisions/0032-dashboards-as-jsonnet.md)); editing steps in [`docs/runbooks/checks.md`](docs/runbooks/checks.md#edit-a-grafana-dashboard) | `dashboards/`, `argocd/apps/grafana-dashboards` |
 | Alerting   | `pve-exporter` (Proxmox metrics), PodMonitors and rules (`alerts`), Alertmanager to Telegram; runs after the rollout in `docs/rebuild.md` step 19                               | `argocd/apps/pve-exporter`, `argocd/apps/alerts`, `argocd/apps/monitoring-secrets`                      |
 | Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time                                                       | `ansible/roles/vault`, `terraform/environments/shared`                                                  |
 
-**Scope.** One physical machine, one SSD, two Kubernetes clusters: `dev`
-(kubeadm, paused since [ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md): its two kubeadm VMs are off, `claude-code` still runs) and `prod` (Talos, three nodes, the
-hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
+**Scope.** One physical machine, one SSD, one Kubernetes cluster: `prod`
+(Talos, three nodes, the hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
 delivers the platform apps (storage, TLS, ingress, monitoring, alerting)
 from `main` once they merge; the operator's rollout checks are steps 18
 and 19 of `docs/rebuild.md`. The topology is
@@ -129,8 +119,7 @@ Let's Encrypt certificate, obtained by ACME DNS-01, writing a TXT record
 through the Cloudflare API — but by two different components with two
 different tokens. `jobs.mgryn.cc`'s and the prod hub's come from
 cert-manager on prod, with a token held in Vault at
-`kv-prod/cert-manager/cloudflare` (dev's cert-manager still uses
-`kv-dev/cert-manager/cloudflare` for dev's own certificate);
+`kv-prod/cert-manager/cloudflare`;
 `*.hl.mgryn.cc`'s comes from
 Traefik itself, with its own token in `secret.yaml`
 (`traefik_cloudflare_api_token`) — kept separate so either can be revoked
@@ -151,7 +140,7 @@ argocd/           base/       AppProject
                               ApplicationSet that generates the prod apps
 terraform/        modules/    reusable ubuntu-vm, ubuntu-k8s, lxc, nfs-server,
                               vault-vm, talos-node
-                  environments/dev/     the kubeadm cluster and claude-code
+                  environments/dev/     claude-code
                   environments/shared/  nfs-01, vault-02, the LAN LXCs
                   environments/prod/    the Talos prod cluster
 dashboards/       jsonnet sources for the Grafana dashboards; the rendered

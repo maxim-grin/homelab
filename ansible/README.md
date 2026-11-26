@@ -1,7 +1,8 @@
 # Ansible
 
-Dev is paused ([ADR 0034](../docs/decisions/0034-dev-paused-prod-grown.md)),
-so its playbooks run only on resume.
+The dev cluster is destroyed
+([ADR 0034](../docs/decisions/0034-dev-destroyed-prod-grown.md)); its
+playbooks and inventory are kept for a rebuild.
 
 Configures what Terraform builds: the kubeadm dev cluster's OS and packages,
 the NFS server, `vault-02`, the LAN service LXCs, the workstation VM, and

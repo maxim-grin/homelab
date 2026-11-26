@@ -7,7 +7,7 @@ Copy-paste commands for running and checking things are in the [runbooks](runboo
 ## Applying a change
 
 ```bash
-# provision or change VMs (dev cluster, claude-code; dev is paused, ADR 0034)
+# provision or change claude-code
 cd terraform/environments/dev
 terraform apply -var-file=dev.tfvars
 
@@ -15,9 +15,9 @@ terraform apply -var-file=dev.tfvars
 cd terraform/environments/shared
 terraform apply -var-file=shared.tfvars
 
-# configure them
+# configure them (here the workstation; each playbook is in the runbooks)
 cd ansible
-ansible-playbook playbooks/site.yaml -e @secret.yaml --ask-vault-pass
+ansible-playbook playbooks/workstation.yaml -e @secret.yaml --ask-vault-pass
 
 # applications deploy themselves: ArgoCD syncs main from GitHub, so a change
 # is live once its pull request merges, not once it is committed or pushed
@@ -46,7 +46,8 @@ is a stop — see
 Every name resolves through a DNS-only Cloudflare record, so nothing needs an
 `/etc/hosts` entry: all but `vault` and `dev-jobs` are grey-cloud A records,
 two each, to the prod workers; `dev-jobs` is one, to `$DEV_NODE_IP`. `*.hl.mgryn.cc` is a DNS-only wildcard to `$TRAEFIK_IP`.
-Dev is paused (ADR 0034): `dev-jobs` answers nothing until dev returns.
+Dev is destroyed ([ADR 0034](decisions/0034-dev-destroyed-prod-grown.md)): the
+`dev-*` names answer nothing, and nothing sends to the receiver.
 
 ## Prod hub ArgoCD
 
@@ -201,9 +202,9 @@ jobboard is the owner's own web application, deployed here with its
 Postgres. Its source lives in a private repository; this one only
 deploys the image, `ghcr.io/maxim-grin/jobboard`.
 
-jobboard runs in prod as `prod-jobboard`; dev is its staging, but dev is
-paused ([ADR 0034](decisions/0034-dev-paused-prod-grown.md)), so new tags go
-straight to prod. Each
+jobboard runs in prod as `prod-jobboard`. It has no staging while dev is
+destroyed ([ADR 0034](decisions/0034-dev-destroyed-prod-grown.md)), so new
+tags go straight to prod. Each
 overlay (`argocd/apps/jobboard/dev` and `.../prod`)
 names the published version to run in its `kustomization.yaml`, and prod's
 moves only by a pull request
