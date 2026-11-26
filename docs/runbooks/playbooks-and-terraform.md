@@ -144,8 +144,10 @@ Expect exactly `0 to add, 0 to change, 2 to destroy`, and these two:
 | `module.kubeadm-dev.module.nodes["master-01"].proxmox_vm_qemu.ubuntu_vm` | `kubeadm-dev-cp1` | 4101 |
 | `module.kubeadm-dev.module.nodes["worker-01"].proxmox_vm_qemu.ubuntu_vm` | `kubeadm-dev-w1` | 4201 |
 
-   Anything naming `module.claude_code`, or any other count, address, name or
-   vmid, is a stop. Then run `terraform apply -var-file=dev.tfvars`. It prints
+   A `# module.claude_code...` line (updated, replaced or destroyed), or any
+   other count, address, name or vmid, is a stop. Expected beside them: three
+   outputs removed under `Changes to Outputs`, and a deprecation `Warning`
+   that names `module.claude_code`. Then run `terraform apply -var-file=dev.tfvars`. It prints
    the plan again: answer `yes` only if it matches. Do not shut the VMs down
    first: the provider stops a running VM itself, then deletes it. Expect
    `Apply complete! Resources: 0 added, 0 changed, 2 destroyed.` Any error is
@@ -327,7 +329,10 @@ terraform test
    Expect `2 passed, 0 failed`. Commit, open the PR and merge it. Until step 5
    registers the new cluster, `clusters-dev` and the `dev-*` Applications show
    errors or `Unknown`: expected.
-4. Create the VMs. On `pve`, `qm list` must show no 4101 or 4201.
+4. Create the VMs. Start only when both prod workers show about 4 GiB in the
+   `get nodes` command of
+   [Remove dev and grow prod](#remove-dev-and-grow-prod), step 8, and
+   `qm list` on `pve` shows no 4101 or 4201.
 
 ```bash
 git checkout main && git pull &&
