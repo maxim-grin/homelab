@@ -18,7 +18,7 @@ gateway = "192.0.2.1"
 # memory at its ceiling) when ArgoCD re-applied the monitoring chart, with its
 # large CRDs, after a merge on 2026-10-06.
 #
-# Workers are 7168, not 4096: dev's 6 GB was moved here when dev was paused
+# Workers are 7168, not 4096: dev's 6 GB was moved here when dev was destroyed
 # (ADR 0034). The defaults in variables.tf (4 cores, 40G disk) also grew.
 talos_nodes = {
   cp1 = { role = "controlplane", vmid = 3101, ip = "192.0.2.110", memory = 4096 }

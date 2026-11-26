@@ -1,8 +1,9 @@
 # Proxmox Terraform Setup
 
-Three Terraform roots, one per state file. `dev` (paused, ADR 0034: its VMs
-are off) holds the kubeadm
-cluster and `claude-code`; `shared` holds what outlives any one cluster —
+Three Terraform roots, one per state file. `dev` holds only `claude-code`,
+the operator's workstation, since the kubeadm cluster was destroyed (ADR
+[0034](../docs/decisions/0034-dev-destroyed-prod-grown.md)): never run
+`terraform destroy` there. `shared` holds what outlives any one cluster —
 `nfs-01`, `vault-02` and the LAN LXCs; `prod` is the Talos cluster (ADRs [0012](../docs/decisions/0012-hub-and-spoke-topology.md)
 and [0021](../docs/decisions/0021-talos-prod-via-terraform-provider.md)). The
 layout:

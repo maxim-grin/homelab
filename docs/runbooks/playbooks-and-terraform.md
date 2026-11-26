@@ -10,7 +10,7 @@ Three roots, each with its own gitignored `<env>.tfvars` and local state:
 
 | Root                           | Var file         | Holds                                      |
 | ------------------------------ | ---------------- | ------------------------------------------ |
-| `terraform/environments/dev`   | `dev.tfvars`     | the kubeadm cluster, `claude-code-01`      |
+| `terraform/environments/dev`   | `dev.tfvars`     | `claude-code` only; never `terraform destroy` it |
 | `terraform/environments/shared`| `shared.tfvars`  | `nfs-01`, `vault-02`, the LAN LXCs         |
 | `terraform/environments/prod`  | `prod.tfvars`    | the Talos cluster                          |
 
@@ -79,18 +79,20 @@ Expect: the node returns and reports the new size. For Talos, a guest-level
 
 If not: `qm status <vmid>`; see [checks.md](checks.md) for host checks.
 
-### Pause and resume dev
+### Remove dev and grow prod
 
-When: dev's 6 GB goes to prod's workers ([ADR 0034](../decisions/0034-dev-paused-prod-grown.md)).
-The VMs are `kubeadm-dev-cp1` (vmid 4101) and `kubeadm-dev-w1` (vmid 4201).
-Their disks and the `nfs-dev` data stay. `$PROD_KC` is the prod kubeconfig
-([access](access.md)). Run these in order.
-
-**Pause**
+When: once, to destroy dev and give its 6 GB to prod's workers
+([ADR 0034](../decisions/0034-dev-destroyed-prod-grown.md)). Only
+`kubeadm-dev-cp1` (vmid 4101) and `kubeadm-dev-w1` (vmid 4201) are destroyed,
+disks included. The `nfs-dev` directories stay on `nfs-01`. `claude-code`
+(vmid 102), the workstation, is in the same Terraform root and must survive:
+**never run `terraform destroy` in `environments/dev`.** `$PROD_KC` is the
+prod kubeconfig ([access](access.md)). Run these in order.
 
 1. Dump jobboard's database: [Dump jobboard's database](backups-and-recovery.md#dump-jobboards-database).
-2. Merge the pause PR. It removes the `env: dev` entries and
-   `argocd/environments/prod/applications/clusters-dev.yaml`. After the merge
+2. Merge the capacity PR. It removes the `env: dev` entries,
+   `argocd/environments/prod/applications/clusters-dev.yaml` and the
+   `kubeadm-dev` Terraform module. The merge runs no Terraform. After it
    `clusters-dev` is expected to be gone, and the `dev-*` Applications show
    `Unknown`. The set does not delete them.
 3. Gate: list the Applications. Do not run step 4 unless both hold.
@@ -108,10 +110,11 @@ ArgoCD's next poll and list again. If a `dev-*` Application still points at
 its entry on `main`, the set re-adds the finalizer, and the delete then
 cascades into the workloads and the `nfs-dev` data.
 
-4. Delete the eight `dev-*` Applications. Patch the finalizer to `null`, then
-   delete, back to back, as in [Retire an app from the set](checks.md#retire-an-app-from-the-set):
-   the set's controller puts the finalizer back, so never delete with it in
-   place. No cascade: the workloads and `nfs-dev` data stay.
+4. Delete the eight `dev-*` Applications, before the VMs go. Patch the
+   finalizer to `null`, then delete, back to back, as in
+   [Retire an app from the set](checks.md#retire-an-app-from-the-set): the
+   set's controller puts the finalizer back, so never delete with it in place.
+   No cascade: a cascade would delete the `nfs-dev` data.
 
 ```bash
 for app in dev-cert-manager dev-cert-manager-issuers dev-ingress-nginx dev-jobboard \
@@ -126,8 +129,7 @@ kubectl --kubeconfig "$PROD_KC" -n argocd get applications
 Expect: none of the eight, and no `clusters-dev`, in the last listing, and
 none back after the next poll. If one comes back, the entry is still on `main`.
 
-5. Stop the dev VMs. The pause PR sets `start_at_node_boot = false` in code;
-   this apply puts it on the VMs.
+5. Destroy the dev VMs. Start only when none of the eight is listed.
 
 ```bash
 git checkout main && git pull &&
@@ -135,19 +137,29 @@ cd "$(git rev-parse --show-toplevel)/terraform/environments/dev" &&
 terraform plan -var-file=dev.tfvars
 ```
 
-Expect `0 to add, 2 to change, 0 to destroy`. Any other count, any destroy,
-or any disk size going down is a stop. Then
-`terraform apply -var-file=dev.tfvars`, and on `pve`:
+Expect exactly `0 to add, 0 to change, 2 to destroy`, and these two:
+
+| Address to be destroyed | `name` | `vmid` |
+| --- | --- | --- |
+| `module.kubeadm-dev.module.nodes["master-01"].proxmox_vm_qemu.ubuntu_vm` | `kubeadm-dev-cp1` | 4101 |
+| `module.kubeadm-dev.module.nodes["worker-01"].proxmox_vm_qemu.ubuntu_vm` | `kubeadm-dev-w1` | 4201 |
+
+   Anything naming `module.claude_code`, or any other count, address, name or
+   vmid, is a stop. Then run `terraform apply -var-file=dev.tfvars`. It prints
+   the plan again: answer `yes` only if it matches. Do not shut the VMs down
+   first: the provider stops a running VM itself, then deletes it. Expect
+   `Apply complete! Resources: 0 added, 0 changed, 2 destroyed.` Any error is
+   a stop, including a protected guest (the module sets no protection, so
+   someone set it in Proxmox). Then on `pve`:
 
 ```bash
-qm shutdown 4101
-qm shutdown 4201
+qm list
 ```
 
-Expect: `qm list` shows both `stopped`.
+Expect: no 4101 or 4201, and 102 (`claude-code`) `running`.
 
-6. Grow prod. Start only when `qm list` on `pve` shows 4101 and 4201
-   `stopped`. Then, on `pve`, check the thin pool:
+6. Grow prod. Start only after step 5's `qm list` check. On `pve`, check the
+   thin pool:
 
 ```bash
 lvs -o lv_name,lv_size,data_percent,metadata_percent pve
@@ -175,15 +187,11 @@ and 3101. Any other error is a stop. Confirm on `pve` with
 `qm pending <vmid>` for each. Do not set `automatic_reboot = true` or revert
 variables in response. Nothing restarts until step 7.
 
-7. Roll the prod nodes, one at a time. Pause rolls `3201`, `3202`, `3101`,
-   in that order. Resume (its step 1) rolls only `3201`, then `3202`: the
-   control plane has nothing pending. `<node>` is from `kubectl get nodes`,
-   `<vmid>` the node's vmid. Finish all of a node's blocks before starting the
-   next. `jobs.mgryn.cc` has one A record per worker, so during each worker
-   restart some requests fail. The first drain moves every pod onto the other
-   worker, which still has its old size: 4 GB on pause, 7 GB on resume. On
-   resume the second drain has less room, since the first worker is back to
-   4 GB.
+7. Roll the prod nodes, one at a time: `3201`, `3202`, `3101`, in that order.
+   `<node>` is from `kubectl get nodes`, `<vmid>` the node's vmid. Finish all
+   of a node's blocks before starting the next. `jobs.mgryn.cc` has one A
+   record per worker, so during each worker restart some requests fail. The
+   first drain moves every pod onto the other worker, which still has 4 GB.
 
    **(a) Workstation, workers only** (skip for 3101). If the drain fails, stop.
 
@@ -210,9 +218,8 @@ echo restarted
 
    **(c) Workstation.** Repeat until the node is `Ready` and shows the new
    capacity, because a stale `Ready` can show right after restart. Expect CPU
-   4 and disk near 40 GB. Expect memory, on pause, about 7 GiB on a worker and
-   4 GiB on the control plane; on resume, about 4 GiB on a worker. If it never
-   gets there, stop.
+   4, disk near 40 GB, and memory about 7 GiB on a worker, 4 GiB on the
+   control plane. If it never gets there, stop.
 
 ```bash
 kubectl --kubeconfig "$PROD_KC" get node <node>
@@ -235,24 +242,24 @@ kubectl --kubeconfig "$PROD_KC" get nodes -o custom-columns=NAME:.metadata.name,
 Expect: 4 CPU on all three nodes, about 7 GiB on the workers, and disk near
 40 GB. If disk is still near 20 GB, stop: Talos did not grow the partition.
 Also expect every `prod-*` Application `Synced` and `Healthy`,
-`https://jobs.mgryn.cc/` answering, and `qm list` showing 4101 and 4201
-`stopped`.
+`https://jobs.mgryn.cc/` answering, and `qm list` showing no 4101 or 4201 and
+102 `running`.
 
-**Resume** (in this order)
+### Rebuild dev
 
-Never `git revert` the pause commit as a whole, and never revert anything
-under `terraform/environments/prod/`. The commit also holds prod's
-`node_cores` 4 and `node_disk_size` `40G` defaults. Reverting them makes the
-next prod apply try to shrink a disk: Proxmox refuses, and Terraform state
-then records a size the host does not have. Restore only the files named in
-step 4. Every apply below: `git checkout main && git pull`, plan first, and
-stop on any destroy, any count other than the one expected, or any disk size
-going down.
+When: you want dev back after [Remove dev and grow prod](#remove-dev-and-grow-prod).
+Volumes start empty. Run in order: prod shrinks first, or the host is
+over-committed. Never `git revert` the capacity PR, and never restore anything
+under `terraform/environments/prod/`: it also holds prod's `node_cores` 4 and
+`node_disk_size` `40G`, and reverting them makes the next prod apply try to
+shrink a disk (Proxmox refuses, and state records a size the host does not
+have). Every apply: plan first, and stop on any destroy, any count other than
+the one expected, or any disk size going down.
 
-1. Shrink prod's workers. First, check that any app added since the pause
-   (directive-copilot, for example) fits in 4 GB workers, or retire it first;
+1. Shrink prod's workers. First, check that every app added since the removal
+   (directive-copilot, for example) fits in 4 GB workers, or retire it;
    otherwise its pods are evicted. In `prod.tfvars` set both workers back to
-   `memory = 4096`, changing nothing else: never disk or cores. Plan:
+   `memory = 4096`, changing nothing else: never disk or cores.
 
 ```bash
 git checkout main && git pull &&
@@ -260,94 +267,84 @@ cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" &&
 terraform plan -var-file=prod.tfvars
 ```
 
-   Expect `0 to add, 2 to change, 0 to destroy`, with only memory changing.
-   This count is inferred, not measured: any other count, any destroy, or any
-   disk size going down is a stop. Then `terraform apply -var-file=prod.tfvars`.
-   Expect two "needs to be rebooted" Errors
-   ([Resize a node](#resize-a-node)), one each for 3201 and 3202; confirm on
-   `pve` with `qm pending <vmid>` for each. Any other error is a stop. Do not
-   set `automatic_reboot = true` or revert variables. Then roll `3201` and
-   `3202` with the blocks of Pause step 7, using its resume expectations.
-2. Start the dev VMs on `pve` only after both prod workers show about 4 GiB
-   memory in the `get nodes` command of Pause step 8. Then `qm start 4101` and
-   `qm start 4201`. Expect both `running`, and the nodes `Ready` once they join.
-3. Run the dev_register playbook, [Register dev with the prod hub](#register-dev-with-the-prod-hub),
-   with Vault unsealed (its gate applies). Run it before the restore merge in
-   step 4. Skip its `argocd app get clusters-dev` step here: `clusters-dev`
-   does not exist until step 4. Its expectations are checked in step 6. On the
-   workstation, change to the playbook directory first:
-
-```bash
-cd "$(git rev-parse --show-toplevel)/ansible"
-```
-
-4. Merge the restore PR. It restores exactly these files to their pre-pause
-   state. Work on a new branch from `main`. Find the pause commit first, the
-   one that deleted `clusters-dev.yaml` (the pause PR has several commits, so
-   do not guess one):
+   Expect `0 to add, 2 to change, 0 to destroy`, with only memory changing
+   (inferred, not measured). Then `terraform apply -var-file=prod.tfvars`.
+   Expect two "needs to be rebooted" Errors ([Resize a node](#resize-a-node)),
+   one each for 3201 and 3202; confirm on `pve` with `qm pending <vmid>`. Any
+   other error is a stop. Do not set `automatic_reboot = true` or revert
+   variables. Then roll `3201` and `3202` with blocks (a) to (d) of
+   [Remove dev and grow prod](#remove-dev-and-grow-prod), step 7, expecting
+   about 4 GiB on a worker in (c). The second drain has less room than the
+   first, since the first worker is back to 4 GB.
+2. Restore dev's code on a new branch. `REMOVED` is the commit on `main` that
+   deleted `clusters-dev.yaml`; its parent is `main` before the removal.
 
 ```bash
 cd "$(git rev-parse --show-toplevel)" &&
 git checkout main && git pull &&
-git checkout -b restore-dev &&
-PAUSE_SHA=$(git log --diff-filter=D --format=%h -1 main -- argocd/environments/prod/applications/clusters-dev.yaml) &&
-git show "${PAUSE_SHA:?}^:terraform/environments/dev/main.tf" | grep -n start_at_node_boot
+git checkout -b rebuild-dev &&
+REMOVED=$(git log --first-parent -m --diff-filter=D --format=%h -1 main -- argocd/environments/prod/applications/clusters-dev.yaml) &&
+git show "${REMOVED:?}^:terraform/environments/dev/main.tf" | grep -n 'module "kubeadm-dev"'
 ```
 
-   Expect two lines, both `start_at_node_boot = true`: `kubeadm-dev` and
-   `claude_code`. Each file is taken from `"$PAUSE_SHA^"`, the parent of the
-   commit that removed `clusters-dev.yaml`, which is the pre-pause state.
-   Before overwriting a file, see what differs on `main`. Use the same shell,
-   which holds `PAUSE_SHA`; `<file>` is a path from the list below.
+   Expect one line. In the same shell, which holds `REMOVED`, see what differs
+   before overwriting each file; `<file>` is a path from the list below.
 
 ```bash
-cd "$(git rev-parse --show-toplevel)" &&
-git diff "${PAUSE_SHA:?}^" main -- <file>
+git diff "${REMOVED:?}^" main -- <file>
 ```
 
-   `-` lines are pre-pause text the checkout would bring back; `+` lines are
-   text on `main` it would remove. Run the checkout only if every difference
-   is a pause change, as listed per file below:
+   `-` lines are old text the checkout would bring back; `+` lines are text on
+   `main` it would remove. Run the checkout only if every difference comes from
+   the removal:
 
 ```bash
-cd "$(git rev-parse --show-toplevel)" &&
-git checkout "${PAUSE_SHA:?}^" -- <file>
+git checkout "${REMOVED:?}^" -- <file>
 ```
 
-   Any other difference is a later edit: do not check that file out. Edit it
-   by hand, undoing only the pause change. Do this for each file:
-   - `terraform/environments/dev/main.tf`. Pause changes: `kubeadm-dev`'s
-     `start_at_node_boot` flag, and the `Paused` comment that replaced the
-     `Come back after a host power loss` one.
-   - `terraform/environments/dev/dev.tftest.hcl`. Pause changes: the boot
-     assertion's condition and message. CI runs `terraform test`.
+   Any other difference is a later edit: edit that file by hand, undoing only
+   the removal. The files:
+   - `terraform/environments/dev/main.tf`: the `kubeadm-dev` module was
+     replaced by a two-line comment.
+   - `terraform/environments/dev/outputs.tf`: the three node outputs.
+   - `terraform/environments/dev/dev.tftest.hcl`: rewritten for `claude-code`
+     alone.
    - the eight `argocd/apps/*/config.yaml` files (`cert-manager`,
      `cert-manager-issuers`, `ingress-nginx`, `jobboard`,
      `kube-prometheus-stack`, `monitoring-secrets`, `nfs-provisioner`,
-     `shortener`). Pause change: the removed `env: dev` entry; in `jobboard`,
-     also the reworded comment above prod's `serverSideApply`.
-   - `argocd/environments/prod/applications/clusters-dev.yaml`. Pause change:
-     the whole file was deleted, so every line shows as `-`.
-5. Apply dev, after the restore merge. Plan:
+     `shortener`): the `env: dev` entry; in `jobboard`, also the comment above
+     prod's `serverSideApply`.
+   - `argocd/environments/prod/applications/clusters-dev.yaml`: deleted.
+3. Test, then merge. On the same branch, add the ADR that supersedes 0034 and
+   update the docs that say dev is destroyed (`git grep 0034`).
+
+```bash
+cd "$(git rev-parse --show-toplevel)/terraform/environments/dev" &&
+terraform init &&
+terraform test
+```
+
+   Expect `2 passed, 0 failed`. Commit, open the PR and merge it. Until step 5
+   registers the new cluster, `clusters-dev` and the `dev-*` Applications show
+   errors or `Unknown`: expected.
+4. Create the VMs. On `pve`, `qm list` must show no 4101 or 4201.
 
 ```bash
 git checkout main && git pull &&
 cd "$(git rev-parse --show-toplevel)/terraform/environments/dev" &&
+terraform init &&
 terraform plan -var-file=dev.tfvars
 ```
 
-   Expect no add and no destroy, with `start_at_node_boot` as the change
-   (inferred as `0 to add, 2 to change, 0 to destroy`, the mirror of Pause
-   step 5). Any other count, any destroy, or any disk size going down is a
-   stop. Then `terraform apply -var-file=dev.tfvars`.
-6. Wait about 3 minutes after the restore merge for `root-prod` to sync
-   `clusters-dev` back. Then hard-refresh and check, as the end of the [Register dev](#register-dev-with-the-prod-hub)
-   entry: `argocd app get clusters-dev --hard-refresh --grpc-web` and
-   `argocd cluster list --grpc-web`. The Register expectations differ on
-   resume. `clusters-dev` should be Synced and Healthy. The set re-creates the
-   `dev-*` Applications from the restored entries, and they sync. `dev` moves
-   from `Unknown` ("no applications") to `Successful` once its apps sync. If a
-   `dev-*` Application stays on `ComparisonError`, check the Vault seed first.
+   Expect `2 to add, 0 to change, 0 to destroy`: `master-01` (vmid 4101) and
+   `worker-01` (vmid 4201) under `module.kubeadm-dev`. Then
+   `terraform apply -var-file=dev.tfvars`. Expect both VMs `running`.
+5. Configure the cluster and register it:
+   [Rebuilding dev only](../rebuild.md#rebuilding-dev-only). The apps are
+   already on `main`, so registration runs after the merge. Sync by hand any
+   `dev-*` Application left `Sync failed`
+   ([Sync an Application by hand](checks.md#sync-an-application-by-hand)).
+6. Check: [Smoke-test dev](checks.md#smoke-test-dev).
 
 ## Playbooks
 
@@ -400,10 +397,6 @@ Expect: `failed=0`; workers show `Ready` in `kubectl get nodes`. If not: see
 [checks.md](checks.md).
 
 ### Register dev with the prod hub
-
-Dev is paused ([ADR 0034](../decisions/0034-dev-paused-prod-grown.md)), so
-this runs only on resume, in [Pause and resume dev](#pause-and-resume-dev).
-The text below describes it as it runs with dev up.
 
 When: after any dev rebuild (a new cluster has a new CA and token, so the
 old ones in Vault are stale), and once when dev first becomes a spoke. It

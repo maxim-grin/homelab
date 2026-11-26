@@ -1,6 +1,6 @@
 # 0028. jobboard runs on the prod hub; dev is its staging
 
-**Status:** Accepted (2026-10-11); partly superseded by [0034](0034-dev-paused-prod-grown.md)
+**Status:** Accepted (2026-10-11); partly superseded by [0034](0034-dev-destroyed-prod-grown.md)
 
 ## Context
 
