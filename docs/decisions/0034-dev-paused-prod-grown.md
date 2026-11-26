@@ -9,10 +9,10 @@ The host has 32 GB and every VM is committed: prod's three Talos nodes at
 Vault 2 GB each, and five LXCs at 256 MB. The directive-copilot app needs
 Postgres with pgvector, Ollama and LiteLLM on prod. Its images alone are
 3.4 GB (Ollama), 0.7 GB (LiteLLM) and 0.16 GB (pgvector) compressed, and
-`dev`'s 10 GB node disks already caused kubelet evictions (see the
-comments in `terraform/environments/dev/main.tf`).
-Nothing else needs `dev` running: jobboard's staging role
-([0028](0028-jobboard-in-prod.md)) is the only live use of it.
+`dev`'s node disks were 10 GB when they caused kubelet evictions (see the
+comments in `terraform/environments/dev/main.tf`). `dev` also hosts jobboard's
+staging role ([0028](0028-jobboard-in-prod.md)), a shortener copy and the
+monitoring agent; pausing it stops all three.
 
 Figures come from the Terraform code and `.tfvars.example` files, not
 from live `.tfvars` or measured memory use.

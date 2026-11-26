@@ -427,7 +427,8 @@ from `secret.yaml`.
    `nfs-backups` data disks, `vault-02` (vmid 105) with its data disk, and
    the five LAN service containers (vmids 140–144);
    `terraform/environments/dev` with `-var-file=dev.tfvars` creates the
-   other four VMs.
+   other four VMs. Dev is paused (ADR 0034): do not apply `dev` while paused,
+   since it creates running VMs beside prod's 7 GB workers.
 5. **Storage** — the first formats and mounts all three data disks on
    `nfs-01` and exports `nfs-dev` to the dev nodes; the second (default
    dev inventory) prepares the clients. Storage first, because everything
@@ -499,6 +500,8 @@ from `secret.yaml`.
     here. (Numbering kept so other steps' references hold.)
 11. **Hand dev to the hub** — skip for now and return after step 17
     (the hub does not exist before it; steps 12-16 run first, as listed).
+    Dev is paused (ADR 0034): do not register or apply dev while paused,
+    since it creates running VMs beside prod's 7 GB workers.
     The hub has ArgoCD by then, so register dev with it and let the `apps` ApplicationSet generate
     `dev-ingress-nginx`, `dev-nfs-provisioner`, `dev-cert-manager`,
     `dev-cert-manager-issuers` and `dev-jobboard`. The commands are the
@@ -850,7 +853,9 @@ from `secret.yaml`.
     on the Talos cluster, delivered by `root-prod` from `main`
     ([ADR 0024](decisions/0024-hub-in-prod.md)). Run from the operator's
     workstation; kubectl commands use a `$PROD_KC` extracted as in step
-    17.1 (`rm "$PROD_KC"` when done).
+    17.1 (`rm "$PROD_KC"` when done). Dev is paused (ADR 0034): this step is
+    prod only; do not apply dev while paused, since it creates running VMs
+    beside prod's 7 GB workers.
 
     Prerequisites: step 17 done, and `kv-prod` seeded with
     `cert-manager/cloudflare` (the Cloudflare token), `monitoring/grafana`

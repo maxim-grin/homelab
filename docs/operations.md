@@ -46,6 +46,7 @@ is a stop — see
 Every name resolves through a DNS-only Cloudflare record, so nothing needs an
 `/etc/hosts` entry: all but `vault` and `dev-jobs` are grey-cloud A records,
 two each, to the prod workers; `dev-jobs` is one, to `$DEV_NODE_IP`. `*.hl.mgryn.cc` is a DNS-only wildcard to `$TRAEFIK_IP`.
+Dev is paused (ADR 0034): `dev-jobs` answers nothing until dev returns.
 
 ## Prod hub ArgoCD
 

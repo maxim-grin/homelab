@@ -14,12 +14,12 @@ Three views, each answering one question. Names are the host names in
 `ansible/secret.yaml`'s `host_ips`; the table below says where each is defined.
 
 **Where things run.** One Proxmox host (`pve`, one SSD), three Terraform roots.
-Dev is paused ([ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md)): its
-VMs are off, so the dev part of the diagram below is not running.
+Dev is paused ([ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md)): only
+its two kubeadm VMs are off; `claude-code` still runs.
 
 ```mermaid
 flowchart LR
-    subgraph dev["environments/dev: kubeadm spoke (paused, ADR 0034)"]
+    subgraph dev["environments/dev: kubeadm spoke (kubeadm VMs paused, ADR 0034)"]
         master["master-01"]
         worker["worker-01"]
         claude["claude-code"]
@@ -93,7 +93,7 @@ pool; `host_ips` in `ansible/secret.yaml` records them.
 | Secrets    | Vault (`https://vault.mgryn.cc:8200`), VM `vault-02`; argocd-vault-plugin resolves `<path:...>` placeholders at sync time                                                       | `ansible/roles/vault`, `terraform/environments/shared`                                                  |
 
 **Scope.** One physical machine, one SSD, two Kubernetes clusters: `dev`
-(kubeadm, paused since [ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md), so its VMs are off) and `prod` (Talos, three nodes, the
+(kubeadm, paused since [ADR 0034](docs/decisions/0034-dev-paused-prod-grown.md): its two kubeadm VMs are off, `claude-code` still runs) and `prod` (Talos, three nodes, the
 hub). `prod`'s ArgoCD is bootstrapped by a playbook, and its `root-prod`
 delivers the platform apps (storage, TLS, ingress, monitoring, alerting)
 from `main` once they merge; the operator's rollout checks are steps 18
