@@ -820,6 +820,60 @@ Ingress annotation `cert-manager.io/cluster-issuer` at `letsencrypt-staging`
 the Cloudflare token comes from Vault (`kv-dev/cert-manager/cloudflare`,
 `kv-prod/cert-manager/cloudflare`).
 
+### Check metrics-server
+
+When: after
+[Turn on kubelet serving certificates](playbooks-and-terraform.md#turn-on-kubelet-serving-certificates),
+a metrics-server or approver bump, or when `kubectl top` fails. Prod only.
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications prod-kubelet-serving-cert-approver prod-metrics-server
+kubectl --kubeconfig "$PROD_KC" get apiservice v1beta1.metrics.k8s.io
+kubectl --kubeconfig "$PROD_KC" get --raw /apis/metrics.k8s.io/v1beta1/nodes; echo
+kubectl --kubeconfig "$PROD_KC" top nodes
+kubectl --kubeconfig "$PROD_KC" -n kube-system logs deploy/metrics-server --tail=20
+```
+
+Expect: both apps `Synced` and `Healthy`; the APIService `AVAILABLE` `True`;
+three items from the raw call; three nodes in `top`; no repeating scrape errors
+in the log.
+
+If not: list the requests with `kubectl --kubeconfig "$PROD_KC" get csr`.
+`Pending` ones for `kubernetes.io/kubelet-serving` mean the approver is down:
+check `kubectl --kubeconfig "$PROD_KC" -n kubelet-serving-cert-approver get pods`.
+For a new or newly patched node, until approval it has no serving certificate:
+the metrics-server log shows `remote error: tls: internal error` for it, and the
+`logs` call fails if metrics-server runs on that node. With the approver down,
+[approve by hand](#approve-a-kubelet-serving-certificate-by-hand).
+`x509` in the log instead means that node still serves its self-signed
+certificate (patch not applied there, or the signed one not in use yet), and
+`logs` works: run
+[Turn on kubelet serving certificates](playbooks-and-terraform.md#turn-on-kubelet-serving-certificates).
+
+### Approve a kubelet serving certificate by hand
+
+When: break-glass only, a request is `Pending` and the approver cannot run, for
+example on a rebuild before ArgoCD has synced it. `<name>` is from the first
+column. If several requests are `Pending` for a node, approve the newest.
+
+```bash
+kubectl --kubeconfig "$PROD_KC" get csr | grep -E '^NAME|kubernetes.io/kubelet-serving'
+kubectl --kubeconfig "$PROD_KC" get csr <name> -o jsonpath='{.spec.request}' | base64 -d | openssl req -noout -text
+```
+
+Approve only if the signer is `kubernetes.io/kubelet-serving`, the requestor is
+`system:node:<node>` for one of your nodes, the subject's `CN` is that same
+name, and the subject alternative names are only that node's name and address.
+
+```bash
+kubectl --kubeconfig "$PROD_KC" certificate approve <name>
+kubectl --kubeconfig "$PROD_KC" get csr <name>
+```
+
+Expect: `Approved,Issued`; kube-controller-manager signs it. If not: any field
+that does not match is a stop, do not approve. `Approved` without `Issued`:
+check the kube-controller-manager pod in `kube-system`.
+
 ### Ingress
 
 When: a `*.mgryn.cc` name does not load. ingress-nginx is a DaemonSet on

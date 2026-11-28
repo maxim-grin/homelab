@@ -1,0 +1,13 @@
+# Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
+# deploys this app: one list entry per env. The manifest brings its own
+# Namespace. It approves kubelet serving certificate requests, which
+# kube-controller-manager signs. It must be healthy before a kubelet
+# requests one: for a new or newly patched node, logs, exec, port-forward
+# and kubelet scrapes fail until its request is approved. At renewal the old
+# certificate keeps serving; they fail only if the request is still
+# unapproved when it expires.
+- env: prod
+  namespace: kubelet-serving-cert-approver
+  createNamespace: false
+  serverSideApply: true
+  serverSideDiff: true

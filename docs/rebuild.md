@@ -688,6 +688,14 @@ from `secret.yaml`.
     `talosconfig` fetched as below) or `qm terminal <vmid>` on `pve` show
     what it is waiting for.
 
+    The nodes request their kubelet serving certificates from the cluster
+    CA, and nothing approves them until step 17 has ArgoCD syncing the
+    approver ([ADR 0036](decisions/0036-metrics-server-verified-tls.md)).
+    Until then `kubectl logs` and `exec` should fail and `talosctl health`
+    may stall (expected from source, not proven). If you need them first,
+    for instance to debug ArgoCD,
+    [approve by hand](runbooks/checks.md#approve-a-kubelet-serving-certificate-by-hand).
+
     If the apply fails on the config step with `UnattendedInstallConfig
     config is incompatible with v1alpha1 config (.machine.install)`, a
     patch in `talos.tf` sets the deprecated `machine.install`. Talos 1.14
@@ -702,7 +710,10 @@ from `secret.yaml`.
     replacement. Fetch `talosconfig` the same way as `kubeconfig` if you need
     `talosctl`: `terraform output -raw talosconfig > ~/.talos/config`.
 
-    **Resizing a node.** Edit `memory` in `talos_nodes` and apply. The VM
+    **Resizing a node.** An untargeted apply also pushes any unapplied
+    machine config change to all three nodes; on a cluster that has not had
+    [Turn on kubelet serving certificates](runbooks/playbooks-and-terraform.md#turn-on-kubelet-serving-certificates),
+    do that first. Edit `memory` in `talos_nodes` and apply. The VM
     keeps running with the old size until restarted, because the module sets
     `automatic_reboot = false`. One node at a time: `kubectl drain`, then
     `qm reboot <vmid>` on `pve` (a guest-level `talosctl reboot` does not pick
@@ -812,7 +823,17 @@ from `secret.yaml`.
        Applications read `Unknown` until this runs and clear on Argo's
        next poll.
 
-    7. Prove AVP end to end. ArgoCD renders only from git and no
+    7. Prove AVP end to end. First wait for
+       `prod-kubelet-serving-cert-approver` to be `Healthy`, because `exec`
+       and `logs` fail until then:
+
+       ```bash
+       kubectl --kubeconfig "$PROD_KC" -n argocd get application prod-kubelet-serving-cert-approver
+       ```
+
+       If it does not get there,
+       [approve by hand](runbooks/checks.md#approve-a-kubelet-serving-certificate-by-hand).
+       ArgoCD renders only from git and no
        committed manifest carries a `kv-prod` placeholder, so run the
        plugin directly in the repo-server's `avp` sidecar, which has the
        `AVP_*` and `VAULT_*` variables (`envFrom` the
@@ -880,7 +901,8 @@ from `secret.yaml`.
        (`clusters-dev` too, only with dev rebuilt) and the set's Applications, named `prod-<dir>` (`prod-nfs-provisioner`,
        `prod-cert-manager`, `prod-cert-manager-issuers`,
        `prod-ingress-nginx`, `prod-monitoring-secrets`,
-       `prod-kube-prometheus-stack`, `prod-jobboard`), all `Synced` and `Healthy` after
+       `prod-kube-prometheus-stack`, `prod-jobboard`,
+       `prod-kubelet-serving-cert-approver`, `prod-metrics-server`), all `Synced` and `Healthy` after
        about 3 minutes plus chart pulls. One ApplicationSet generates
        them ([ADR 0026](decisions/0026-uniform-apps.md)); the set's
        Applications carry no sync waves, since the set, not a parent
@@ -1168,8 +1190,8 @@ address. Dev's jobboard is `dev-jobs.mgryn.cc` (`jobs.mgryn.cc` is prod's),
 so reach it with
 `curl -k --resolve dev-jobs.mgryn.cc:443:<dev node IP> https://dev-jobs.mgryn.cc`
 from the workstation; it returns `303` to the login page.
-There is no metrics-server, so `kubectl top` does not work; use `free -m`
-on the nodes.
+Dev has no metrics-server, so `kubectl top` does not work there; use
+`free -m` on the nodes.
 
 ### The new cluster starts with empty volumes
 

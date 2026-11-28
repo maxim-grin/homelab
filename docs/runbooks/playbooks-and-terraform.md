@@ -351,6 +351,192 @@ terraform plan -var-file=dev.tfvars
    ([Sync an Application by hand](checks.md#sync-an-application-by-hand)).
 6. Check: [Smoke-test dev](checks.md#smoke-test-dev).
 
+### Turn on kubelet serving certificates
+
+When: once, to roll `serverTLSBootstrap` onto the running prod nodes
+([ADR 0036](../decisions/0036-metrics-server-verified-tls.md)). Run in order.
+The approver goes first: the apply should restart the kubelet, which drops its
+self-signed serving certificate at once, so `logs`, `exec`, `port-forward` and
+Prometheus kubelet scrapes for that node should fail until its request is
+approved. Expected from source, not proven by a live run. From the merge on,
+**any untargeted `terraform apply` in `environments/prod` pushes the patch to
+all three nodes**, so run no other prod apply until step 5 passes.
+`$PROD_KC` is the prod kubeconfig
+([access](access.md#fetch-the-prod-kubeconfig)).
+
+1. No step here checks for hand changes. The apply replaces the whole machine
+   config, so a change made to it with `talosctl` will be lost, and do not count
+   on a plan to show it. If you made one, add it to `talos.tf` first.
+
+   Until the PR is merged this entry is not on `main`: read it from the PR,
+   also after checking out `main` below. Before merging, check the
+   ApplicationSet, as the PR changes config entries. `<branch>` is the PR's
+   branch, with every commit pushed. From the repository root, run only these
+   from [Verify the ApplicationSet](checks.md#verify-the-applicationset), and
+   add no scratch entry: the `yq -i` line with `<branch>`, the first
+   `argocd appset generate` command, then the `git checkout --` line, which
+   undoes the `yq` edit. The generator then reads the `config.yaml` files of
+   `<branch>` on GitHub, not `main` or your local copies.
+
+   Expect no error and one `prod-<dir>` Application for each `config.yaml`
+   entry, including `prod-kubelet-serving-cert-approver` and
+   `prod-metrics-server`. This replaces that check's own Expect. Anything else:
+   do not merge. Then plan on `main`:
+
+```bash
+git checkout main && git pull &&
+cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" &&
+terraform plan -var-file=prod.tfvars
+```
+
+   Expect `No changes.` If the PR is already merged, expect instead
+   `0 to add, 3 to change, 0 to destroy`, the three changes all
+   `talos_machine_configuration_apply.node`; then skip the rest of this step
+   and the merge in step 2. Anything else is a stop: sort it out first.
+
+   Not merged yet: plan the PR's branch, `<branch>`, then return to `main`:
+
+```bash
+git fetch origin && git checkout <branch> && git pull &&
+terraform plan -var-file=prod.tfvars
+git checkout main
+```
+
+   Expect exactly `0 to add, 3 to change, 0 to destroy`, the three changes all
+   `talos_machine_configuration_apply.node`. Anything else: do not merge.
+2. Merge. Then:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd get applications prod-kubelet-serving-cert-approver prod-metrics-server
+```
+
+   Expect `prod-kubelet-serving-cert-approver` `Synced` and `Healthy` after
+   about 3 minutes. Stop if not: the patch is merged, so run no prod apply
+   until the approver is fixed or the change is reverted
+   ([Roll back kubelet serving certificates](#roll-back-kubelet-serving-certificates)).
+   `prod-metrics-server` stays unready until step 3 is done and the
+   `KubeAggregatedAPIDown` alert may fire after about 5 minutes, so go straight
+   on.
+3. One node at a time, workers first, control plane last: `w1`, `w2`, `cp1`
+   (keys as in `prod.tfvars`; nodes `talos-prod-<key>`). Note the boot ID, then
+   plan:
+
+```bash
+git checkout main && git pull &&
+cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" &&
+kubectl --kubeconfig "$PROD_KC" get node talos-prod-<key> -o jsonpath='{.status.nodeInfo.bootID}{"\n"}' &&
+terraform plan -var-file=prod.tfvars -target='talos_machine_configuration_apply.node["<key>"]'
+```
+
+   Expect `0 to add, 1 to change, 0 to destroy`. Any VM resource in the plan is
+   a stop. The config diff is hidden as sensitive. Then apply. At the prompt
+   answer `yes` only if it still shows `0 to add, 1 to change, 0 to destroy`
+   and no VM resource:
+
+```bash
+terraform apply -var-file=prod.tfvars -target='talos_machine_configuration_apply.node["<key>"]'
+```
+
+4. Check that node before starting the next:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" get node talos-prod-<key>
+kubectl --kubeconfig "$PROD_KC" get node talos-prod-<key> -o jsonpath='{.status.nodeInfo.bootID}{"\n"}'
+kubectl --kubeconfig "$PROD_KC" get csr | grep 'kubernetes.io/kubelet-serving.*system:node:talos-prod-<key> '
+kubectl --kubeconfig "$PROD_KC" get --raw /api/v1/nodes/talos-prod-<key>/proxy/healthz; echo
+```
+
+   Expect `Ready`; the boot ID noted in step 3; the request `Approved,Issued`;
+   and `ok`. A changed boot ID means the node rebooted: note it, it is
+   acceptable once the other three checks hold. Right after the apply these can
+   still show the old state, or fail while the kubelet restarts: repeat all four
+   for a few minutes until the other three hold together. If they do not, STOP
+   and do not apply the next node:
+   - Request `Pending`: the approver is down. Fix the app, or
+     [approve by hand](checks.md#approve-a-kubelet-serving-certificate-by-hand).
+   - No request appears: look at the kubelet's service
+     ([Fetch the talosconfig](access.md#fetch-the-talosconfig); `<node-ip>` is
+     the node's `ip` in `prod.tfvars`):
+     `talosctl --talosconfig "$TC_TMP" -n <node-ip> services`.
+   - Node not back: the same command, and `qm terminal <vmid>` on `pve` shows
+     its console.
+   - Not fixable:
+     [Roll back kubelet serving certificates](#roll-back-kubelet-serving-certificates).
+5. After all three:
+
+```bash
+terraform plan -var-file=prod.tfvars
+```
+
+   Expect `No changes.` Then [Check metrics-server](checks.md#check-metrics-server),
+   and use `logs` and `port-forward` for real:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot logs deploy/litellm --tail=1
+PF_LOG="$(mktemp)"
+kubectl --kubeconfig "${PROD_KC:?}" -n directive-copilot port-forward \
+  --address 127.0.0.1 svc/litellm 4000:4000 >"$PF_LOG" &
+PF=$!
+sleep 5
+grep '^Forwarding from 127.0.0.1:4000' "$PF_LOG" &&
+  curl -sSf --max-time 10 http://127.0.0.1:4000/health/liveliness; echo
+kill "$PF"; rm -f "$PF_LOG"
+```
+
+   Expect one log line, the `Forwarding from` line and a reply from `curl` with
+   no error. If no `Forwarding from` line appeared within the wait, run the
+   block again; after `unable to listen`, free local port 4000 first.
+
+If not: step 4 lists the ways out. A change left in the final plan means a node
+was missed: run steps 3 and 4 for it.
+
+### Roll back kubelet serving certificates
+
+When: [Turn on kubelet serving certificates](#turn-on-kubelet-serving-certificates)
+cannot be finished, or has to be undone. metrics-server goes first, resources
+included: it cannot verify self-signed kubelet certificates, and an unavailable
+aggregated API keeps alerting and can hold namespace deletions in
+`Terminating`. The app owns no Namespace or PVC.
+
+1. Merge a PR that leaves `[]` in `argocd/apps/metrics-server/config.yaml` and
+   changes nothing else. Wait for ArgoCD's next poll (about 3 minutes), then:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd get application prod-metrics-server -o jsonpath='{.metadata.finalizers}{"\n"}'
+```
+
+   Expect the list to hold `resources-finalizer.argocd.argoproj.io`. If it does
+   not, STOP: the delete would leave the resources behind.
+2. Delete the Application. Do **not** patch the finalizer away, unlike the
+   default in [Retire an app from the set](checks.md#retire-an-app-from-the-set):
+   the cascade is the point.
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n argocd delete application prod-metrics-server
+kubectl --kubeconfig "$PROD_KC" get apiservice v1beta1.metrics.k8s.io
+```
+
+   Expect `NotFound` for the APIService (repeat the second command if the
+   cascade is still running), and `prod-metrics-server` still gone after the
+   next poll. If it comes back, `[]` is not on `main`.
+3. Only now revert the patch in `talos.tf` through a PR. Then run step 3 of
+   [Turn on kubelet serving certificates](#turn-on-kubelet-serving-certificates)
+   for each node that was applied, workers first. After each, repeat the `Ready`,
+   boot ID and `healthz` checks of its step 4 until `Ready` and `healthz` hold,
+   and stop if they do not. A changed boot ID is acceptable once they hold (note
+   it); the request check does not apply.
+4. After the last node:
+
+```bash
+cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" &&
+terraform plan -var-file=prod.tfvars
+```
+
+Expect: `No changes.`
+
+If not: a change left in the plan means a node was missed: run step 3 for it.
+For a node that is not back, `qm terminal <vmid>` on `pve` shows its console.
+
 ## Playbooks
 
 Run from `ansible/` with `-e @secret.yaml --ask-vault-pass`. The default

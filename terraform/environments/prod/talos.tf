@@ -43,6 +43,20 @@ data "talos_machine_configuration" "node" {
         wipe = false
       }
     }),
+    # Kubelets request serving certificates from the cluster CA, so
+    # metrics-server can verify them. The kubelet-serving-cert-approver app
+    # approves the requests and kube-controller-manager signs them. For a new
+    # or newly patched node, logs, exec, port-forward and kubelet scrapes
+    # fail until its request is approved. At renewal the old certificate keeps
+    # serving; they fail only if the request is still unapproved when it
+    # expires.
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "KubeletConfig"
+      config = {
+        serverTLSBootstrap = true
+      }
+    }),
   ]
 }
 
