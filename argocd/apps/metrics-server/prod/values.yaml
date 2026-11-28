@@ -1,0 +1,4 @@
+tls:
+  type: cert-manager
+apiService:
+  insecureSkipTLSVerify: false
