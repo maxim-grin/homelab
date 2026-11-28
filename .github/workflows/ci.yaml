@@ -105,6 +105,8 @@ jobs:
               - ansible/playbooks/**
               - ansible/inventories/**
               - terraform/environments/prod/variables.tf
+              - argocd/apps/directive-copilot/base/backup.sh
+              - argocd/apps/directive-copilot/base/pull-model.sh
 
   # The repo's own hooks: file hygiene, check-yaml, private-key and gitleaks
   # scans. ansible-lint, terraform-fmt and jsonnetfmt are `language: system`
@@ -341,7 +343,7 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh scripts/check-appsets.sh scripts/tests/check-appsets.test.sh scripts/verify-dev.sh scripts/tests/verify-dev.test.sh scripts/check-dashboards.sh scripts/tests/check-dashboards.test.sh
+        run: shellcheck scripts/pve-bootstrap.sh scripts/check-talos-pins.sh scripts/check-runbooks.sh scripts/tests/pve-bootstrap.test.sh scripts/tests/check-runbooks.test.sh scripts/check-appsets.sh scripts/tests/check-appsets.test.sh scripts/verify-dev.sh scripts/tests/verify-dev.test.sh scripts/check-dashboards.sh scripts/tests/check-dashboards.test.sh argocd/apps/directive-copilot/base/backup.sh argocd/apps/directive-copilot/base/pull-model.sh scripts/tests/directive-copilot-backup.test.sh
       - name: Talos pins match the prod root
         run: scripts/check-talos-pins.sh
       - name: Runbooks match the playbooks
@@ -352,6 +354,8 @@ jobs:
         run: scripts/tests/pve-bootstrap.test.sh
       - name: Dev verification script tests
         run: scripts/tests/verify-dev.test.sh
+      - name: Database backup script tests
+        run: scripts/tests/directive-copilot-backup.test.sh
       - name: Install yq
         run: |
           bin="$HOME/.local/bin"

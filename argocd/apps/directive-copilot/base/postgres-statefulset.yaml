@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      # 999 is the image's postgres user.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          # The overlay's `images:` sets the version; the repo holds one version string.
+          image: pgvector/pgvector
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: copilot
+            - name: POSTGRES_DB
+              value: copilot
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directive-copilot-db
+                  key: POSTGRES_PASSWORD
+            # Pins collation, which decides text sort order, across image versions.
+            - name: POSTGRES_INITDB_ARGS
+              value: "--locale=en_US.UTF-8 --encoding=UTF8"
+            # initdb refuses a non-empty directory, such as a volume root.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          # -h 127.0.0.1: during first-boot init a temporary server answers on
+          # the socket only, which must not count as up.
+          # The startup probe gives initdb on NFS five minutes: a liveness
+          # kill half way leaves a data directory that is never initialised
+          # again.
+          startupProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "copilot", "-d", "copilot"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "copilot", "-d", "copilot"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "copilot", "-d", "copilot"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+  volumeClaimTemplates:
+    # apiVersion and kind are spelled out as jobboard does; effect unverified
+    # (ADR 0030).
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        # storageClassName comes from the overlay.
+        resources:
+          requests:
+            storage: 10Gi

@@ -47,3 +47,4 @@ Context or Decision.
 | [0032](0032-dashboards-as-jsonnet.md) | Grafana dashboards are jsonnet, rendered to committed JSON | Accepted | 2026-10-13 |
 | [0033](0033-shortener-sqlite-on-nfs.md) | The shortener keeps SQLite on the NFS StorageClasses | Accepted | 2026-11-13 |
 | [0034](0034-dev-destroyed-prod-grown.md) | Dev is destroyed; prod takes its memory and grows | Accepted | 2026-11-26 |
+| [0035](0035-directive-copilot-data-on-nfs.md) | directive-copilot keeps Postgres and its dumps on nfs-prod | Accepted | 2026-11-26 |

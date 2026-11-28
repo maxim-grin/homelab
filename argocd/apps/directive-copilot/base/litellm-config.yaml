@@ -1,0 +1,35 @@
+# Callers use these four names only; changing a model is an edit here.
+model_list:
+  # Each paid alias is pinned to one OpenRouter host with fallbacks off, so
+  # eval runs cannot move between hosts. A request carrying its own
+  # `extra_body.provider` replaces the pin: callers must not send one.
+  - model_name: chat
+    litellm_params:
+      model: openrouter/openai/gpt-6-luna
+      api_key: os.environ/OPENROUTER_API_KEY
+      reasoning_effort: low
+      extra_body:
+        provider:
+          only: [openai]
+          allow_fallbacks: false
+  - model_name: judge
+    litellm_params:
+      model: openrouter/anthropic/claude-haiku-5.5
+      api_key: os.environ/OPENROUTER_API_KEY
+      reasoning_effort: low
+      extra_body:
+        provider:
+          only: [anthropic]
+          allow_fallbacks: false
+  # A free router, for building only: the model behind it changes.
+  - model_name: chat-dev
+    litellm_params:
+      model: openrouter/openrouter/free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: embed
+    litellm_params:
+      model: ollama/nomic-embed-text:v1.5
+      api_base: http://ollama:11434
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

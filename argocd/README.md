@@ -23,9 +23,10 @@ argocd/
 ```
 
 Apps today: `alerts`, `cert-manager`, `cert-manager-issuers`,
-`grafana-dashboards`, `ingress-nginx`, `jobboard`, `kube-prometheus-stack`,
-`monitoring-secrets`, `nfs-provisioner`, `pve-exporter`. Each `config.yaml`
-says where each is deployed. The hub bootstrap order is in
+`directive-copilot`, `grafana-dashboards`, `ingress-nginx`, `jobboard`,
+`kube-prometheus-stack`, `monitoring-secrets`, `nfs-provisioner`,
+`pve-exporter`. Each `config.yaml` says where each is deployed. The hub
+bootstrap order is in
 [docs/rebuild.md](../docs/rebuild.md).
 
 The dev cluster is destroyed

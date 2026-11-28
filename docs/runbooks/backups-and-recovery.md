@@ -15,6 +15,7 @@ Sections: [Vault snapshots](#vault-snapshots),
 [Restore jobboard's database on dev](#restore-jobboards-database-on-dev),
 [Restore jobboard's database into prod](#restore-jobboards-database-into-prod),
 [Flip jobs.mgryn.cc to prod](#flip-jobsmgryncc-to-prod),
+[Dump directive-copilot's database](#dump-directive-copilots-database),
 [Rebuild pointers](#rebuild-pointers).
 
 ## Vault snapshots
@@ -354,6 +355,75 @@ and an empty database, so rows written to prod after the flip are not
 carried back to dev. If not working: `kubectl --kubeconfig "$PROD_KC" -n
 jobboard describe certificate jobboard-tls` and `get order,challenge` on prod; debug with
 `letsencrypt-staging` as in [Certificates](checks.md#certificates).
+
+## Dump directive-copilot's database
+
+When: before a risky change to its Postgres, or to get the dumps off the
+box before anything that can lose prod's volumes. A CronJob
+(`postgres-backup`) already dumps nightly at 09:00 UTC to the
+`postgres-backup` volume and keeps the newest 14
+([ADR 0035](../decisions/0035-directive-copilot-data-on-nfs.md)).
+
+**Database lost or re-initialised? Do not run a dump.** Suspend the CronJob,
+or copy the dumps out, BEFORE recovering: a dump of an empty database
+succeeds, and after 14 runs, nightly or manual, none of the good ones is
+left.
+
+Suspend it, on the operator's workstation:
+
+```bash
+kubectl --kubeconfig "${PROD_KC:?}" -n directive-copilot patch cronjob postgres-backup \
+  -p '{"spec":{"suspend":true}}'
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot get cronjob postgres-backup
+```
+
+Expect: `SUSPEND True`. Whether ArgoCD's selfHeal leaves the patch alone is
+untested: check again before 09:00 UTC, and for a recovery that spans a
+night also set `suspend: true` in
+`argocd/apps/directive-copilot/base/backup-cronjob.yaml` and merge. When the
+data is back, revert that change if made, patch `false` the same way, and
+expect `SUSPEND False`.
+
+A dump by hand, of a healthy database only:
+
+```bash
+JOB="backup-manual-$(date +%s)"
+kubectl --kubeconfig "${PROD_KC:?}" -n directive-copilot create job "$JOB" \
+  --from=cronjob/postgres-backup
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot wait \
+  --for=condition=complete "job/$JOB" --timeout=15m
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot logs "job/$JOB"
+```
+
+Expect: `condition met` and `backup: wrote copilot-<UTC timestamp>.dump`.
+If not: the same `logs` command names the failure; the script removes its
+partial file and prunes nothing.
+
+Copy the dumps off the box. They sit on `nfs-01`, on the same disk as the
+database. `<user_name>` is `user_name` in `secret.yaml`. The archive goes
+to the home directory, never into this public repository:
+
+```bash
+TAR="$HOME/directive-copilot-dumps-$(date +%Y%m%dT%H%M%S).tar"
+(
+  umask 077
+  ssh -n -i ~/.ssh/homelab_dev <user_name>@${NFS_IP:?} \
+    'cd /srv/nfs/prod && tar -cf - directive-copilot-postgres-backup-*' \
+    > "$TAR.partial" &&
+    mv "$TAR.partial" "$TAR"
+)
+tar -tvf "$TAR"
+```
+
+Expect: `.dump` files with non-zero sizes. If not: a `.tar.partial` file is an
+incomplete copy, so delete it; list `/srv/nfs/prod` on `nfs-01`, find the
+backup volume's directory and run the block again.
+
+Retained volumes: deleting either PVC leaves its data under `/srv/nfs/prod`
+(`nfs-prod` retains it), but a new PVC gets a new, empty directory and does
+not pick the old one up. A recreated database therefore starts empty: the
+warning above applies. Remove old directories only through
+[Clean up retained nfs-prod volumes](#clean-up-retained-nfs-prod-volumes).
 
 ## Before an SSD swap
 

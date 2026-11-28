@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: directive-copilot
+
+resources:
+  - ../base
+  - secret.yaml
+
+# The digest goes inside newTag: Renovate skips an entry that sets both
+# `newTag` and `digest`.
+images:
+  - name: pgvector/pgvector
+    newTag: "0.8.7-pg16@sha256:484e838076e04939d27d3e176e91c86eea96236126023be8d3059761122e579f"
+  - name: ollama/ollama
+    newTag: "0.40.18@sha256:1cabd20e1762a7a8444bf4a7110b346d923cd77ab6c97c984434140638c913ec"
+  - name: ghcr.io/berriai/litellm
+    newTag: "v1.111.0@sha256:ce00096d012719d58c52cecfa373f7c6256dd1b0ff08f6fa607e10e9628f1f46"
+
+patches:
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: nfs-prod
+  - target:
+      kind: PersistentVolumeClaim
+      name: postgres-backup
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: nfs-prod
+  - target:
+      kind: PersistentVolumeClaim
+      name: ollama-models
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: nfs-prod
