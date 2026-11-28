@@ -37,9 +37,10 @@ The effects on a node are expected from reading the Talos and provider
 source, not proven by a live run.
 
 - The approver is now needed for `logs`, `exec`, `port-forward` and
-  Prometheus kubelet scrapes: for a new node, and again at every certificate
-  renewal. While a node's request is unapproved, all four fail for that node.
-  It runs one replica.
+  Prometheus kubelet scrapes. For a new or newly patched node, all four fail
+  until its request is approved. At renewal the old certificate keeps serving;
+  they fail only if the request is still unapproved when it expires. The
+  approver runs one replica.
 - It approves kubelet serving requests from every node, with no person
   looking. kube-controller-manager signs what it approves.
 - Applying the patch should not reboot a node (the provider's `apply_mode`
@@ -47,9 +48,10 @@ source, not proven by a live run.
   and drops its self-signed certificate at once, so the approver must be
   healthy first
   ([Turn on kubelet serving certificates](../runbooks/playbooks-and-terraform.md#turn-on-kubelet-serving-certificates)).
-- After the merge, **any untargeted `terraform apply` in `environments/prod`
-  pushes the patch to all three nodes**, including one meant for something
-  else, such as a node resize.
+- After the merge, until all three nodes have the patch, **any untargeted
+  `terraform apply` in `environments/prod` pushes it** to every node still
+  without it, including an apply meant for something else, such as a node
+  resize.
 - On a rebuild from nothing the patch is applied before ArgoCD exists. Until
   the approver syncs, `logs` and `exec` fail, also for debugging ArgoCD, and
   `talosctl health` may stall. The way out is

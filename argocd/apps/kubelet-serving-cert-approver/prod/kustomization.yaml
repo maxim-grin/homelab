@@ -3,7 +3,8 @@ kind: Kustomization
 # No namespace transformer: the RoleBinding in default must stay there.
 resources:
   - standalone-install.yaml
+# The digest goes inside newTag: Renovate skips an entry that sets both
+# `newTag` and `digest`.
 images:
   - name: ghcr.io/alex1989hu/kubelet-serving-cert-approver
-    newTag: 0.12.1
-    digest: sha256:445a8e5584f659701092d2ec8b625da8929dc75fe4d45274333bd9fe6db8fb75
+    newTag: "0.12.1@sha256:445a8e5584f659701092d2ec8b625da8929dc75fe4d45274333bd9fe6db8fb75"

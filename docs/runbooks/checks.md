@@ -841,9 +841,9 @@ in the log.
 If not: list the requests with `kubectl --kubeconfig "$PROD_KC" get csr`.
 `Pending` ones for `kubernetes.io/kubelet-serving` mean the approver is down:
 check `kubectl --kubeconfig "$PROD_KC" -n kubelet-serving-cert-approver get pods`.
-Until approval that node has no serving certificate: the metrics-server log shows
-`remote error: tls: internal error` for it, and the `logs` call fails if
-metrics-server runs on that node. With the approver down,
+For a new or newly patched node, until approval it has no serving certificate:
+the metrics-server log shows `remote error: tls: internal error` for it, and the
+`logs` call fails if metrics-server runs on that node. With the approver down,
 [approve by hand](#approve-a-kubelet-serving-certificate-by-hand).
 `x509` in the log instead means that node still serves its self-signed
 certificate (patch not applied there, or the signed one not in use yet), and
@@ -854,7 +854,7 @@ certificate (patch not applied there, or the signed one not in use yet), and
 
 When: break-glass only, a request is `Pending` and the approver cannot run, for
 example on a rebuild before ArgoCD has synced it. `<name>` is from the first
-column.
+column. If several requests are `Pending` for a node, approve the newest.
 
 ```bash
 kubectl --kubeconfig "$PROD_KC" get csr | grep -E '^NAME|kubernetes.io/kubelet-serving'

@@ -366,8 +366,22 @@ all three nodes**, so run no other prod apply until step 5 passes.
 
 1. No step here checks for hand changes. The apply replaces the whole machine
    config, so a change made to it with `talosctl` will be lost, and do not count
-   on a plan to show it. If you made one, add it to `talos.tf` first. Then,
-   before merging, on `main`:
+   on a plan to show it. If you made one, add it to `talos.tf` first.
+
+   Until the PR is merged this entry is not on `main`: read it from the PR,
+   also after checking out `main` below. Before merging, check the
+   ApplicationSet, as the PR changes config entries. `<branch>` is the PR's
+   branch, with every commit pushed. From the repository root, run only these
+   from [Verify the ApplicationSet](checks.md#verify-the-applicationset), and
+   add no scratch entry: the `yq -i` line with `<branch>`, the first
+   `argocd appset generate` command, then the `git checkout --` line, which
+   undoes the `yq` edit. The generator then reads the `config.yaml` files of
+   `<branch>` on GitHub, not `main` or your local copies.
+
+   Expect no error and one `prod-<dir>` Application for each `config.yaml`
+   entry, including `prod-kubelet-serving-cert-approver` and
+   `prod-metrics-server`. This replaces that check's own Expect. Anything else:
+   do not merge. Then plan on `main`:
 
 ```bash
 git checkout main && git pull &&
@@ -375,7 +389,21 @@ cd "$(git rev-parse --show-toplevel)/terraform/environments/prod" &&
 terraform plan -var-file=prod.tfvars
 ```
 
-   Expect `No changes.` Anything else is a stop: sort it out first.
+   Expect `No changes.` If the PR is already merged, expect instead
+   `0 to add, 3 to change, 0 to destroy`, the three changes all
+   `talos_machine_configuration_apply.node`; then skip the rest of this step
+   and the merge in step 2. Anything else is a stop: sort it out first.
+
+   Not merged yet: plan the PR's branch, `<branch>`, then return to `main`:
+
+```bash
+git fetch origin && git checkout <branch> && git pull &&
+terraform plan -var-file=prod.tfvars
+git checkout main
+```
+
+   Expect exactly `0 to add, 3 to change, 0 to destroy`, the three changes all
+   `talos_machine_configuration_apply.node`. Anything else: do not merge.
 2. Merge. Then:
 
 ```bash
@@ -383,8 +411,11 @@ kubectl --kubeconfig "$PROD_KC" -n argocd get applications prod-kubelet-serving-
 ```
 
    Expect `prod-kubelet-serving-cert-approver` `Synced` and `Healthy` after
-   about 3 minutes. Stop if not. `prod-metrics-server` stays unready until
-   step 3 is done and alerts may fire after about 15 minutes, so go straight
+   about 3 minutes. Stop if not: the patch is merged, so run no prod apply
+   until the approver is fixed or the change is reverted
+   ([Roll back kubelet serving certificates](#roll-back-kubelet-serving-certificates)).
+   `prod-metrics-server` stays unready until step 3 is done and the
+   `KubeAggregatedAPIDown` alert may fire after about 5 minutes, so go straight
    on.
 3. One node at a time, workers first, control plane last: `w1`, `w2`, `cp1`
    (keys as in `prod.tfvars`; nodes `talos-prod-<key>`). Note the boot ID, then
@@ -398,7 +429,9 @@ terraform plan -var-file=prod.tfvars -target='talos_machine_configuration_apply.
 ```
 
    Expect `0 to add, 1 to change, 0 to destroy`. Any VM resource in the plan is
-   a stop. The config diff is hidden as sensitive. Then:
+   a stop. The config diff is hidden as sensitive. Then apply. At the prompt
+   answer `yes` only if it still shows `0 to add, 1 to change, 0 to destroy`
+   and no VM resource:
 
 ```bash
 terraform apply -var-file=prod.tfvars -target='talos_machine_configuration_apply.node["<key>"]'
@@ -413,11 +446,12 @@ kubectl --kubeconfig "$PROD_KC" get csr | grep 'kubernetes.io/kubelet-serving.*s
 kubectl --kubeconfig "$PROD_KC" get --raw /api/v1/nodes/talos-prod-<key>/proxy/healthz; echo
 ```
 
-   Expect `Ready`; the same boot ID (a changed one means the node rebooted: note
-   it); the request `Approved,Issued`; and `ok`. Right after the apply these can
+   Expect `Ready`; the boot ID noted in step 3; the request `Approved,Issued`;
+   and `ok`. A changed boot ID means the node rebooted: note it, it is
+   acceptable once the other three checks hold. Right after the apply these can
    still show the old state, or fail while the kubelet restarts: repeat all four
-   for a few minutes until they hold together. If they do not, STOP and do not
-   apply the next node:
+   for a few minutes until the other three hold together. If they do not, STOP
+   and do not apply the next node:
    - Request `Pending`: the approver is down. Fix the app, or
      [approve by hand](checks.md#approve-a-kubelet-serving-certificate-by-hand).
    - No request appears: look at the kubelet's service
@@ -434,7 +468,24 @@ kubectl --kubeconfig "$PROD_KC" get --raw /api/v1/nodes/talos-prod-<key>/proxy/h
 terraform plan -var-file=prod.tfvars
 ```
 
-   Expect `No changes.` Then [Check metrics-server](checks.md#check-metrics-server).
+   Expect `No changes.` Then [Check metrics-server](checks.md#check-metrics-server),
+   and use `logs` and `port-forward` for real:
+
+```bash
+kubectl --kubeconfig "$PROD_KC" -n directive-copilot logs deploy/litellm --tail=1
+PF_LOG="$(mktemp)"
+kubectl --kubeconfig "${PROD_KC:?}" -n directive-copilot port-forward \
+  --address 127.0.0.1 svc/litellm 4000:4000 >"$PF_LOG" &
+PF=$!
+sleep 5
+grep '^Forwarding from 127.0.0.1:4000' "$PF_LOG" &&
+  curl -sSf --max-time 10 http://127.0.0.1:4000/health/liveliness; echo
+kill "$PF"; rm -f "$PF_LOG"
+```
+
+   Expect one log line, the `Forwarding from` line and a reply from `curl` with
+   no error. If no `Forwarding from` line appeared within the wait, run the
+   block again; after `unable to listen`, free local port 4000 first.
 
 If not: step 4 lists the ways out. A change left in the final plan means a node
 was missed: run steps 3 and 4 for it.
@@ -471,8 +522,9 @@ kubectl --kubeconfig "$PROD_KC" get apiservice v1beta1.metrics.k8s.io
 3. Only now revert the patch in `talos.tf` through a PR. Then run step 3 of
    [Turn on kubelet serving certificates](#turn-on-kubelet-serving-certificates)
    for each node that was applied, workers first. After each, repeat the `Ready`,
-   boot ID and `healthz` checks of its step 4 until they hold, and stop if they
-   do not; the request check does not apply.
+   boot ID and `healthz` checks of its step 4 until `Ready` and `healthz` hold,
+   and stop if they do not. A changed boot ID is acceptable once they hold (note
+   it); the request check does not apply.
 4. After the last node:
 
 ```bash
