@@ -43,6 +43,17 @@ data "talos_machine_configuration" "node" {
         wipe = false
       }
     }),
+    # Kubelets request serving certificates from the cluster CA, so
+    # metrics-server can verify them. Nothing signs those requests until
+    # the kubelet-serving-cert-approver app runs; without it, logs, exec
+    # and port-forward fail and metrics-server stays unready.
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "KubeletConfig"
+      config = {
+        serverTLSBootstrap = true
+      }
+    }),
   ]
 }
 
