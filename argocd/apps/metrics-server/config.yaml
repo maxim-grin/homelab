@@ -1,7 +1,8 @@
 # Where the set `apps` (argocd/environments/prod/applications/appset.yaml)
 # deploys this app: one list entry per env. Needs cert-manager for its
-# serving certificate, and stays unready until the kubelet certificates
-# are signed by kubelet-serving-cert-approver.
+# serving certificate, and stays unready until the kubelet certificate
+# requests are approved (kubelet-serving-cert-approver) and signed
+# (kube-controller-manager).
 - env: prod
   namespace: kube-system
   createNamespace: false
